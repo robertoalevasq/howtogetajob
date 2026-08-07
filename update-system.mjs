@@ -58,6 +58,12 @@ export const REEXEC_BUFFER_TIMEOUT_MS = parsePositiveInt(process.env.CAREER_OPS_
 
 // System layer paths — ONLY these files get updated
 const SYSTEM_PATHS = [
+  // .gitattributes governs how every other path below is written to disk, and
+  // `apply` checks paths out one at a time in this order: if it landed later,
+  // everything before it would be written under the old core.autocrlf setting
+  // on an existing install, silently (once text=auto is live, git status stays
+  // clean and only a second update would repair it).
+  '.gitattributes',
   'modes/README.md',
   'modes/_shared.md',
   'modes/_writing.md',
@@ -66,6 +72,7 @@ const SYSTEM_PATHS = [
   'modes/_brief.template.md',
   'modes/oferta.md',
   'modes/pdf.md',
+  'modes/pdf/',
   'modes/cover.md',
   'modes/email.md',
   'modes/add.md',
@@ -111,6 +118,7 @@ const SYSTEM_PATHS = [
   'modes/es/interview/',
   'modes/id/',
   'modes/it/',
+  'modes/it/interview/',
   'modes/ja/',
   'modes/ko/',
   'modes/nl/',
@@ -137,6 +145,7 @@ const SYSTEM_PATHS = [
   'generate-latex.mjs',
   'extract-latex-content.mjs',
   'patch-latex-content.mjs',
+  'lib/cli-flags.mjs',
   'lib/latex-escape.mjs',
   'lib/latex-content.mjs',
   'lib/context-budget.mjs',
@@ -161,6 +170,7 @@ const SYSTEM_PATHS = [
   'tracker-aliases.json',
   'set-status.mjs',
   'set-status-tests.mjs',
+  'mark-pdf-ready.mjs',
   'normalize-statuses.mjs',
   'cv-sync-check.mjs',
   'verify-cv-facts.mjs',
@@ -172,6 +182,7 @@ const SYSTEM_PATHS = [
   'classify-tier.mjs',
   'scan-ats-full.mjs',
   'scan-interamt.mjs',
+  'company-funded.mjs',
   'match-star.mjs',
   'jd-skill-gap.mjs',
   'prepare-application.mjs',
@@ -180,6 +191,9 @@ const SYSTEM_PATHS = [
   'seeds/',
   'tests/',
   'doctor.mjs',
+  // doctor.mjs imports this one: an install that receives the new doctor
+  // without it would crash on startup.
+  'jsonc-parse.mjs',
   'check-liveness.mjs',
   'liveness-core.mjs',
   'liveness-api.mjs',
@@ -203,6 +217,7 @@ const SYSTEM_PATHS = [
   'assessment-log.mjs',
   'contacts.mjs',
   'contacts.test.mjs',
+  'weekly-digest.mjs',
   'followup-cadence.mjs',
   'followup-cadence.test.mjs',
   'invite-match.mjs',
@@ -232,6 +247,7 @@ const SYSTEM_PATHS = [
   'fix-slugs.mjs',
   'updater-migration-tests.mjs',
   'validate-system-paths-coverage.mjs',
+  'validate-untrusted-content-coverage.mjs',
   'reply-matcher.mjs',
   'reply-matcher.test.mjs',
   'reply-watch.mjs',
@@ -308,12 +324,14 @@ const SYSTEM_PATHS = [
   'build-cv-html.mjs',
   'cv-sections-core.mjs',
   'cv-templates.mjs',
+  'playwright.cv.config.mjs',
   'test/cv-templates.test.mjs',
   'test/cover-resolver.test.mjs',
   'test/pipeline-lock.test.mjs',
   'test/profile-photo.test.mjs',
   'templates/cv-template.zh-minimal.html',
   'test/zh-minimal-template.test.mjs',
+  'test/cv-visual/',
   'scaffolder/',
   'Dockerfile',
   'docker-compose.yml',
@@ -330,6 +348,7 @@ const SYSTEM_PATHS = [
   'opencode.example.json',
   'seed-fixture.mjs',
   'test-fixtures/',
+  'upgrade-tests.mjs',
 ];
 
 const BOOTSTRAP_PATHS = [

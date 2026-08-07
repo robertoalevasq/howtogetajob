@@ -1,0 +1,13 @@
+{
+  "id": "telegram",
+  "name": "Telegram bot notify + poll",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "Send career-ops notifications to Telegram and poll for replies/apply requests via a bot.",
+  "hooks": ["notify", "ingest"],
+  "requiredEnv": ["TELEGRAM_BOT_TOKEN"],
+  "allowedHosts": ["api.telegram.org"],
+  "skill": "skill.md",
+  "humanInTheLoop": true,
+  "homepage": "https://core.telegram.org/bots/api"
+}

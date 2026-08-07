@@ -1,0 +1,13 @@
+{
+  "id": "discord",
+  "name": "Discord webhook notify",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "Post a career-ops run summary — and the deliverable package, when it fits — to a Discord channel via webhook.",
+  "hooks": ["notify"],
+  "requiredEnv": ["DISCORD_WEBHOOK_URL"],
+  "allowedHosts": ["discord.com"],
+  "skill": "skill.md",
+  "humanInTheLoop": true,
+  "homepage": "https://discord.com/developers/docs/resources/webhook"
+}
