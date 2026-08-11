@@ -6,6 +6,7 @@
  */
 
 import { classifyLiveness } from './liveness-core.mjs';
+import { setCachedJd } from './jd-fetch-cache.mjs';
 
 const NAVIGATE_TIMEOUT_MS = 15_000;
 const HYDRATION_WAIT_MS = 2_000;
@@ -281,6 +282,12 @@ export async function checkUrlLiveness(page, url, { extraSettleMs = 0 } = {}) {
     if (page && page._blockedByGuard) {
       return { result: 'uncertain', code: page._blockedByGuard.code, reason: page._blockedByGuard.reason };
     }
+
+    // Persist the page text we already captured for classification so a
+    // later JD-extraction step can reuse it instead of opening a second tab
+    // to the same URL (see jd-fetch-cache.mjs header comment). Best-effort —
+    // never throws, never affects the liveness result below.
+    await setCachedJd(url, { bodyText, source: 'liveness' });
 
     return classifyLiveness({ status, requestedUrl: url, finalUrl, bodyText, applyControls });
   } catch (err) {

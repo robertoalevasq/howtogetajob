@@ -96,7 +96,25 @@ Run these steps in order.
    - Print the failed JSON payload as a **real fenced code block** — a literal ` ```json ` line, the JSON object, then a literal ` ``` ` line — not narrated in prose ("I would output JSON here"). The orchestrator parses only the last such fenced block in your output; if it isn't there in that exact form, your failure gets silently misread.
    - Then stop. No further steps, no explanation report, nothing else written to disk.
 
-### Step 2 — Evaluate A-G
+### Step 1.5 — Pre-screen gate (tiered report depth)
+
+Batch runs process large backlogs unattended, so every offer must be judged for depth before spending a full A-G evaluation on it. This step is mandatory regardless of `spend_tier` — running full A-G on obvious mismatches is the single biggest source of wasted batch spend.
+
+1. Read `modes/_profile.md` and `config/profile.yml` for the candidate's archetypes, clearance posture, location policy, and experience floor.
+2. Judge the loaded JD against those in a quick pass — do not skip reading the real JD text first.
+3. **Obvious hard-stop mismatch** (missing required clearance, wrong professional domain, experience floor off by 3+ years, hard geo/onsite conflict, or another disqualifier your profile marks as a hard stop) → take the **short-report path**:
+   - Write the same report header as Step 3 below (Date, Archetype, Score, Legitimacy, Work Auth, URL, PDF, Batch ID).
+   - Follow it with a 10-20 line `## Quick Assessment` section naming the one or two disqualifying JD requirements verbatim (quote the JD).
+   - Follow it with the `## Machine Summary` YAML block from Step 3 — fill `hard_stops`, `final_decision` (`Skip`), and `discard_reasons` accurately; other fields may be terse but must not be fabricated.
+   - Skip Blocks B-F entirely. Skip Block G and the Risk Summary unless something about the posting itself looks like a scam/ghost listing (in which case do the minimal Block G check only).
+   - Skip PDF generation (Step 4) — the score will be below the auto-PDF threshold by construction.
+   - Append one line to `batch/logs/discard.log` (create the file/dir if absent): `{ISO8601 timestamp}\t{{ID}}\t{{URL}}\t{reason}` — the auditable record of what the gate filtered and why.
+   - Still complete Step 5 (tracker TSV line) and Step 6 (final JSON) as normal — a hard-stop mismatch is a completed job, not a failure.
+   - Then stop; do not continue to the full Step 2 below.
+4. **Anything that survives pre-screen** (no hard stop, or a genuinely close call) → continue to the full Step 2 below.
+5. Every report, short or full, must be grounded in the real fetched JD — never write either report shape with no JD-derived content.
+
+### Step 2 — Evaluate A-G (full path — only when Step 1.5 did not take the short-report path)
 
 Read `cv.md`, `article-digest.md`, `llms.txt`, `modes/_profile.md`, and `config/profile.yml`. Then complete every block below.
 
@@ -423,7 +441,7 @@ If score is greater than or equal to the threshold:
 7. Select the most relevant projects and proof points.
 8. Reorder experience bullets by relevance.
 9. Build a 6-8 item competency grid.
-10. Inject keywords ethically into existing achievements; never invent skills or metrics.
+10. Inject keywords ethically into existing achievements; never invent skills or metrics. Replace the original wording with the JD term — never add it alongside a phrase that already says the same thing (e.g. "HR compliance verifications via HR compliance and regulatory verification" repeats one concept three ways). Read each finished bullet back; if a word or concept appears twice, cut the weaker instance. See `modes/pdf.md`'s Keyword injection strategy section for the full failure examples.
 11. Write HTML to `output/cv-candidate-{company-slug}.html`.
 12. Run:
 

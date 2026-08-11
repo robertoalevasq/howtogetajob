@@ -66,6 +66,27 @@ function buildAwards(entries) {
   return blocks.join('\n\n');
 }
 
+function buildSummary(text) {
+  if (typeof text !== 'string' || !text.trim()) return '';
+  return escapeLatex(text.trim());
+}
+
+function buildCompetencies(items) {
+  if (!Array.isArray(items) || items.length === 0) return '';
+  // Single inline line (bullet-separated), not a grid — see the ATS note next
+  // to {{COMPETENCIES}} in cv-template.tex for why multicols was rejected.
+  return items.filter(Boolean).map(c => escapeLatex(c)).join(' \\textbullet\\ ');
+}
+
+function buildCertifications(entries) {
+  if (!Array.isArray(entries) || entries.length === 0) return '';
+  return entries.filter(Boolean).map(e => {
+    const org = e.org ? ` --- ${escapeLatex(e.org)}` : '';
+    const year = e.year ? ` (${escapeLatex(e.year)})` : '';
+    return `    \\item \\textbf{${escapeLatex(e.title)}}${org}${year}`;
+  }).join('\n');
+}
+
 function buildSkills(categories) {
   if (!Array.isArray(categories) || categories.length === 0) return '';
   return categories.map(c => {
@@ -157,6 +178,9 @@ async function main() {
     PROJECTS: buildProjects(payload.projects),
     AWARDS: buildAwards(payload.awards),
     SKILLS: buildSkills(payload.skills),
+    SUMMARY: buildSummary(payload.summary),
+    COMPETENCIES: buildCompetencies(payload.competencies),
+    CERTIFICATIONS: buildCertifications(payload.certifications),
   };
 
   // Replacer FUNCTION, not a string: escapeLatex turns `$` into `\$` but leaves
@@ -194,6 +218,9 @@ async function main() {
       projectEntries: (payload.projects || []).length,
       awardEntries: (payload.awards || []).length,
       skillCategories: (payload.skills || []).length,
+      competencyItems: (payload.competencies || []).length,
+      certificationEntries: (payload.certifications || []).length,
+      hasSummary: Boolean(payload.summary && payload.summary.trim()),
       totalBullets: (() => {
         const ex = Array.isArray(payload.experience) ? payload.experience.flatMap(e => Array.isArray(e?.bullets) ? e.bullets : []) : [];
         const pr = Array.isArray(payload.projects) ? payload.projects.flatMap(p => Array.isArray(p?.bullets) ? p.bullets : []) : [];
@@ -247,6 +274,9 @@ async function runSelfTest() {
       { category: 'Languages', items: 'Python, JavaScript, TypeScript' },
       { category: 'Frameworks', items: 'FastAPI, React, PyTorch' },
     ],
+    summary: 'Backend engineer focused on testing infrastructure and CI/CD automation.',
+    competencies: ['CI/CD', 'Test Automation', 'Python', 'FastAPI'],
+    certifications: [{ title: 'Certified Kubernetes Administrator', org: 'CNCF', year: '2024' }],
   };
 
   const testOutput = join(tmpdir(), 'build-cv-latex-test.tex');
@@ -285,6 +315,9 @@ async function runSelfTest() {
     PROJECTS: buildProjects(sample.projects),
     AWARDS: buildAwards(sample.awards),
     SKILLS: buildSkills(sample.skills),
+    SUMMARY: buildSummary(sample.summary),
+    COMPETENCIES: buildCompetencies(sample.competencies),
+    CERTIFICATIONS: buildCertifications(sample.certifications),
   };
 
   // Replacer function, same reason as the render path above.
@@ -320,6 +353,9 @@ async function runSelfTest() {
       projectEntries: sample.projects.length,
       awardEntries: sample.awards.length,
       skillCategories: sample.skills.length,
+      competencyItems: sample.competencies.length,
+      certificationEntries: sample.certifications.length,
+      hasSummary: Boolean(sample.summary && sample.summary.trim()),
       totalBullets: (() => {
         const ex = Array.isArray(sample.experience) ? sample.experience.flatMap(e => Array.isArray(e?.bullets) ? e.bullets : []) : [];
         const pr = Array.isArray(sample.projects) ? sample.projects.flatMap(p => Array.isArray(p?.bullets) ? p.bullets : []) : [];

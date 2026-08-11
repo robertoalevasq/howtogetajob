@@ -22,6 +22,23 @@ Export a tailored, ATS-optimized CV as a `.tex` file and compile it to PDF via `
 
 **Requires:** `tectonic` (preferred — `brew install tectonic`, auto-downloads packages) or `pdflatex` (MiKTeX / TeX Live) on PATH.
 
+## Non-interactive invocation (for cycle Step-3 safety net)
+
+When running as a non-interactive `cycle` Step-3 safety-net subagent against an already-written report file (instead of a live user chat):
+
+1. **Source the JD from the report, not from the user.** Read `reports/{num}-{slug}-{date}.md` (the target report already written by pipeline evaluation); its Blocks A/B/C already quote JD requirements, keywords, and role title verbatim. This is your ground truth — same source-of-truth discipline as everywhere in this system.
+2. **Build the tailored JSON payload from the report + cv.md:**
+   - Extract keywords from Block B and the Quick Fit section (already JD-aligned by the pipeline evaluator).
+   - Reorder experience bullets by importance to *this specific report's* role (use Block A's CV-match assessment as your guide).
+   - Select top 3-4 most relevant projects from `cv.md` (use Block A/B to decide relevance).
+   - Build a competency grid (6-8 keywords) from Block B's North Star section, never inventing skills.
+3. **Write the payload to JSON** at `/tmp/cv-{candidate}-{company}.json` (fresh every time; never hardcode content as script literals).
+4. **Compile to PDF:** exactly as Steps 12-13 above:
+   - `node build-cv-latex.mjs /tmp/cv-{candidate}-{company}.json output/{num}-{company}-{YYYY-MM-DD}.tex`
+   - `node generate-latex.mjs output/{num}-{company}-{YYYY-MM-DD}.tex output/{num}-{company}-{YYYY-MM-DD}.pdf`
+
+This ensures each report's PDF is truly tailored to its own evaluated role, not a hardcoded generic template.
+
 ## Language support
 
 - **Localized section titles are fine.** The validator counts `\section{}` blocks instead of matching English titles, so a Spanish/French/German CV (e.g. `\section{Educación}`) validates normally.
@@ -38,6 +55,11 @@ Write a JSON file with this structure. `build-cv-latex.mjs` handles template mer
   "email": { "url": "jane@example.com", "display": "jane@example.com" },
   "linkedin": { "url": "https://linkedin.com/in/janesmith", "display": "linkedin.com/in/janesmith" },
   "github": { "url": "https://github.com/janesmith", "display": "github.com/janesmith" },
+  "summary": "Personalized summary with JD keywords injected (honest vs cv.md).",
+  "competencies": ["RAG Pipelines", "LLMOps", "Kubernetes & Docker"],
+  "certifications": [
+    { "title": "Certified Kubernetes Administrator", "org": "CNCF", "year": "2024" }
+  ],
   "education": [
     {
       "institution": "University Name",
@@ -91,6 +113,9 @@ Write a JSON file with this structure. `build-cv-latex.mjs` handles template mer
 | `linkedin.display` | string | Display text only (no scheme) |
 | `github.url` | string | Full URL with scheme for `\href{}` (sanitized via sanitizeUrl, not LaTeX-escaped) |
 | `github.display` | string | Display text only (no scheme) |
+| `summary` | string | Optional — personalized summary with keywords. Omit or leave empty to drop the Professional Summary section entirely (no bare header left behind). |
+| `competencies` | string[] | Optional — 6-8 keyword phrases, rendered as a 3-column bullet grid. Omit or leave empty to drop the Core Competencies section entirely. |
+| `certifications[]` | object | Optional — `title`, `org` (optional), `year` (optional). Omit or leave empty to drop the Certifications section entirely. |
 | `education[].institution` | string | From cv.md Education |
 | `education[].location` | string | Institution location |
 | `education[].degree` | string | Degree name |
@@ -149,6 +174,7 @@ Same ethical rules as `modes/pdf.md`:
 - Examples:
   - JD says "RAG pipelines" → reword "LLM workflows with retrieval" to "RAG pipeline design"
   - JD says "MLOps" → reword "observability, evals" to "MLOps and observability"
+- **Never stack a keyword next to a phrase that already says the same thing** — e.g. "HR compliance verifications via HR compliance and regulatory verification" repeats the same concept three ways in one bullet. Replace the original wording with the JD term, don't add it alongside. See `modes/pdf.md`'s Keyword injection strategy section for the full failure examples and the per-bullet/whole-CV read-back check.
 
 ## Overleaf Compatibility
 

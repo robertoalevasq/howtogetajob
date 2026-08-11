@@ -40,7 +40,8 @@ import { LIVENESS_CONTEXT_OPTIONS, rejectPrivateOrInvalid } from './liveness-bro
 const CAREER_OPS = dirname(fileURLToPath(import.meta.url));
 
 const DEFAULT_TIMEOUT_MS = 15_000;
-const HYDRATION_WAIT_MS = 2_000;
+const HYDRATION_WAIT_MS = 2_000;  // fallback blind wait for non-Workday
+const WORKDAY_SELECTOR_WAIT_MS = 5_000;  // how long to wait for Workday JD to render
 const JD_TEXT_CAP = 12_000;     // plenty for a JD; a fraction of a full snapshot
 const DEFAULT_LISTING_MAX = 200;
 
@@ -221,7 +222,17 @@ async function main() {
     });
     const page = await context.newPage();
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
-    await page.waitForTimeout(HYDRATION_WAIT_MS); // let SPAs hydrate
+
+    // For Workday (myworkdayjobs.com), wait for the actual JD description to render
+    // (it's often injected via JavaScript after the initial DOM load).
+    // Fall back to blind wait after timeout for other providers.
+    if (url.includes('myworkdayjobs.com')) {
+      await page
+        .waitForSelector('[data-automation-id="jobPostingDescription"]', { timeout: WORKDAY_SELECTOR_WAIT_MS })
+        .catch(() => {}); // silently ignore if selector never appears
+    } else {
+      await page.waitForTimeout(HYDRATION_WAIT_MS); // let other SPAs hydrate
+    }
 
     // Belt-and-suspenders: never emit content read from a private final URL.
     const finalUrl = page.url();

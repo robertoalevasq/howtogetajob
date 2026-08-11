@@ -83,6 +83,9 @@ AI-powered, CLI-agnostic job search automation: pipeline tracking, offer evaluat
 | `data/blacklist.md` | Do-not-apply companies (user layer, opt-in, never auto-populated; respected by `scan.mjs` and the `auto-pipeline`/`oferta`/`apply` gates) |
 | `data/salary-observations.tsv` | Append-only salary observation log (user layer) |
 | `data/assessments.tsv` | Append-only skills-assessment log (user layer, created on first `add`) |
+| `data/application-defaults.md` | Boilerplate/EEO/administrivia answer cache reused by `apply` mode across applications (user layer, created on first confirmed answer — see `modes/apply.md` Step 6b) |
+| `telegram-poll.mjs` | CLI wrapper around the `telegram` plugin's `ingest` hook — `poll` returns new bot messages as JSON, `reset` clears the stored offset (see `modes/telegram.md`) |
+| `data/telegram-state.md` | Pending confirmations, batch queue, and recent actions for `telegram` mode (user layer, gitignored, created on first-time setup) |
 | `portals.yml` | Query and company config |
 | `templates/cv-template.html` | HTML template for CVs |
 | `templates/cv-template.tex` | LaTeX/Overleaf template for CVs |
@@ -94,6 +97,7 @@ AI-powered, CLI-agnostic job search automation: pipeline tracking, offer evaluat
 | `scan.mjs` | Zero-token portal scanner (Greenhouse/Ashby/Lever APIs, zero LLM cost) |
 | `scan-ats-full.mjs` | Reverse-ATS keyword-first scanner over full public ATS datasets (Greenhouse/Lever/Ashby/Workday/iCIMS), filtered by portals.yml `title_filter`/`location_filter` — no company list needed; checkpoints every 500 companies, `--resume` continues an interrupted sweep |
 | `scan-interamt.mjs` | Playwright browser scanner for Interamt.de (German public sector portal — Apache Wicket, no REST API) |
+| `scripts/parsers/jobspy-scan.py` | Zero-token local parser bridging [python-jobspy](https://github.com/speedyapply/JobSpy) (Indeed/Glassdoor/Google/ZipRecruiter/LinkedIn/Bayt/Naukri/BDJobs) into `scan.mjs`'s Level 0 — requires Python 3.10+ and `pip install -U python-jobspy` on the host; wired into `portals.yml` `job_boards` via `parser: {command: python, script: ...}` |
 | `check-liveness.mjs` / `liveness-core.mjs` | Job posting liveness checker + shared logic (expired signals win over generic Apply text) |
 | `set-status.mjs` | Canonical tracker-row update: `node set-status.mjs <report#\|company> <State> [--note] [--force]` — strict states.yml validation, report-link mismatch guard, shared lock, atomic write |
 | `invite-match.mjs` | Fuzzy-match a pasted interview invite (company, date, req ID) against the tracker, ranking candidates when a company has multiple entries (JSON or `--summary`) |
@@ -110,6 +114,9 @@ AI-powered, CLI-agnostic job search automation: pipeline tracking, offer evaluat
 | `assessment-log.mjs` | Skills-assessment logger — `add` appends platform/subject/threshold/score + staleness note to `data/assessments.tsv` (JSON or `--summary`) |
 | `jd-skill-gap.mjs` | Zero-LLM JD skill classifier vs `cv.md`: existing / supportedByResume / gap; never auto-adds claims to `cv.md` (JSON or `--summary`) |
 | `contacts.mjs` | Job-search phonebook → vCard 3.0 exporter — stable UIDs so re-imports update instead of duplicating on platforms that honor vCard UID (JSON, `--summary`, `--vcf`, `--caller-id`) |
+| `discord-ticker.mjs` | Self-healing Discord progress ticker for `cycle` — validates/clamps embeds to Discord's real limits, persists message identity to `data/cache/discord-ticker-state.json` (not agent-turn memory), and falls back to a fresh message if an edit fails after retries (`tick --embed-file <path>`, `reset`) |
+| `cycle-status.mjs` | Real-time "where is this `cycle` run right now" status file — step/counters written to `data/cache/cycle-status.json` at every checkpoint (never throws, purely observational); check anytime with `node cycle-status.mjs` (human render) or `--json` |
+| `jd-fetch-cache.mjs` | Short-TTL (2h) cache of full page text captured during a liveness check, so `pipeline` mode's JD-extraction step can skip a duplicate Playwright fetch of the same URL (`get <url>` CLI; `getCachedJd`/`setCachedJd` for programmatic use) |
 | `data/contacts.tsv` | Job-search contact list — recruiters/hiring managers/peers saved from `contacto` (user layer, gitignored third-party PII) |
 | `outcome.mjs` | Record application outcome, archive artifacts, and sync tracker (`node outcome.mjs <selector> <type>`) |
 | `weekly-digest.mjs` | Rolls up `interview-prep/sessions/*.md` (default: current ISO week) into a per-company round summary, recurring competency-tag counts, and best-effort recurring 🔴 gaps from `question-bank.md` (JSON or `--summary`) |
@@ -269,6 +276,7 @@ Two separate axes:
 | If the user... | Mode |
 |----------------|------|
 | Pastes JD or URL | auto-pipeline (evaluate + report + PDF + tracker) |
+| Wants everything in one shot: scan portals + the entire public ATS universe, process the inbox, update the tracker, and generate PDFs for the strongest matches | `cycle` — single command that runs `scan` + `scan-ats-full.mjs` (full sweep, auto-resumed if interrupted — can take hours) → `pipeline` → tracker (updated inline) → a top-match PDF safety net |
 | Asks to evaluate offer | `oferta` |
 | Asks to compare offers | `ofertas` |
 | Wants LinkedIn outreach | `contacto` — identifies hiring manager, recruiter, or team peers via web search; drafts a ≤300-char message tailored to the contact type (recruiter / hiring manager / peer / interviewer) |
@@ -290,6 +298,8 @@ Two separate axes:
 | Evaluates portfolio project | `project` |
 | Asks about application status | `tracker` |
 | Fills out application form | `apply` |
+| Wants to clear a backlog of evaluated, ready-to-apply roles in one sitting (Greenhouse/Lever/Workday, one review-before-submit gate per application) | `apply-batch` |
+| Wants to run a full search cycle and/or apply to results over Telegram — reply to approve field-mapping + submit, no interactive session needed | `telegram` |
 | Searches for new offers | `scan` |
 | Processes pending URLs | `pipeline` |
 | Wants a fast first-pass filter before full evaluation | `triage` |

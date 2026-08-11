@@ -38,13 +38,6 @@ const args = process.argv.slice(2);
 const summaryMode = args.includes('--summary');
 const selfTestMode = args.includes('--self-test');
 const fileIdx = args.indexOf('--file');
-// Treat a following recognized flag (e.g. `--file --summary`) the same as a
-// missing value — otherwise it's silently accepted as the path and produces
-// a confusing "file not found: --summary" instead of the clearer error below.
-if (fileIdx !== -1 && (args[fileIdx + 1] === undefined || args[fileIdx + 1].startsWith('--'))) {
-  console.error('invite-match: --file requires a path argument');
-  process.exit(1);
-}
 const filePathArg = fileIdx !== -1 ? args[fileIdx + 1] : null;
 
 // Statuses ranked above others when disambiguating same-company candidates —
@@ -566,6 +559,17 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   if (selfTestMode) {
     runSelfTest();
   } else {
+    // Treat a following recognized flag (e.g. `--file --summary`) the same as
+    // a missing value — otherwise it's silently accepted as the path and
+    // produces a confusing "file not found: --summary" instead of this.
+    // Deliberately checked here, inside the CLI-only guard, not at module
+    // top level — this file is imported by scan.mjs/detect-reposts.mjs for
+    // normalizeCompanyName(), so a top-level exit() would kill any caller's
+    // process merely for having an unrelated bare `--file` in its own argv.
+    if (fileIdx !== -1 && (args[fileIdx + 1] === undefined || args[fileIdx + 1].startsWith('--'))) {
+      console.error('invite-match: --file requires a path argument');
+      process.exit(1);
+    }
     let text;
     if (filePathArg) {
       if (!existsSync(filePathArg)) {

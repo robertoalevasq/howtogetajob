@@ -483,6 +483,19 @@ async function generatePDF() {
     process.exit(1);
   }
 
+  // reports/ guard: that directory holds evaluation report markdown, never
+  // rendered PDFs. On 2026-08-04 a caller passed a reports/*.md path as the
+  // PDF output argument and silently overwrote 6 evaluation reports with raw
+  // PDF bytes — reports/ is gitignored, so there was no history to recover
+  // from. PDFs belong in output/ or a bundle's cv/tailored/vNNN/ directory.
+  const reportsDir = resolve(__dirname, 'reports');
+  const relToReports = relative(reportsDir, outputPath);
+  if (relToReports === '' || (!relToReports.startsWith('..') && !isAbsolute(relToReports))) {
+    console.error(`Refusing to write a PDF into reports/: ${outputPath}`);
+    console.error('reports/ holds evaluation report markdown only. Write PDFs to output/ or cv/tailored/vNNN/ instead.');
+    process.exit(1);
+  }
+
   // Validate format
   const validFormats = ['a4', 'letter'];
   if (!validFormats.includes(format)) {

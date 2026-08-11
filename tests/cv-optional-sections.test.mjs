@@ -1,21 +1,18 @@
-// tests/cv-optional-sections.test.mjs — the optional CV sections
-// (competencies, projects, education, certifications, awards) must vanish
-// entirely when they have no entries, rather than rendering a bare section
-// header with nothing under it.
+// tests/cv-optional-sections.test.mjs — the optional CV sections (projects,
+// education, certifications, awards, and — LaTeX-only — summary/competencies)
+// must vanish entirely when they have no entries, rather than rendering a bare
+// section header with nothing under it.
 //
 // #1879 fixed this for projects; education is the same bug (not every
 // candidate has a degree). Certifications was fixed once directly in
 // build-cv-html.mjs, then lost when that logic was generalized into this
 // shared module (only projects/education made the cut) — the v1.22.0
-// auto-update shipped that regression. Awards (#2220) is optional by
-// construction: most candidates have none, so it ships hidden-when-empty from
-// the start rather than being retrofitted. Core competencies is optional the
-// same way: the tag row is often redundant with the summary and experience
-// bullets, so payloads legitimately omit it — and like certifications it has
-// no LaTeX marker, so it is html-only. All five are delimited by marker
-// matching rather than parsed, so the boundary pattern is the whole
-// correctness story — see the header comment in cv-sections-core.mjs for the
-// failure modes exercised here.
+// auto-update shipped that regression. #2220 added Awards support, and #2260
+// added Certifications, Professional Summary, and Core Competencies to the
+// LaTeX template (parity with the HTML template's richer section set).
+// All are delimited by marker matching rather than parsed, so the boundary
+// pattern is the whole correctness story — see the header comment in
+// cv-sections-core.mjs for the failure modes exercised here.
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { pass, fail, ROOT } from './helpers.mjs';
@@ -23,13 +20,14 @@ import { stripEmptySections } from '../cv-sections-core.mjs';
 
 console.log('\ncv-sections-core.mjs — optional sections leave no bare header');
 
-const EMPTY = { competencies: [], projects: [], education: [], certifications: [], awards: [] };
+const EMPTY = { competencies: [], projects: [], education: [], certifications: [], awards: [], summary: '' };
 const FULL = {
   competencies: ['Tag'],
   projects: [{ name: 'P' }],
   education: [{ degree: 'D' }],
   certifications: [{ title: 'C' }],
   awards: [{ title: 'A' }],
+  summary: 'S',
 };
 
 function check(label, actual, expected) {
@@ -40,22 +38,25 @@ function check(label, actual, expected) {
 // --- Real templates: the sections must actually disappear ------------------
 // Assert against the shipped templates so a template edit that renames or
 // reorders a marker fails here instead of silently reviving the bare header.
+// `texOnly` sections (summary/competencies) have no HTML marker at all — the
+// module must skip them silently for html rather than throw or no-op wrongly.
 const TEMPLATES = [
-  { file: 'templates/cv-template.html', format: 'html', after: 'SKILLS', hasCertifications: true, hasCompetencies: true },
-  { file: 'templates/resume-template.html', format: 'html', after: 'SKILLS', hasCertifications: false, hasCompetencies: true },
-  { file: 'templates/cv-template.tex', format: 'tex', after: 'Technical Skills', hasCertifications: false, hasCompetencies: false },
+  { file: 'templates/cv-template.html', format: 'html', after: 'SKILLS', hasCertifications: true, hasCompetencies: true, hasTexOnly: false },
+  { file: 'templates/resume-template.html', format: 'html', after: 'SKILLS', hasCertifications: false, hasCompetencies: true, hasTexOnly: false },
+  { file: 'templates/cv-template.tex', format: 'tex', after: 'Technical Skills', hasCertifications: true, hasCompetencies: false, hasTexOnly: true },
 ];
 
-for (const { file, format, after, hasCertifications, hasCompetencies } of TEMPLATES) {
+for (const { file, format, after, hasCertifications, hasCompetencies, hasTexOnly } of TEMPLATES) {
   const template = readFileSync(join(ROOT, file), 'utf-8');
   const name = file.split('/').pop();
 
   const stripped = stripEmptySections(template, EMPTY, format);
   const projectsMarker = format === 'html' ? '<!-- PROJECTS -->' : 'PROJECTS  %';
   const educationMarker = format === 'html' ? '<!-- EDUCATION -->' : 'Education  %';
-  const certificationsMarker = '<!-- CERTIFICATIONS -->'; // html-only; no LaTeX Certifications section exists
-  const competenciesMarker = '<!-- CORE COMPETENCIES -->'; // html-only; no LaTeX Competencies section exists
+  const certificationsMarker = format === 'html' ? '<!-- CERTIFICATIONS -->' : 'Certifications  %';
+  const competenciesMarker = format === 'html' ? '<!-- CORE COMPETENCIES -->' : 'Core Competencies  %';
   const awardsMarker = format === 'html' ? '<!-- AWARDS -->' : 'AWARDS  %';
+  const summaryMarker = 'Professional Summary  %'; // tex-only
 
   check(`${name}: empty payload removes the projects block`, stripped.includes(projectsMarker), false);
   check(`${name}: empty payload removes the education block`, stripped.includes(educationMarker), false);
@@ -66,7 +67,10 @@ for (const { file, format, after, hasCertifications, hasCompetencies } of TEMPLA
     check(`${name}: empty payload removes the competencies block`, stripped.includes(competenciesMarker), false);
   }
   check(`${name}: empty payload removes the awards block`, stripped.includes(awardsMarker), false);
-  check(`${name}: the section after awards survives`, stripped.includes(after), true);
+  if (hasTexOnly) {
+    check(`${name}: empty payload removes the summary block`, stripped.includes(summaryMarker), false);
+  }
+  check(`${name}: the section after skills survives`, stripped.includes(after), true);
   check(`${name}: {{EXPERIENCE}} is untouched`, stripped.includes('{{EXPERIENCE}}'), true);
 
   // Populated payload must be a no-op — the strip only ever removes.
@@ -84,7 +88,7 @@ for (const { file, format, after, hasCertifications, hasCompetencies } of TEMPLA
   if (hasCertifications) {
     check(`${name}: empty education alone keeps certifications`, onlyEdu.includes(certificationsMarker), true);
 
-    // Certifications empty on its own: projects/education (both populated) survive, only certifications goes.
+    // Certifications empty on its own: everything else (populated) survives, only certifications goes.
     const onlyCert = stripEmptySections(template, { ...FULL, certifications: [] }, format);
     check(`${name}: empty certifications alone keeps projects`, onlyCert.includes(projectsMarker), true);
     check(`${name}: empty certifications alone keeps education`, onlyCert.includes(educationMarker), true);
@@ -104,16 +108,29 @@ for (const { file, format, after, hasCertifications, hasCompetencies } of TEMPLA
   }
 
   // Competencies empty on its own: it is first among the optional sections,
-  // sitting between Professional Summary and Work Experience, so a boundary
-  // slip here would swallow the entire experience section rather than a
-  // trailing one.
+  // sitting between Professional Summary and Work Experience (HTML) or after
+  // summary (LaTeX), so a boundary slip here would swallow the entire
+  // experience section rather than a trailing one.
   if (hasCompetencies) {
     const onlyComp = stripEmptySections(template, { ...FULL, competencies: [] }, format);
     check(`${name}: empty competencies alone drops competencies`, onlyComp.includes(competenciesMarker), false);
-    check(`${name}: empty competencies alone keeps the work-experience marker`, onlyComp.includes('<!-- WORK EXPERIENCE -->'), true);
-    check(`${name}: empty competencies alone keeps {{EXPERIENCE}}`, onlyComp.includes('{{EXPERIENCE}}'), true);
+    if (format === 'html') {
+      check(`${name}: empty competencies alone keeps the work-experience marker`, onlyComp.includes('<!-- WORK EXPERIENCE -->'), true);
+      check(`${name}: empty competencies alone keeps {{EXPERIENCE}}`, onlyComp.includes('{{EXPERIENCE}}'), true);
+    }
     check(`${name}: empty competencies alone keeps projects`, onlyComp.includes(projectsMarker), true);
     check(`${name}: empty competencies alone keeps awards`, onlyComp.includes(awardsMarker), true);
+  }
+  if (hasTexOnly) {
+    // Summary empty on its own: everything else survives, only summary goes.
+    const onlySummary = stripEmptySections(template, { ...FULL, summary: '' }, format);
+    check(`${name}: empty summary alone keeps competencies`, onlySummary.includes(competenciesMarker), true);
+    check(`${name}: empty summary alone drops summary`, onlySummary.includes(summaryMarker), false);
+
+    // Competencies empty on its own: everything else survives, only competencies goes.
+    const onlyComp = stripEmptySections(template, { ...FULL, competencies: [] }, format);
+    check(`${name}: empty competencies alone keeps summary`, onlyComp.includes(summaryMarker), true);
+    check(`${name}: empty competencies alone drops competencies`, onlyComp.includes(competenciesMarker), false);
   }
 }
 

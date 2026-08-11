@@ -120,7 +120,42 @@ async function cmdList() {
 
 async function cmdRun(args) {
   const dryRun = args.includes('--dry-run');
-  const positional = args.filter(a => a !== '--dry-run');
+  // --file <path> is notify-only (an optional attachment) and repeatable —
+  // strip every occurrence + its value from the positional stream before the
+  // generic hook/message parsing below sees it, same treatment as --dry-run.
+  const filePaths = [];
+  // --edit <messageId> is notify-only too: PATCH a previously sent message
+  // instead of posting a new one (a "living" progress message). Single-value,
+  // same strip treatment.
+  let editMessageId = null;
+  // --embed-file <path> is notify-only: a JSON file holding a Discord embed
+  // object (title/description/color/fields/footer/timestamp). A file, not an
+  // inline flag, because embeds have real structure (fields is an array of
+  // objects) that shell quoting can't carry reliably across PowerShell/Bash.
+  let embedFile = null;
+  const consumedIdx = new Set();
+  args.forEach((a, i) => {
+    if (a === '--file') {
+      consumedIdx.add(i);
+      const val = args[i + 1];
+      if (!val) { console.error('Usage: --file <path> needs a value.'); process.exit(1); }
+      consumedIdx.add(i + 1);
+      filePaths.push(val);
+    } else if (a === '--edit') {
+      consumedIdx.add(i);
+      const val = args[i + 1];
+      if (!val) { console.error('Usage: --edit <messageId> needs a value.'); process.exit(1); }
+      consumedIdx.add(i + 1);
+      editMessageId = val;
+    } else if (a === '--embed-file') {
+      consumedIdx.add(i);
+      const val = args[i + 1];
+      if (!val) { console.error('Usage: --embed-file <path> needs a value.'); process.exit(1); }
+      consumedIdx.add(i + 1);
+      embedFile = val;
+    }
+  });
+  const positional = args.filter((a, i) => a !== '--dry-run' && !consumedIdx.has(i));
   const id = positional[0];
   if (!id) { console.error('Usage: node plugins.mjs run <id> [hook] [args…] [--dry-run]'); process.exit(1); }
 
@@ -177,9 +212,31 @@ async function cmdRun(args) {
   }
 
   if (hook === 'notify') {
-    const message = positional.slice(hookArgStart).join(' ') || '(career-ops notification)';
-    const results = await runHook('notify', { message }, { root: ROOT, dryRun });
-    for (const r of results) console.log(r.ok ? `${r.id} notify: sent.` : `${r.id} notify: failed — ${r.error}`);
+    const message = positional.slice(hookArgStart).join(' ');
+    for (const fp of filePaths) { if (!existsSync(fp)) { console.error(`--file not found: ${fp}`); process.exit(1); } }
+    if (editMessageId && filePaths.length) { console.error('--edit and --file cannot be combined — editing a message is text-only.'); process.exit(1); }
+    let embed;
+    if (embedFile) {
+      if (!existsSync(embedFile)) { console.error(`--embed-file not found: ${embedFile}`); process.exit(1); }
+      try { embed = JSON.parse(readFileSync(embedFile, 'utf8')); }
+      catch (e) { console.error(`--embed-file is not valid JSON: ${e.message}`); process.exit(1); }
+    }
+    const payload = {};
+    if (message) payload.message = message;
+    if (embed) payload.embed = embed;
+    if (filePaths.length) payload.filePaths = filePaths;
+    if (editMessageId) payload.editMessageId = editMessageId;
+    const results = await runHook('notify', payload, { root: ROOT, dryRun });
+    for (const r of results) {
+      if (!r.ok) { console.log(`${r.id} notify: failed — ${r.error}`); continue; }
+      const id = r.result && r.result.messageId;
+      console.log(`${r.id} notify: sent.${id ? ` message id: ${id}` : ''}`);
+      const urls = r.result && r.result.attachmentUrls;
+      if (urls && Object.keys(urls).length) {
+        console.log('attachment urls:');
+        for (const [filename, url] of Object.entries(urls)) console.log(`  ${filename} → ${url}`);
+      }
+    }
     return;
   }
 }

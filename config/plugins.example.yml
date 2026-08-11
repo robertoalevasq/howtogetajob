@@ -33,3 +33,15 @@ plugins:
     enabled: false
     # label: "Job Leads"     # the Gmail label to scan
     # days_back: 7           # how far back to look
+
+  # ── discord (notify) ── post a run summary (+ the deliverable, when it's under 8MB) to a channel
+  # Needs DISCORD_WEBHOOK_URL in .env. Run via `node plugins.mjs run discord notify "message" [--file path]`.
+  discord:
+    enabled: false
+
+  # ── telegram (notify + ingest) ── send/receive apply requests via a bot, see modes/apply-telegram.md
+  # Needs TELEGRAM_BOT_TOKEN in .env. Send via `node plugins.mjs run telegram notify "message"`;
+  # poll via `node telegram-poll.mjs poll` (not the generic `plugins.mjs run ... ingest` path — see plugins/telegram/skill.md).
+  telegram:
+    enabled: false
+    # chat_id: "123456789"   # not secret — from getUpdates after you message the bot once

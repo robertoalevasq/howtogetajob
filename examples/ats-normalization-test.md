@@ -1,6 +1,8 @@
 # ATS Normalization Test Fixture
 
-This file is a regression fixture for the text normalization pass added in `generate-pdf.mjs` (issue #1). It contains the Unicode artifacts that can cause parsing errors or display issues in ATS systems and legacy parsers. Use it to verify that the normalizer converts them to ASCII-safe equivalents.
+This file is a human-readable reference for the text normalization pass added in `generate-pdf.mjs` (issue #1). It contains the Unicode artifacts that can cause parsing errors or display issues in ATS systems and legacy parsers.
+
+**The automated test is `tests/generate-pdf-ats-normalization.test.mjs`** — it asserts every conversion listed below directly against `normalizeTextForATS()`, runs as part of `node test-all.mjs`, and will fail if a future change to `generate-pdf.mjs` breaks any of them. This file stays as the readable spec; the test file is the enforcement.
 
 ## Problematic Unicode (normalizer must convert these)
 

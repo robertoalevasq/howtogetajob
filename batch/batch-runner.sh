@@ -567,12 +567,24 @@ process_offer() {
   local terminal_failure_recorded=false
   local shim_retries=0
   local max_shim_retries=4
+  local worker_timeout=180  # 3 minutes; most jobs complete in 1-2 minutes
   while true; do
     exit_code=0
-    claude "${claude_args[@]}" > "$log_file" 2>&1 || exit_code=$?
+    timeout "$worker_timeout" claude "${claude_args[@]}" > "$log_file" 2>&1 || exit_code=$?
 
     if [[ $exit_code -eq 0 ]]; then
       break
+    fi
+
+    # Handle timeout (exit code 124)
+    if [[ $exit_code -eq 124 ]]; then
+      if (( retries < MAX_RETRIES )); then
+        retries=$((retries + 1))
+      fi
+      update_state "$id" "$url" "failed" "$started_at" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$report_num" "-" "Worker timeout after ${worker_timeout}s (likely Workday/Ashby/iCIMS URL requiring Playwright; re-run with Playwright phase)" "$retries"
+      release_report_num "$report_num"
+      echo "    ⏱️  Timeout after ${worker_timeout}s (attempt $retries/$MAX_RETRIES) — marking as failed"
+      return 0
     fi
 
     # Check for Claude Code npm shim swap (exit code 127 + command not found)

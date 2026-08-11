@@ -1,23 +1,25 @@
 // Shared optional-section stripping for the CV builders (build-cv-html.mjs,
 // build-cv-latex.mjs).
 //
-// Core competencies, projects, education, certifications, and awards are the
-// genuinely optional CV sections: a competency tag row is often redundant with
-// the summary and experience bullets that prove the same claims, a candidate's
+// Core competencies, projects, education, certifications, awards, and (for
+// LaTeX) summary are the genuinely optional CV sections: a competency tag row
+// is often redundant with the summary and experience bullets, a candidate's
 // projects are often already covered under Work Experience, not every
 // candidate has a degree, not every application carries a certification worth
-// listing, and most candidates have no award to name. The templates wrap all
-// five unconditionally, so a payload with no entries renders a bare section
-// header with nothing under it. The builders' buildCompetencies()/
-// buildProjects()/buildEducation()/buildCertifications()/buildAwards()
-// correctly return '' — nothing removes the surrounding wrapper, which is what
-// this module does.
+// listing, most candidates have no award to name, and a leaner CV may skip the
+// summary block. The templates wrap all of these unconditionally, so a payload
+// with no entries renders a bare section header with nothing under it. The
+// builders' buildCompetencies()/buildProjects()/buildEducation()/
+// buildCertifications()/buildAwards()/buildSummary() correctly return '' —
+// nothing removes the surrounding wrapper, which is what this module does.
 //
-// Certifications has no marker in the LaTeX template (cv-template.tex has no
-// Certifications section at all), so PATTERNS.tex has no `certifications` key
-// — stripEmptySections skips a section silently when the active format has no
-// pattern for it, rather than trying to match against `undefined`. Awards, by
-// contrast, is defined for both formats.
+// Not every format has a marker for every section (e.g. the LaTeX template
+// had no Certifications or Awards section until v1.25.0, and Summary is a
+// LaTeX-only addition) — stripEmptySections skips a section silently when the
+// active format has no pattern for it, rather than trying to match against
+// `undefined`. This is how a format-specific addition (like tex-only
+// `summary` patterns) stays inert for the other format instead of requiring
+// a matching entry.
 //
 // The section body is delimited by markers rather than parsed, so the boundary
 // pattern carries the whole correctness burden and is easy to get subtly wrong:
@@ -51,14 +53,20 @@ const PATTERNS = {
   tex: {
     projects: new RegExp(String.raw`%{4,}\s+PROJECTS\s+%{4,}[\s\S]*?` + TEX_BOUNDARY),
     education: new RegExp(String.raw`%{4,}\s+Education\s+%{4,}[\s\S]*?` + TEX_BOUNDARY),
+    certifications: new RegExp(String.raw`%{4,}\s+Certifications\s+%{4,}[\s\S]*?` + TEX_BOUNDARY),
     awards: new RegExp(String.raw`%{4,}\s+AWARDS\s+%{4,}[\s\S]*?` + TEX_BOUNDARY),
+    summary: new RegExp(String.raw`%{4,}\s+Professional Summary\s+%{4,}[\s\S]*?` + TEX_BOUNDARY),
+    competencies: new RegExp(String.raw`%{4,}\s+Core Competencies\s+%{4,}[\s\S]*?` + TEX_BOUNDARY),
   },
 };
 
-export const OPTIONAL_SECTIONS = ['competencies', 'projects', 'education', 'certifications', 'awards'];
+export const OPTIONAL_SECTIONS = ['competencies', 'projects', 'education', 'certifications', 'awards', 'summary'];
 
+// `summary` is a string (empty/whitespace-only = absent); every other
+// section here is an entry array (missing/zero-length = absent).
 export function isEmptySection(payload, section) {
   const entries = payload?.[section];
+  if (section === 'summary') return typeof entries !== 'string' || entries.trim() === '';
   return !Array.isArray(entries) || entries.length === 0;
 }
 

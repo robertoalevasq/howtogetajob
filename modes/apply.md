@@ -15,15 +15,18 @@ Interactive mode for when the candidate is filling out an application form in Ch
 1. DETECT      → Read active Chrome tab (screenshot/URL/title)
 2. IDENTIFY    → Extract company + role from the page
 3. SEARCH      → Match against existing reports in reports/
-4. LOAD        → Read full report + Section H / Application Answers (if they exist)
+4. LOAD        → Read full report + Section H / Application Answers + data/application-defaults.md boilerplate cache (if they exist)
 5. PREFLIGHT   → Confirm posting liveness + company/role match before drafting
 5b. PRE-SCAN   → Scan page for knock-out questions (degree, experience, work authorization/visa, sponsorship, salary floors)
 5d. STATUS     → Warn if a form question screens for a specific immigration status rather than work authorization (warn-only; candidate decides)
 
 5c. PROHIBITED → Warn if a form field asks for content the candidate's jurisdiction prohibits (warn-only; candidate decides)
+5e. FRESHNESS  → Stop if cv.md/config/profile.yml/modes/_profile.md changed after this report was generated
 6. ANALYZE     → Identify ALL visible form questions
+6b. DEFAULTS   → Reuse cached boilerplate answers from data/application-defaults.md where applicable
 7. GENERATE    → For each question, generate a personalized response
-8. PRESENT     → Show formatted responses for copy-paste
+7b. FILL       → Playwright-active runs: delegate mechanical field-filling to a subagent
+8. PRESENT     → Show formatted responses for copy-paste (or the filled form for review)
 9. PERSIST     → Save the final filled/submitted answers into the report
 ```
 
@@ -112,7 +115,19 @@ If a field matches, warn the candidate BEFORE generating or filling an answer fo
 - **Phrasing discipline:** describe the form field and what the jurisdiction's law prohibits — never assert that the employer is breaking the law or committing a violation; exemptions and scope are not verifiable from the form.
 - This step adds a warning before the answer is drafted; it changes nothing about the existing prepare-don't-submit flow, the Step 6 `needs_candidate_confirmation` contract, or the Step 5b knock-out handling.
 
-**Applying to several roles in one sitting?** This preflight verifies the single form in front of you. Before a multi-role session — especially against scanner entries marked `**Verification:** unconfirmed (batch mode)` — run the `pipeline` mode **Liveness sweep** first (`node check-liveness.mjs --file <urls>`). It drops the dead postings from `data/pipeline.md` in one batch so you never open a tab on an expired role.
+**Applying to several roles in one sitting?** This preflight verifies the single form in front of you. Before a multi-role session — especially against scanner entries marked `**Verification:** unconfirmed (batch mode)` — run the `pipeline` mode **Liveness sweep** first (`node check-liveness.mjs --file <urls>`). It drops the dead postings from `data/pipeline.md` in one batch so you never open a tab on an expired role. To clear a whole backlog of already-evaluated, ready-to-apply rows at once (Greenhouse/Lever/Workday only, one review-before-submit gate per application), use `apply-batch` mode instead of invoking `apply` per role.
+
+## Step 5e — Source-freshness check
+
+The report a candidate applies from is only as honest as the source-of-truth files it was scored against. If `cv.md`, `config/profile.yml`, or `modes/_profile.md` change after a report is generated — a fabrication fix, a new proof point, a corrected metric — that report's score and any drafted proof points can silently go stale without anyone noticing until the wrong content reaches a real employer. (This is exactly what happened on 2026-08-04: a CV fabrication fix left dozens of already-generated reports scored and worded against claims that no longer existed.)
+
+1. `report_mtime` = the matched report file's last-modified time.
+2. `source_mtime` = the newest last-modified time among `cv.md`, `config/profile.yml`, `modes/_profile.md`.
+3. If `source_mtime > report_mtime`, STOP before drafting and ask: "This report (`reports/{num}`) was generated on {report date}, but {the newer file(s)} changed afterward on {source date}. The score and any proof points here may not reflect your current CV/profile. Re-evaluate before applying, or continue anyway if you're confident the edit doesn't affect this role?"
+4. **Re-evaluate** = run a fresh A-F evaluation for this URL, update the report and score in place, then resume from Step 6 with the corrected content. **Continue anyway** = proceed as-is, but note the override in the eventual `## Application Answers` section (Step 8) so it's visible later.
+5. Skip silently if the report doesn't exist yet — a same-session `auto-pipeline` draft is current by construction.
+
+Timestamp-only, zero extra tokens or fetches.
 
 ## Step 1 — Detect the job
 
@@ -129,7 +144,8 @@ If a field matches, warn the candidate BEFORE generating or filling an answer fo
 2. Search in `reports/` by company name (case-insensitive grep)
 3. If there is a match → load the full report
 4. If there is a Section H or `## Application Answers` → load previous answers as a base
-5. If there is NO match → notify and offer to run a quick auto-pipeline
+5. Load `data/application-defaults.md` if it exists — the boilerplate-answer cache (see Step 6b)
+6. If there is NO match → notify and offer to run a quick auto-pipeline
 
 ## Step 3 — Detect changes in the role
 
@@ -159,9 +175,43 @@ For each field, preserve the application form contract:
 - `required`: `yes`, `no`, or `unknown`
 - `limit`: exact character/word limit if visible; otherwise `unknown`
 - `options`: visible options for select/radio/checkbox fields
-- `needs_candidate_confirmation`: `yes` for legal, demographic, work authorization, visa, relocation, salary, disability, veteran, sponsorship, background-check, or self-identification questions unless the answer is explicitly present in `config/profile.yml`
+- `needs_candidate_confirmation`: `yes` for legal, demographic, work authorization, visa, relocation, salary, disability, veteran, sponsorship, background-check, or self-identification questions unless the answer is explicitly present in `config/profile.yml` **or already cached as a boilerplate default in `data/application-defaults.md`** (see Step 6b — administrivia categories only; salary and anything role-specific are never cached)
 
-Never invent answers for legal, demographic, work-authorization, visa/sponsorship, salary, disability, veteran, background-check, relocation, or self-identification fields. If the answer is not present in `config/profile.yml` or visible context, mark it as needing candidate confirmation and provide the safest question to ask the candidate.
+Never invent answers for legal, demographic, work-authorization, visa/sponsorship, salary, disability, veteran, background-check, relocation, or self-identification fields. If the answer is not present in `config/profile.yml`, not already cached per Step 6b, or not in visible context, mark it as needing candidate confirmation and provide the safest question to ask the candidate.
+
+## Step 6b — Boilerplate defaults cache (`data/application-defaults.md`)
+
+Some form fields are pure administrivia — the same answer on every application, regardless of company or role (EEO/demographic self-identification, veteran/disability status, "how did you hear about us," "previously worked here," standard legal-acknowledgment checkboxes, electronic signature). Re-deriving or re-confirming these on every run wastes both the candidate's attention and tokens.
+
+1. If `data/application-defaults.md` exists (loaded in Step 2), match visible boilerplate-category fields against it.
+2. A cached value counts as "explicitly present" for the `needs_candidate_confirmation` contract above — render it directly in Step 7 instead of blocking on it. It still appears in Step 7's PRESENT summary for the candidate to review or override before filling; caching removes the repeated *ask*, never the visibility.
+3. A boilerplate-category field with **no** cached entry yet follows the normal `needs_candidate_confirmation` flow. Once the candidate confirms an answer for it in this run, append it to `data/application-defaults.md` (creating the file from the template below on first use) so it's reused automatically next time.
+4. **Never cache:** free-text motivation/fit/cover-letter content, salary/compensation figures, or anything JD- or role-specific. Those must stay grounded in the current report per AGENTS.md's source-of-truth rules — Step 6b only ever touches the fixed administrivia categories above.
+5. The candidate can edit or delete any line in `data/application-defaults.md` directly at any time; an explicit answer they give in the current conversation always overrides a cached one.
+
+Template (create only once the first boilerplate answer is confirmed — do not pre-seed assumed values):
+
+```markdown
+# Application Defaults — boilerplate cache
+
+Non-substantive answers reused across applications. Edit or delete any line anytime.
+
+## EEO / Voluntary Disclosures
+- Gender: ...
+- Race/Ethnicity: ...
+- Veteran status: ...
+- Disability: ...
+
+## Standard Answers
+- How did you hear about us: ...
+- Previously worked at this company: ...
+- Electronic signature: ...
+- Arbitration/terms agreements: ...
+- AI interview/transcription consent: ...
+
+## Custom Answers
+<!-- appended as new recurring boilerplate fields are confirmed -->
+```
 
 
 ## Step 7 — Generate responses
@@ -199,6 +249,52 @@ Notes:
 - [Any observations about the role, changes, etc.]
 - [Personalization suggestions the candidate should review]
 ```
+
+### Field Matching Reference
+
+Where each answer comes from, in priority order. Anything not on this table is generated fresh in Step 7 from the current report + `cv.md` — never cached, since it's JD- and role-specific.
+
+| Label pattern | Source | Cacheable (Step 6b)? |
+|---|---|---|
+| first/last/full name | `config/profile.yml` → `candidate.full_name` | no — already static in profile |
+| email, phone | `config/profile.yml` → `candidate.email` / `.phone` | no |
+| city, location | `config/profile.yml` → `candidate.location` | no |
+| country | `config/profile.yml` → `location.country` | no |
+| linkedin, github, portfolio | `config/profile.yml` → `candidate.linkedin` / `.github` / `.portfolio_url` | no |
+| work authorization, sponsorship | `config/profile.yml` → `location.visa_status` / `.needs_sponsorship` | no — already static in profile |
+| resume/CV upload | latest generated PDF for this report (`pdf` mode output) | no — file, not text |
+| cover letter upload/field | this report's `cover-letter` output, if generated | no |
+| how did you hear, previously worked here | `data/application-defaults.md` (Step 6b) | **yes** |
+| gender, race/ethnicity, veteran, disability | `data/application-defaults.md` (Step 6b) | **yes** |
+| electronic signature, arbitration/terms acknowledgment, AI-transcription consent | `data/application-defaults.md` (Step 6b) | **yes** |
+| salary/compensation expectation | current report + `config/profile.yml` → `compensation.target_range` | no — role-specific |
+| "why this role," motivation, free-text fit questions | current report Blocks B/F + `cv.md` | no — JD-specific |
+
+Unrecognized fields: if required, mark `needs_candidate_confirmation`; if optional, skip and note it. A confirmed answer to a boilerplate-category field gets cached per Step 6b; anything else is generated fresh next time.
+
+## Step 7b — Fill the form (Playwright-active runs)
+
+When Playwright is driving the browser (see Requirements), don't fill field-by-field from the main flow — that means re-reading the DOM after every single field and re-litigating each Known ATS Quirk inline, which burns main-context tokens on mechanical work. Delegate the fill to a subagent instead, once, right after the candidate approves Step 7's consolidated answer set.
+
+1. Build the approved field→value mapping from Step 7's output, skipping any field still marked `needs_candidate_confirmation` and not yet resolved.
+2. Spawn a subagent — pin `model` to the resolved `spend_tier` (per `modes/_shared.md`'s Spend Tier table; this is mechanical execution, not evaluative judgment) — and give it:
+   - ATS type, from Step 1/Step 5 preflight detection
+   - The approved field→value mapping (label, value, and snapshot ref if already captured)
+   - The current Playwright tab state
+   - File paths for resume/cover-letter uploads, flagged as manual — Playwright cannot reliably drive an OS file-picker for an arbitrary path, so tell the candidate the path and ask them to attach it themselves
+   - The relevant entries from `## Known ATS Quirks` below for the detected ATS
+3. The subagent fills fields top-to-bottom with `browser_snapshot` / `browser_click` / `browser_type` / `browser_select_option` / `browser_fill_form`, verifying each value registered (the Workday React-field quirk in particular silently fails this check), and returns:
+   ```json
+   {
+     "fields_filled": [{"label": "...", "value": "..."}],
+     "fields_failed": [{"label": "...", "value": "...", "error": "..."}],
+     "needs_manual_upload": [{"label": "Resume/CV", "file_path": "..."}],
+     "is_review_page": false,
+     "notes": "..."
+   }
+   ```
+4. The subagent never clicks Submit, Send, or Save-and-Continue on a page that finalizes anything, and never advances past a review/submit page — that's the candidate's action alone, per the ethical-use rule in AGENTS.md ("always STOP before clicking Submit/Send/Apply").
+5. On any `fields_failed` entry or `is_review_page: true`, hand control back to the main flow: report what filled, what didn't, and what needs manual upload, then proceed to Step 8. Without Playwright, skip this step entirely and use Step 7's copy-paste output instead.
 
 ## Step 8 — Persist application snapshot
 
@@ -274,6 +370,12 @@ Field-tested across ~12 Playwright-driven applications (Ashby, Greenhouse, Lever
 - **Symptom:** Country, university, or field-of-study dropdowns contain thousands of `<option>` entries. Snapshotting them floods context and stalls the agent.
 - **Agent:** Use `select_option` directly by value or visible label. Never snapshot the full option list. If the exact label is unknown, ask the candidate for the value instead of dumping options into context.
 - **Candidate:** Provides the correct label when the agent cannot infer it from `config/profile.yml`.
+
+### Greenhouse — skip the iframe wrapper via direct embed URL
+
+- **Symptom:** The posting page renders the actual application form inside a `grnhse_iframe`. Interacting through the wrapping page costs an extra navigation/snapshot round-trip, and the iframe boundary complicates ref resolution.
+- **Agent:** Extract the iframe's `for` (board token) and `token` (job token) query params from its `src` (e.g. via `browser_evaluate`), then navigate directly to `https://job-boards.greenhouse.io/embed/job_app?for={boardToken}&token={jobToken}` — the bare form, no wrapper. Confirm via `browser_snapshot` that form fields are present before proceeding to Step 6.
+- **Candidate:** No action — this is a navigation shortcut and doesn't change what's asked or submitted.
 
 ### Job-board host ≠ application host — re-check the URL after "Apply"
 

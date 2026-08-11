@@ -77,14 +77,15 @@ Run `npm run jd:similarity -- {bundle-root}/jd/current.md {bundle-root}/jd/previ
 
 ## PDF Design
 
-- **Fonts**: Space Grotesk (headings, 600-700) + DM Sans (body, 400-500)
-- **Fonts self-hosted**: `fonts/`
-- **Header**: name in Space Grotesk 24px bold + gradient line `linear-gradient(to right, hsl(187,74%,32%), hsl(270,70%,45%))` 2px + contact row
-- **Section headers**: Space Grotesk 13px, uppercase, letter-spacing 0.05em, color cyan primary
-- **Body**: DM Sans 11px, line-height 1.5
-- **Company names**: accent purple color `hsl(270,70%,45%)`
+- **Fonts**: a static system-sans stack (`"Liberation Sans", 'Helvetica Neue', Arial, 'DejaVu Sans', sans-serif`), not the bundled Space Grotesk/DM Sans display fonts. Those variable woff2 fonts render with glyph advances that make PDF text extractors inject spurious spaces inside words (e.g. "SUM M ARY", "Germ any"), which corrupts ATS keyword parsing — verified via `pypdf` text extraction. Clean parseability wins over the branded look; see `templates/cv-template.html`'s header comment.
+- **Fonts self-hosted**: `fonts/` (kept for markets/templates that still use the display fonts — not the default template)
+- **Header**: name 24px bold + accent-color underline + contact row
+- **Section headers**: 13px, uppercase, letter-spacing 0.05em, accent color
+- **Body**: 11px, line-height 1.5
+- **Company names**: accent color
 - **Margins**: 0.6in
 - **Background**: pure white
+- **Theming**: accent color, font stack, size, and margin are overridable via `config/profile.yml` → `style:` (see `theme-style.mjs`); the values above are the un-themed defaults.
 
 ## Section order (optimized "6-second recruiter scan")
 
@@ -104,6 +105,12 @@ Examples of legitimate reformulation:
 - JD says "stakeholder management" and CV says "collaborated with team" → change to "stakeholder management across engineering, operations, and business"
 
 **NEVER add skills that the candidate does not have. Only reword real experience using the exact JD vocabulary.**
+
+**Never stack a keyword next to a phrase that already says the same thing.** Injecting a JD term beside its own synonym, expansion, or an earlier mention reads as keyword-stuffed rather than tailored — and a repeated term doesn't add ATS scoring weight, it just bloats the bullet and looks careless to the human reading it after the ATS. Two real failures from the same bullet:
+- "Processed and audited **HR compliance** verifications via **HR compliance** and **regulatory** verification (E-Verify), ensuring adherence to federal employment **regulations**" — "HR compliance" appears twice, "verification"/"verifications" twice, "regulatory"/"regulations" twice, in one bullet.
+- "Maintained and reconciled **employee data** in Oracle HRIS and **employee data** (including benefits data and employee records)" — "employee data" appears twice.
+
+**Fix:** pick the JD's preferred term once, use it *in place of* the original wording — not alongside it — and read the finished bullet back before moving on; if a word or concept appears twice, cut the weaker instance. This applies per-bullet AND across the whole CV: injecting the same keyword (e.g. "compliance") into most bullets regardless of whether it's the strongest fit for that specific line is the same failure at a larger scale, and produces a CV that reads identically for every JD instead of one that's actually tailored to this one.
 
 ## Template HTML
 
