@@ -113,6 +113,10 @@ package-lock.json
 # Planning (local scratchpad)
 plan/
 
+# Subagent-driven-development scratch (ledgers, briefs, review packages) —
+# per-plan working state, never shipped content.
+.superpowers/
+
 # Web — runtime cache/history the dashboard writes locally; nothing here is tracked.
 .career-ops-web/
 
