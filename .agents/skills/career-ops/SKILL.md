@@ -8,7 +8,7 @@ description: >-
 arguments: mode
 user_invocable: true
 user-invocable: true
-argument-hint: "[cycle | scan | discover | deep | pdf | latex | latex-tex | cover | email | add | expand | eu-swe | oferta | ofertas | apply | batch | tracker | agent-inbox | pipeline | contacto | training | project | interview-prep | interview | interview/plan | interview/practice | interview/debrief | interview-redflag | patterns | offer-prep | titles | upskill | followup | reply-watch | outcome | update]"
+argument-hint: "[cycle | scan | discover | triage | deep | pdf | latex | latex-tex | cover | email | add | expand | eu-swe | oferta | ofertas | apply | apply-batch | telegram | batch | tracker | agent-inbox | pipeline | contacto | training | project | interview-prep | interview | interview/plan | interview/practice | interview/debrief | interview-redflag | patterns | offer-prep | titles | upskill | followup | reply-watch | outcome | update]"
 license: MIT
 ---
 
@@ -50,7 +50,7 @@ Determine the mode from `$mode`:
 | `interview-prep` | `interview-prep` |
 | `interview` | `interview` |
 | `eu-swe` | `regional/eu-swe` |
-| `eu-fintech` | `regional/eu-fintech` |
+| `triage` | `triage` |
 | `interview/plan` | `interview/plan` |
 | `interview/practice` | `interview/practice` |
 | `interview/debrief` | `interview/debrief` |
@@ -136,7 +136,7 @@ Available commands:
   /career-ops interview-prep → Generate company-specific interview prep doc
   /career-ops interview    → Interactive profile/CV onboarding interview
   /career-ops eu-swe    → Calibrate a European SWE application before CV/apply/interview
-  /career-ops eu-fintech → Scan 21 EU fintech portals for Product Manager roles (zero-token)
+  /career-ops triage    → Fast first-pass score/verdict on a single JD, no files written
   /career-ops interview/plan → Time-blocked prep plan for an upcoming interview
   /career-ops interview/practice → Practice interview, one question at a time with feedback
   /career-ops interview/debrief → Post-interview debrief: close gaps, predict next round
@@ -188,6 +188,10 @@ Applies to: `auto-pipeline`, `oferta`, `ofertas`, `pdf`, `contacto`, `apply`, `a
 Read `modes/_profile.md` (if exists) + `modes/_custom.md` (if exists) + `modes/{mode}.md`
 
 Applies to: `tracker`, `agent-inbox`, `deep`, `interview-prep`, `interview`, `regional/eu-swe`, `interview/plan`, `interview/practice`, `interview/debrief`, `latex`, `latex-tex`, `training`, `project`, `patterns`, `titles`, `upskill`, `followup`, `reply-watch`, `outcome`, `cover`, `email`, `add`, `offer-prep`, `discover`
+
+### `triage` — deliberately minimal context
+
+Read ONLY `modes/_brief.md` + `modes/triage.md`. Do NOT read `_shared.md`, `_profile.md`, `cv.md`, `config/profile.yml`, or `oferta.md` — skipping the full evaluation context is the entire point of this mode (a cheap filter gate before promoting a posting to full A-G evaluation).
 
 ### Modes delegated to subagent
 
