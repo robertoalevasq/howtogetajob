@@ -27,8 +27,10 @@ import { fileURLToPath } from 'node:url';
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const tmp = () => mkdtempSync(join(tmpdir(), 'cv-dollar-'));
 
+// build-cv-latex.mjs / build-cv-html.mjs live under core/ now
+// (#workspace-multitenancy Task 1).
 const run = (script, payload, out) =>
-  execFileSync(process.execPath, [join(ROOT, script), payload, out], {
+  execFileSync(process.execPath, [join(ROOT, 'core', script), payload, out], {
     cwd: ROOT,
     encoding: 'utf-8',
     maxBuffer: 10 * 1024 * 1024,

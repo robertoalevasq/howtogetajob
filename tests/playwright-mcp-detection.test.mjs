@@ -11,7 +11,7 @@ import { join } from 'path';
 
 console.log('\ndoctor.mjs — CLI-aware Playwright MCP detection');
 
-const DOCTOR = join(ROOT, 'doctor.mjs');
+const DOCTOR = join(ROOT, 'core', 'doctor.mjs');
 
 function runDoctor(cwd, args, env) {
   try {

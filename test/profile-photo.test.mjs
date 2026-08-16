@@ -27,8 +27,8 @@ function render(inputPayload, { preview = false } = {}) {
   const output = join(dir, 'output.html');
   writeFileSync(input, JSON.stringify(inputPayload));
   const args = preview
-    ? ['build-cv-html.mjs', '--preview', input, TEMPLATE]
-    : ['build-cv-html.mjs', input, output, TEMPLATE];
+    ? [join('core', 'build-cv-html.mjs'), '--preview', input, TEMPLATE]
+    : [join('core', 'build-cv-html.mjs'), input, output, TEMPLATE];
   const stdout = execFileSync(process.execPath, args, { cwd: ROOT, encoding: 'utf8' });
   return { html: readFileSync(preview ? join(ROOT, 'output', 'cv-preview.html') : output, 'utf8'), stdout, output };
 }

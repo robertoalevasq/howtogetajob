@@ -12,7 +12,7 @@ import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from 'fs
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { applyScriptDirGuard } from './portal-health-guard.mjs';
-import { acquirePortalHealthLock, LockTimeoutError } from '../portal-health-lock.mjs';
+import { acquirePortalHealthLock, LockTimeoutError } from '../core/portal-health-lock.mjs';
 
 console.log('\napplyScriptDirGuard() — safe cleanup of a possibly-regressed script-dir write');
 

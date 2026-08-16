@@ -10,7 +10,7 @@ import { join } from 'path';
 
 console.log('\ndoctor.mjs — billing source');
 
-const DOCTOR = join(ROOT, 'doctor.mjs');
+const DOCTOR = join(ROOT, 'core', 'doctor.mjs');
 
 /** Run doctor and return its human output (it exits non-zero when it finds issues). */
 function runDoctor(env) {

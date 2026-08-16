@@ -3,8 +3,8 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
-import { applicationArtifactPaths, ensureApplicationArtifactDirs, slugifySegment, writeReuseDecision } from '../application-artifacts.mjs';
-import { repoRelativeManifestPath } from '../generate-pdf.mjs';
+import { applicationArtifactPaths, ensureApplicationArtifactDirs, slugifySegment, writeReuseDecision } from '../core/application-artifacts.mjs';
+import { repoRelativeManifestPath } from '../core/generate-pdf.mjs';
 
 function expectError(label, action, pattern) {
   try {
@@ -71,7 +71,7 @@ try {
   }
 
   const cli = spawnSync(process.execPath, [
-    fileURLToPath(new URL('../application-artifacts.mjs', import.meta.url)),
+    fileURLToPath(new URL('../core/application-artifacts.mjs', import.meta.url)),
     '--report', 'bad', '--company', 'Acme', '--role', 'Engineer', '--init',
   ], { encoding: 'utf8' });
   if (cli.status === 1

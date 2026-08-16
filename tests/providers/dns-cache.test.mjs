@@ -205,7 +205,7 @@ try {
     const probe = [
       'import dns from "node:dns";',
       'const before = dns.lookup;',
-      'await import("./providers/_dns-cache.mjs");',
+      'await import("../providers/_dns-cache.mjs");',
       'console.log(dns.lookup === before ? "UNPATCHED" : "PATCHED");',
     ].join('');
 

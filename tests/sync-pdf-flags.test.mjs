@@ -36,7 +36,7 @@ function runSync() {
     writeFileSync(tracker, TRACKER_HEADER);
     writeFileSync(pdfIndex, PDF_MANIFEST);
     
-    execFileSync(NODE, [join(ROOT, 'sync-pdf-flags.mjs')], {
+    execFileSync(NODE, [join(ROOT, 'core', 'sync-pdf-flags.mjs')], {
       encoding: 'utf-8',
       timeout: 30000,
       env: { ...process.env, CAREER_OPS_TRACKER: tracker, CAREER_OPS_PDF_INDEX: pdfIndex },
@@ -91,7 +91,7 @@ try {
     writeFileSync(tracker, TRACKER_HEADER);
     writeFileSync(pdfIndex, PDF_MANIFEST);
 
-    const result = spawnSync(NODE, [join(ROOT, 'sync-pdf-flags.mjs'), '--dry-rn', '--json'], {
+    const result = spawnSync(NODE, [join(ROOT, 'core', 'sync-pdf-flags.mjs'), '--dry-rn', '--json'], {
       encoding: 'utf-8',
       timeout: 30000,
       env: { ...process.env, CAREER_OPS_TRACKER: tracker, CAREER_OPS_PDF_INDEX: pdfIndex },

@@ -41,7 +41,7 @@ function runMarkPdfReady(args, sandbox, extraEnv = {}) {
     ...extraEnv,
   };
   try {
-    const stdout = execFileSync(NODE, [join(ROOT, 'mark-pdf-ready.mjs'), ...args], {
+    const stdout = execFileSync(NODE, [join(ROOT, 'core', 'mark-pdf-ready.mjs'), ...args], {
       cwd: ROOT, env, encoding: 'utf-8', timeout: 30000, stdio: ['pipe', 'pipe', 'pipe'],
     });
     return { code: 0, stdout, stderr: '' };

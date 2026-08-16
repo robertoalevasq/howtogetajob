@@ -9,7 +9,7 @@
 // staying green in CI (data/ is gitignored).
 import { pass, fail } from './helpers.mjs';
 import { join } from 'path';
-import { resolveWorkspaceRoot, resolvePdfIndexPath } from '../tracker-utils.mjs';
+import { resolveWorkspaceRoot, resolvePdfIndexPath } from '../core/tracker-utils.mjs';
 
 console.log('\nPDF manifest follows the tracker (#2471)');
 

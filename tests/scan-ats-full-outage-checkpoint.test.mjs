@@ -62,7 +62,7 @@ function makeSandbox() {
   // the whole run. Overwriting argv[1] is what makes scan-ats-full.mjs's
   // "invoked directly?" guard fire under an importing parent — preferred over
   // a --import preload so the test runs on any Node the project supports.
-  const scanUrl = pathToFileURL(join(ROOT, 'scan-ats-full.mjs')).href;
+  const scanUrl = pathToFileURL(join(ROOT, 'core', 'scan-ats-full.mjs')).href;
   writeFileSync(join(dir, 'launch.mjs'), `
 import dns from 'node:dns';
 const code = process.env.STUB_DNS_CODE;
@@ -74,7 +74,7 @@ dns.lookup = (hostname, options, callback) => {
   err.hostname = hostname;
   process.nextTick(cb, err);
 };
-process.argv[1] = ${JSON.stringify(join(ROOT, 'scan-ats-full.mjs'))};
+process.argv[1] = ${JSON.stringify(join(ROOT, 'core', 'scan-ats-full.mjs'))};
 await import(${JSON.stringify(scanUrl)});
 `, 'utf-8');
   return dir;

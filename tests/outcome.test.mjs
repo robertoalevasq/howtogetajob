@@ -5,7 +5,7 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { execFileSync } from 'child_process';
 
-const OUTCOME_SCRIPT = join(ROOT, 'outcome.mjs');
+const OUTCOME_SCRIPT = join(ROOT, 'core', 'outcome.mjs');
 
 console.log('\noutcome.mjs — outcome recording & archiving');
 

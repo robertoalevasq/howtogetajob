@@ -8,6 +8,14 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const ROOT = join(__dirname, '..');   // repo root (tests/ lives one level down)
+// #workspace-multitenancy Task 1 moved every root-level *.mjs script into
+// core/, so run()'s default cwd below points there — every `run(NODE,
+// ['some-script.mjs', ...])` call throughout the suite (in this file's
+// consumers) resolves against core/ without each call site having to say so.
+// Callers that genuinely need the repo root itself (git/go commands, node's
+// native --test runner against test/*.test.mjs) pass an explicit `cwd: ROOT`
+// override.
+export const CORE_DIR = join(ROOT, 'core');
 export const QUICK = process.argv.includes('--quick');
 export const NODE = process.execPath;
 
@@ -175,7 +183,7 @@ export function run(cmd, args = [], opts = {}) {
   lastFailure = null;
   const exe = resolveAllowedExecutable(cmd);
   try {
-    return execFileSync(exe, args, { cwd: ROOT, encoding: 'utf-8', timeout: 30000, ...opts }).trim();
+    return execFileSync(exe, args, { cwd: CORE_DIR, encoding: 'utf-8', timeout: 30000, ...opts }).trim();
   } catch (e) {
     // execFileSync attaches the child's streams and exit status to the error.
     // Keep them: callers report failure as `<name> crashed`, and without this a

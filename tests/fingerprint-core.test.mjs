@@ -114,7 +114,7 @@ const atDistance = (fp, d) => (d === 0 ? fp : flipBits(fp, d));
 console.log('\nfingerprint-core.mjs — popcount rewrite is score-for-score identical (#2381)');
 try {
   const { similarity, findCrossListings, CROSSLIST_THRESHOLD } =
-    await import(pathToFileURL(join(ROOT, 'fingerprint-core.mjs')).href);
+    await import(pathToFileURL(join(ROOT, 'core', 'fingerprint-core.mjs')).href);
 
   // ── 1. similarity(): identical scores over random + near-duplicate pairs ──
   // Strict === , not an epsilon: both paths compute 1 - d/64 from an integer d,
@@ -282,7 +282,7 @@ try {
 // identical posting shared between two genuinely different non-Latin employers
 // was silently never reported — while the Latin equivalent was reported fine.
 {
-  const { findCrossListings, fingerprintText } = await import(pathToFileURL(join(ROOT, 'fingerprint-core.mjs')).href);
+  const { findCrossListings, fingerprintText } = await import(pathToFileURL(join(ROOT, 'core', 'fingerprint-core.mjs')).href);
   const jd = 'Senior backend engineer working on distributed payment platforms. You will design and operate high throughput services, own reliability, and mentor other engineers across the payments organisation. Experience with Go, Kubernetes and event driven systems is expected for this role.';
   const f = fingerprintText(jd);
   const today = new Date('2026-08-04T00:00:00Z');

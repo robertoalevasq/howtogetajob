@@ -58,7 +58,7 @@ function runMergeDetailed(additions, opts = {}) {
     let exitCode = 0;
     let killedBy = null;
     try {
-      output = execFileSync(NODE, [join(ROOT, 'merge-tracker.mjs')], {
+      output = execFileSync(NODE, [join(ROOT, 'core', 'merge-tracker.mjs')], {
         encoding: 'utf-8',
         timeout: 30000,
         // Capture stderr instead of letting execFileSync echo it: the
@@ -343,7 +343,7 @@ try {
   // Consequence 1: the follow-up clock. followup-cadence prefers the
   // "Applied YYYY-MM-DD" marker in Notes over the Date column, so losing it
   // silently re-dates the application to the evaluation date.
-  const { analyzeFromContent } = await import(pathToFileURL(join(ROOT, 'followup-cadence.mjs')).href);
+  const { analyzeFromContent } = await import(pathToFileURL(join(ROOT, 'core', 'followup-cadence.mjs')).href);
   const cadence = analyzeFromContent(upgraded.tracker, '');
   const entry = (cadence.entries || []).find(e => e.num === 1);
   if (entry && entry.appliedDate === '2026-01-15' && entry.appDateSource === 'notes') {

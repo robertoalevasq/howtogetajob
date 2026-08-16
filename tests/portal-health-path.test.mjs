@@ -18,7 +18,7 @@
 // directory must be provably untouched.
 import { pass, fail, NODE, ROOT } from './helpers.mjs';
 import { spawnSync } from 'child_process';
-import { mkdtempSync, rmSync, existsSync, readFileSync } from 'fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { pathToFileURL } from 'url';
@@ -27,13 +27,23 @@ import { applyScriptDirGuard } from './portal-health-guard.mjs';
 
 console.log('\nscan.mjs — portal-health.tsv resolves against cwd, not script dir');
 
-const scanUrl = JSON.stringify(pathToFileURL(join(ROOT, 'scan.mjs')).href);
+const scanUrl = JSON.stringify(pathToFileURL(join(ROOT, 'core', 'scan.mjs')).href);
 const sandboxCwd = mkdtempSync(join(tmpdir(), 'career-ops-portal-health-'));
 
-// The script's own directory is ROOT in this checkout -- the same directory
-// the pre-fix bug always resolved to regardless of the cwd it was given.
-const scriptDirHealthPath = join(ROOT, 'data', 'portal-health.tsv');
+// The script's own directory is ROOT/core in this checkout (#workspace-multitenancy
+// Task 1 moved scan.mjs there) -- the same directory the pre-fix bug always
+// resolved to regardless of the cwd it was given.
+const scriptDirHealthPath = join(ROOT, 'core', 'data', 'portal-health.tsv');
 const scriptDirHealthExisted = existsSync(scriptDirHealthPath);
+// core/data/ itself (the lock directory's parent) may not exist yet in a
+// checkout that never triggered the pre-fix bug — track that separately so
+// the cleanup below can remove the directory the lock's own
+// mkdirSync(dirname(lockDir)) unconditionally creates while probing this
+// path, rather than leaving a stray empty core/data/ behind on every run
+// (#workspace-multitenancy Task 1: this probe path only started living under
+// core/ once scan.mjs moved there, so it's the first thing to reach into an
+// otherwise-untouched core/data/).
+const scriptDirDataDirExisted = existsSync(join(ROOT, 'core', 'data'));
 const scriptDirHealthBackup = scriptDirHealthExisted ? readFileSync(scriptDirHealthPath, 'utf-8') : null;
 // Keep in sync with PORTAL_HEALTH_HEADER in scan.mjs -- passed to the guard so
 // a header-only remainder (appendPortalHealth always writes the header before
@@ -98,4 +108,27 @@ try {
     marker,
     headerOnlyContent: PORTAL_HEALTH_HEADER,
   });
+
+  // The lock acquired above (portal-health-lock.mjs) unconditionally
+  // mkdirSync(dirname(lockDir))'s core/data/ so the lock's own mkdirSync
+  // cannot throw ENOENT — a real, always-on side effect of merely probing
+  // this path, independent of whether the guarded regression exists. Remove
+  // it if this run is the one that created it and nothing else populated it
+  // meanwhile (a concurrent real scan.mjs writing into the actual repo's
+  // core/data/... would never happen, since production code resolves this
+  // path relative to cwd, not the script directory — but check emptiness
+  // rather than assume, so a genuine concurrent write is never destroyed).
+  if (!scriptDirDataDirExisted) {
+    const scriptDirDataPath = join(ROOT, 'core', 'data');
+    try {
+      if (existsSync(scriptDirDataPath) && readdirSync(scriptDirDataPath).length === 0) {
+        // recursive: true is required by rmSync to target a directory at all
+        // (not a statement about depth) -- safe here since emptiness was just
+        // verified above.
+        rmSync(scriptDirDataPath, { recursive: true, force: false });
+      }
+    } catch {
+      /* best-effort cleanup only */
+    }
+  }
 }

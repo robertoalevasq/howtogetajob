@@ -11,7 +11,7 @@ console.log('\njsonc-parse.mjs — comment and trailing-comma tolerance');
 
 try {
   const { parseJsonc, parseConfigByExtension } = await import(
-    pathToFileURL(join(ROOT, 'jsonc-parse.mjs')).href
+    pathToFileURL(join(ROOT, 'core', 'jsonc-parse.mjs')).href
   );
 
   const check = (label, actual, expected) => {

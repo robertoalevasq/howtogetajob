@@ -5,7 +5,7 @@ import { pathToFileURL } from 'url';
 console.log('\nUtility - company-funded');
 
 try {
-  const mod = await import(pathToFileURL(join(ROOT, 'company-funded.mjs')).href);
+  const mod = await import(pathToFileURL(join(ROOT, 'core', 'company-funded.mjs')).href);
 
   const cases = [
     ['Prime Intellect raises $130M Series A', 'Prime Intellect'],

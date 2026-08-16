@@ -71,7 +71,7 @@ function build(label, templateArg) {
   const output = join(dir, `${label}.html`);
   writeFileSync(input, JSON.stringify(PAYLOAD));
 
-  const args = [join(ROOT, 'build-cv-html.mjs'), input, output];
+  const args = [join(ROOT, 'core', 'build-cv-html.mjs'), input, output];
   if (templateArg) args.push(templateArg);
 
   if (run(NODE, args) === null) {

@@ -16,8 +16,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { buildHtml } from '../generate-cover-letter.mjs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { buildHtml } from '../core/generate-cover-letter.mjs';
+
+const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
 const writeTemplate = (body) => {
   const dir = mkdtempSync(join(tmpdir(), 'cover-placeholder-'));
@@ -66,7 +69,7 @@ test('reports every unresolved token, not just the first', () => {
 test('the shipped template still renders clean', () => {
   // Guards the fix itself: if the bundled template ever gains a token the
   // renderer does not map, this fails instead of every user's render failing.
-  const html = buildHtml(payload(), 'templates/cover-letter-template.html');
+  const html = buildHtml(payload(), join(REPO_ROOT, 'templates', 'cover-letter-template.html'));
   assert.doesNotMatch(html, /\{\{[A-Z_]+\}\}/, 'bundled template must be fully mapped');
   assert.match(html, /Jane Doe/);
 });

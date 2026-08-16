@@ -13,7 +13,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { pass, fail } from './helpers.mjs';
-import { gitIn, removeAdditionsNotInHead } from '../update-system.mjs';
+import { gitIn, removeAdditionsNotInHead } from '../core/update-system.mjs';
 
 // A throwaway git repo plus a ctx that binds the rollback helper's git runner
 // and filesystem root to it, so nothing touches the real working tree.

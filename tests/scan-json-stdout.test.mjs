@@ -17,7 +17,7 @@ import { pathToFileURL } from 'url';
 console.log('\nscan.mjs — --json stdout stays machine-parseable (#1906)');
 
 try {
-  const scanUrl = JSON.stringify(pathToFileURL(join(ROOT, 'scan.mjs')).href);
+  const scanUrl = JSON.stringify(pathToFileURL(join(ROOT, 'core', 'scan.mjs')).href);
 
   // dotenv is an optional import in scan.mjs. If it is not installed the
   // banner cannot fire and both checks below would pass without proving
@@ -28,8 +28,12 @@ try {
     warn('dotenv is not installed — cannot verify the stdout channel stays clean');
   } else {
     // Importing scan.mjs must be silent on stdout. scan.mjs guards its CLI
-    // entry point, so the import runs module top level only.
-    const importOut = run(NODE, ['-e', `await import(${scanUrl})`]);
+    // entry point, so the import runs module top level only. scan.mjs's
+    // module-top-level mkdirSync('data', ...) is repo-root-relative (like its
+    // PORTALS_PATH/PROFILE_PATH env-overridable defaults), so this child needs
+    // cwd: ROOT — run()'s core/-default cwd would create a stray core/data/
+    // (#workspace-multitenancy Task 1).
+    const importOut = run(NODE, ['-e', `await import(${scanUrl})`], { cwd: ROOT });
     if (importOut === '') {
       pass('importing scan.mjs writes nothing to stdout');
     } else if (importOut === null) {
@@ -44,7 +48,7 @@ try {
     const jsonOut = run(NODE, [
       '-e',
       `await import(${scanUrl}); process.stdout.write(JSON.stringify({ date: '2026-01-01', offers: [] }));`,
-    ]);
+    ], { cwd: ROOT });
     if (jsonOut === null) {
       fail('child emitting JSON after importing scan.mjs failed');
     } else {

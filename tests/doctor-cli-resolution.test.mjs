@@ -12,7 +12,7 @@ import { join } from 'path';
 
 console.log('\ndoctor.mjs — CLI resolution');
 
-const DOCTOR = join(ROOT, 'doctor.mjs');
+const DOCTOR = join(ROOT, 'core', 'doctor.mjs');
 
 function runDoctor(cwd, args, env) {
   try {

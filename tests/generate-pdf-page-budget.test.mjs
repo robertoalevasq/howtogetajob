@@ -14,7 +14,14 @@ import { pass, fail, ROOT, NODE } from './helpers.mjs';
 const outputRoot = join(ROOT, 'output');
 mkdirSync(outputRoot, { recursive: true });
 const sandbox = mkdtempSync(join(outputRoot, 'page-budget-test-'));
-const script = join(sandbox, 'generate-pdf.mjs');
+// generate-pdf.mjs computes ROOT as dirname(__dirname) — it now lives one
+// directory below the repo root, in core/ (#workspace-multitenancy Task 1) —
+// so the isolated copy must sit under sandbox/core/ for the script's own
+// ROOT to resolve back to `sandbox` (where data/, output/ etc. below are
+// created), not to sandbox's parent.
+const scriptDir = join(sandbox, 'core');
+mkdirSync(scriptDir, { recursive: true });
+const script = join(scriptDir, 'generate-pdf.mjs');
 const input = join(sandbox, 'two-pages.html');
 const defaultOverflowInput = join(sandbox, 'three-pages.html');
 const manifest = join(sandbox, 'data', 'pdf-index.tsv');
@@ -22,11 +29,11 @@ mkdirSync(join(sandbox, 'data'), { recursive: true });
 writeFileSync(manifest, '', 'utf-8');
 const playwrightStub = join(sandbox, 'node_modules', 'playwright');
 
-copyFileSync(join(ROOT, 'generate-pdf.mjs'), script);
+copyFileSync(join(ROOT, 'core', 'generate-pdf.mjs'), script);
 // generate-pdf.mjs imports its local sibling ./theme-style.mjs (dynamic PDF
 // theming, #1837); copy it into the sandbox too or the isolated script fails
 // to load with ERR_MODULE_NOT_FOUND before it can parse any --max-pages arg.
-copyFileSync(join(ROOT, 'theme-style.mjs'), join(sandbox, 'theme-style.mjs'));
+copyFileSync(join(ROOT, 'core', 'theme-style.mjs'), join(scriptDir, 'theme-style.mjs'));
 mkdirSync(playwrightStub, { recursive: true });
 writeFileSync(join(playwrightStub, 'package.json'), JSON.stringify({
   name: 'playwright',

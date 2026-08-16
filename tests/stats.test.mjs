@@ -7,7 +7,7 @@ import { tmpdir } from 'os';
 
 console.log('\nstats.mjs — lifetime pipeline stats aggregator (#1604)');
 try {
-  const stats = await import(pathToFileURL(join(ROOT, 'stats.mjs')).href);
+  const stats = await import(pathToFileURL(join(ROOT, 'core', 'stats.mjs')).href);
 
   // Tracker roll-up — CRLF input on purpose (Windows checkouts).
   const trackerMd = [
@@ -210,7 +210,7 @@ try {
 
   // CLI smoke — must emit the full contract with null sections in a checkout
   // with no user data (exactly the CI environment).
-  const cliOut = run(NODE, [join(ROOT, 'stats.mjs')]);
+  const cliOut = run(NODE, [join(ROOT, 'core', 'stats.mjs')]);
   const parsed = JSON.parse(cliOut);
   if (parsed && parsed.metadata && 'tracker' in parsed && 'scan' in parsed && 'portals' in parsed
       && 'followups' in parsed && 'funnel' in parsed && 'runs' in parsed) {
@@ -218,7 +218,7 @@ try {
   } else {
     fail(`stats.mjs CLI missing sections: ${parsed ? Object.keys(parsed).join(',') : cliOut}`);
   }
-  const summaryOut = run(NODE, [join(ROOT, 'stats.mjs'), '--summary']);
+  const summaryOut = run(NODE, [join(ROOT, 'core', 'stats.mjs'), '--summary']);
   if (summaryOut && summaryOut.includes('Pipeline Stats')) {
     pass('stats.mjs --summary renders the human table');
   } else {
@@ -240,7 +240,7 @@ try {
     if (!dataDirExisted) mkdirSync(join(ROOT, 'data'), { recursive: true });
     writeFileSync(liveAppsFile, coldTrackerMd);
     writeFileSync(liveFupsFile, coldFollowupsMd);
-    const coldSummaryOut = run(NODE, [join(ROOT, 'stats.mjs'), '--summary']);
+    const coldSummaryOut = run(NODE, [join(ROOT, 'core', 'stats.mjs'), '--summary']);
     if (coldSummaryOut && coldSummaryOut.includes('3 active (2 live, 1 cold)')) {
       pass('stats.mjs --summary integrates live/cold counts into the existing Tracker line');
     } else {

@@ -47,7 +47,7 @@ function makeLane() {
   return { dir, portals };
 }
 
-const runScan = (dir, env) => execFileSync(NODE, [join(ROOT, 'scan.mjs')], {
+const runScan = (dir, env) => execFileSync(NODE, [join(ROOT, 'core', 'scan.mjs')], {
   cwd: dir,
   env: { ...process.env, ...env },
   encoding: 'utf-8',

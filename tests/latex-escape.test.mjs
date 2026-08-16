@@ -84,7 +84,7 @@ function renderWithEmail(emailUrl) {
     const inPath = join(dir, 'cv.json');
     const outPath = join(dir, 'cv.tex');
     writeFileSync(inPath, JSON.stringify({ ...CV_JSON, email: { url: emailUrl, display: 'test@example.com' } }), 'utf-8');
-    if (run(NODE, [join(ROOT, 'build-cv-latex.mjs'), inPath, outPath]) === null) return null;
+    if (run(NODE, [join(ROOT, 'core', 'build-cv-latex.mjs'), inPath, outPath]) === null) return null;
     return readFileSync(outPath, 'utf-8');
   } finally {
     rmSync(dir, { recursive: true, force: true });

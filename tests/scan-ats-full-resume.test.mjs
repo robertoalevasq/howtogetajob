@@ -7,7 +7,7 @@ import { pass, fail, ROOT } from './helpers.mjs';
 
 console.log('\nscan-ats-full — resume machinery');
 
-const mod = await import(pathToFileURL(join(ROOT, 'scan-ats-full.mjs')).href);
+const mod = await import(pathToFileURL(join(ROOT, 'core', 'scan-ats-full.mjs')).href);
 const { parallelEach, withTimeout, datasetFingerprint } = mod;
 
 // withTimeout: passes a fast promise through untouched.
@@ -204,7 +204,7 @@ const { loadCheckpoint, checkpointCompatible } = mod;
 // board that simply had nothing fresh. The counter is a local in main(), so
 // this asserts on the source of the payload literal rather than a run.
 {
-  const src = readFileSync(join(ROOT, 'scan-ats-full.mjs'), 'utf-8');
+  const src = readFileSync(join(ROOT, 'core', 'scan-ats-full.mjs'), 'utf-8');
   const start = src.indexOf('if (opts.json) {');
   const end = src.indexOf('offers: offers.map(', start);
 

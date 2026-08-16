@@ -13,7 +13,7 @@ import { pass, fail } from './helpers.mjs';
 import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync, readFileSync, utimesSync } from 'fs';
 import { join, dirname } from 'path';
 import { tmpdir } from 'os';
-import { acquirePortalHealthLock, LockTimeoutError } from '../portal-health-lock.mjs';
+import { acquirePortalHealthLock, LockTimeoutError } from '../core/portal-health-lock.mjs';
 
 console.log('\nportal-health-lock.mjs — ownership-verified locking');
 

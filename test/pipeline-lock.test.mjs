@@ -22,7 +22,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync, readFileSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { acquirePipelineLock, LockTimeoutError, OWNERLESS_GRACE_MS } from '../pipeline-lock.mjs';
+import { acquirePipelineLock, LockTimeoutError, OWNERLESS_GRACE_MS } from '../core/pipeline-lock.mjs';
 
 function fixtureRoot() {
   const root = mkdtempSync(join(tmpdir(), 'career-ops-pipeline-lock-'));

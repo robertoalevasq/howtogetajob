@@ -9,7 +9,7 @@
 // (scan.mjs), so a concurrent appender can never land between this guard's
 // read and write.
 import { existsSync, readFileSync, writeFileSync, rmSync } from 'fs';
-import { withPortalHealthLock } from '../portal-health-lock.mjs';
+import { withPortalHealthLock } from '../core/portal-health-lock.mjs';
 
 /**
  * Remove a fixture marker row from `path` without disturbing any other content.

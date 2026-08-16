@@ -30,7 +30,7 @@ const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const NO_PORTALS = join(tmpdir(), 'career-ops-no-such-portals.yml');
 
 function runScan(...args) {
-  const r = spawnSync(process.execPath, [join(ROOT, 'scan.mjs'), ...args], {
+  const r = spawnSync(process.execPath, [join(ROOT, 'core', 'scan.mjs'), ...args], {
     cwd: ROOT,
     encoding: 'utf-8',
     timeout: 30_000,
