@@ -12,7 +12,7 @@ here, so review is the real control.
   burden.
 - **Bundled** — promoted into `plugins/` (shipped, auto-updated). Reserve for
   broadly-useful, low/zero-key, well-tested plugins (how `apify`/`gmail`/`notion`
-  were absorbed). Adds a maintenance commitment + a `config/plugins.example.yml`
+  were absorbed). Adds a maintenance commitment + a `templates/plugins.example.yml`
   block + an `.env.example` entry.
 
 ## What CI already checked (don't re-do by hand)

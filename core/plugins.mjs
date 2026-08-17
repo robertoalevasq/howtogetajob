@@ -259,7 +259,7 @@ function setEnabled(id, on, settings) {
   const prev = (cfg.plugins[id] && typeof cfg.plugins[id] === 'object') ? cfg.plugins[id] : {};
   cfg.plugins[id] = { ...prev, ...(settings || {}), enabled: on };
   mkdirSync(path.join(ROOT, 'config'), { recursive: true });
-  writeFileSync(file, '# career-ops plugin activation — see config/plugins.example.yml\n' + yaml.dump(cfg), 'utf8');
+  writeFileSync(file, '# career-ops plugin activation — see templates/plugins.example.yml\n' + yaml.dump(cfg), 'utf8');
 }
 
 // The capability card a user must consent to before a plugin runs.

@@ -1,6 +1,6 @@
 # career-ops — Plugin activation (opt-in)
 #
-#   cp config/plugins.example.yml config/plugins.yml
+#   cp templates/plugins.example.yml config/plugins.yml
 #
 # Plugins are OFF by default. The core runs zero-keys and local-first; plugins
 # are the opt-in home for integrations that need a key or talk to an external

@@ -14,7 +14,7 @@ Plugins load **only** when you opt in. With no `config/plugins.yml`, the core
 runs exactly as it always has — no plugin code runs, no `.env` is read, nothing
 changes. Two gates must both be satisfied:
 
-1. **Enable** the plugin in `config/plugins.yml` (copy `config/plugins.example.yml`).
+1. **Enable** the plugin in `config/plugins.yml` (copy `templates/plugins.example.yml`).
 2. **Provide its keys** in your own `.env` (each plugin declares which it needs).
    Run `node doctor.mjs` or `node plugins.mjs list` to see what's missing.
 

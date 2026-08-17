@@ -11789,7 +11789,7 @@ try {
   const firewallRe = /\b(revenue|pricing|paywall|monetiz\w*|moat)\b/i;
   const firewallTargets = [
     join(ROOT, 'plugins', 'README.md'),
-    join(ROOT, 'config', 'plugins.example.yml'),
+    join(ROOT, 'templates', 'plugins.example.yml'),
     ...bundled.map(p => join(p.dir, 'manifest.json')),
     ...allPluginMjs,
   ];
@@ -11802,8 +11802,8 @@ try {
   // bare-filename entry — either form is acceptable coverage.
   const upd = readFileSync(join(ROOT, 'core', 'update-system.mjs'), 'utf8');
   const pluginsMjsRegistered = upd.includes("'plugins.mjs'") || upd.includes("'core/'");
-  if (pluginsMjsRegistered && ["'plugins/'", "'config/plugins.example.yml'"].every(s => upd.includes(s))) {
-    pass('plugins/, plugins.mjs, config/plugins.example.yml registered as SYSTEM paths');
+  if (pluginsMjsRegistered && ["'plugins/'", "'templates/plugins.example.yml'"].every(s => upd.includes(s))) {
+    pass('plugins/, plugins.mjs, templates/plugins.example.yml registered as SYSTEM paths');
   } else {
     fail('plugin SYSTEM paths not fully registered in update-system.mjs');
   }
@@ -11823,7 +11823,7 @@ try {
 console.log('\n52. Interview session producer (#1242 transcript contract)');
 
 // Scaffold is system-owned and MUST ship (tracked) so the updater can deliver it.
-for (const f of ['interview-prep/sessions/.gitkeep', 'interview-prep/sessions/README.md']) {
+for (const f of ['templates/interview-prep-sessions/.gitkeep', 'templates/interview-prep-sessions/README.md']) {
   if (!fileExists(f)) {
     fail(`Missing session scaffold: ${f}`);
   } else if (run('git', ['ls-files', f], { cwd: ROOT })) {
@@ -11843,12 +11843,13 @@ for (const f of ['interview-prep/sessions/.gitkeep', 'interview-prep/sessions/RE
   }
 }
 
-// ...but the scaffold itself must be force-included past that ignore rule.
-for (const f of ['interview-prep/sessions/.gitkeep', 'interview-prep/sessions/README.md']) {
+// ...but the scaffold itself must not be gitignored (it now lives outside the
+// interview-prep/sessions/* ignore rule entirely, at its templates/ source).
+for (const f of ['templates/interview-prep-sessions/.gitkeep', 'templates/interview-prep-sessions/README.md']) {
   if (run('git', ['check-ignore', f], { cwd: ROOT })) {
     fail(`Session scaffold is gitignored (won't ship): ${f}`);
   } else {
-    pass(`Session scaffold is force-included past the ignore rule: ${f}`);
+    pass(`Session scaffold is not gitignored (ships to new checkouts): ${f}`);
   }
 }
 
@@ -11856,7 +11857,7 @@ for (const f of ['interview-prep/sessions/.gitkeep', 'interview-prep/sessions/RE
 {
   const updater = readFile('core/update-system.mjs');
   const sysBlock = (updater.match(/SYSTEM_PATHS\s*=\s*\[([\s\S]*?)\]/) || [, ''])[1];
-  for (const p of ['interview-prep/sessions/.gitkeep', 'interview-prep/sessions/README.md']) {
+  for (const p of ['templates/interview-prep-sessions/.gitkeep', 'templates/interview-prep-sessions/README.md']) {
     if (sysBlock.includes(`'${p}'`)) {
       pass(`Session scaffold in SYSTEM_PATHS: ${p}`);
     } else {
@@ -11887,10 +11888,10 @@ for (const mode of ['modes/interview/debrief.md', 'modes/interview/practice.md']
 }
 
 // The README is the consumer contract — it must document speaker labels + tag format.
-if (!fileExists('interview-prep/sessions/README.md')) {
+if (!fileExists('templates/interview-prep-sessions/README.md')) {
   fail('sessions/README.md missing — cannot verify the consumer contract');
 } else {
-  const readme = readFile('interview-prep/sessions/README.md');
+  const readme = readFile('templates/interview-prep-sessions/README.md');
   if (readme.includes('**Interviewer:**') && readme.includes('**Candidate:**')) {
     pass('sessions/README documents Interviewer/Candidate speaker labels');
   } else {

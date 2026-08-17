@@ -112,8 +112,8 @@ const SYSTEM_PATHS = [
   'modes/offer-prep.md',
   'modes/interview-prep.md',
   'modes/interview/',
-  'interview-prep/sessions/.gitkeep',
-  'interview-prep/sessions/README.md',
+  'templates/interview-prep-sessions/.gitkeep',
+  'templates/interview-prep-sessions/README.md',
   'modes/patterns.md',
   'modes/titles.md',
   'modes/upskill.md',
@@ -245,7 +245,7 @@ const SYSTEM_PATHS = [
   'DOCKER.md',
   'plugins/',
   'plugins-registry/',
-  'config/plugins.example.yml',
+  'templates/plugins.example.yml',
   'opencode.example.json',
   'test-fixtures/',
 ];
@@ -275,7 +275,7 @@ const BOOTSTRAP_PATHS = [
   'core/plugin-install.mjs',
   'core/plugin-audit.mjs',
   'core/validate-plugin-registry.mjs',
-  'config/plugins.example.yml',
+  'templates/plugins.example.yml',
   'core/agent-inbox.mjs',
   'core/agent-inbox-tests.mjs',
 ];
