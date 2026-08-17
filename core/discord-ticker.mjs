@@ -40,6 +40,7 @@ import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { runHook } from '../plugins/_engine.mjs';
 import { acquireTrackerLock, writeFileAtomic } from './tracker-utils.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 // This script lives in core/, one directory below the repo root
@@ -48,12 +49,15 @@ const ROOT = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = dirname(ROOT);
 // Overridable so tests can isolate state in a sandbox instead of touching
 // this repo's real data/ directory (same convention as
-// CAREER_OPS_REPORTS_DIR in reserve-report-num.mjs).
+// CAREER_OPS_REPORTS_DIR in reserve-report-num.mjs). Falls back to the
+// current workspace root (#workspace-multitenancy Task 8), not this
+// script's own directory — each user's ticker state must land in their own
+// workspace.
 export const STATE_PATH = process.env.CAREER_OPS_DISCORD_TICKER_STATE
-  || join(ROOT, '..', 'data', 'cache', 'discord-ticker-state.json');
+  || join(workspaceRoot(), 'data', 'cache', 'discord-ticker-state.json');
 export const LOCK_DIR = `${STATE_PATH}.lock`;
 export const LOG_PATH = process.env.CAREER_OPS_DISCORD_TICKER_LOG
-  || join(ROOT, '..', 'data', 'discord-ticker.log');
+  || join(workspaceRoot(), 'data', 'discord-ticker.log');
 
 // Discord's documented embed limits. Enforcing these before sending turns a
 // live 400 into a silently-truncated payload — degrade, never die.

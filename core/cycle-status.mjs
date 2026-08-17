@@ -25,18 +25,17 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { acquireTrackerLock, writeFileAtomic } from './tracker-utils.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
-// This script now lives in core/, one directory below the repo root; ROOT is
-// the actual repo root that data/ lives under (see
-// #workspace-multitenancy Task 1).
-const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 // Overridable for test isolation (same convention as discord-ticker.mjs /
-// CAREER_OPS_REPORTS_DIR elsewhere in this repo).
+// CAREER_OPS_REPORTS_DIR elsewhere in this repo). Falls back to the current
+// workspace root (see #workspace-multitenancy Task 5/8), not this script's
+// own directory — each user's cycle run must land in their own workspace.
 export const STATUS_PATH = process.env.CAREER_OPS_CYCLE_STATUS
-  || join(ROOT, 'data', 'cache', 'cycle-status.json');
+  || join(workspaceRoot(), 'data', 'cache', 'cycle-status.json');
 export const LOCK_DIR = `${STATUS_PATH}.lock`;
 export const LOG_PATH = process.env.CAREER_OPS_CYCLE_STATUS_LOG
-  || join(ROOT, 'data', 'cycle-status.log');
+  || join(workspaceRoot(), 'data', 'cycle-status.log');
 
 const LOCK_TIMEOUT_MS = process.env.CAREER_OPS_CYCLE_STATUS_LOCK_TIMEOUT_MS
   ? Number(process.env.CAREER_OPS_CYCLE_STATUS_LOCK_TIMEOUT_MS)

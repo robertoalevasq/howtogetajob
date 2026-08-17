@@ -32,10 +32,16 @@
  */
 
 import { mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'fs';
-import { dirname } from 'path';
+import { dirname, join } from 'path';
 import { randomUUID } from 'crypto';
+import { workspaceRoot } from './workspace-root.mjs';
 
-const LOCK_DIR = 'data/cycle.lock';
+// Overridable for override-consistency with the rest of the codebase
+// (#workspace-multitenancy Task 8). Falls back to the current workspace
+// root, not a bare cwd-relative literal — each user's cycle lock must land
+// in their own workspace.
+const LOCK_DIR = process.env.CAREER_OPS_CYCLE_LOCK
+  || join(workspaceRoot(), 'data', 'cycle.lock');
 const OWNER_PATH = `${LOCK_DIR}/owner.json`;
 // Generous on purpose: real checkpoints refresh far more often than this
 // (every ~25 URLs, every Pass boundary) — this window only needs to be
