@@ -10,7 +10,7 @@ Esegui un colloquio di pratica realistico — una domanda alla volta — e forni
 2. **Persona dell'intervistatore** (se nota) — nome, ruolo, azienda; modella lo stile e la profondità delle domande
 3. **Elenco delle domande** (opzionale) — domande specifiche da trattare; se non fornite, generale in base al tipo di round
 4. **CV** in `cv.md` + `article-digest.md` (se presente) — per verificare le affermazioni nelle risposte e basare le versioni più forti su esperienze reali
-5. **Profilo** in `config/profile.yml` + `modes/_profile.md` — narrativa del candidato, fattori escludenti, obiettivi di compenso
+5. **Profilo** in `config/profile.yml` + `_profile.md` — narrativa del candidato, fattori escludenti, obiettivi di compenso
 6. **Banca delle storie** in `interview-prep/story-bank.md` — per verificare l'accuratezza delle storie nel feedback
 7. **Banca delle domande** in `interview-prep/question-bank.md` — per aggiornare lo stato dopo ogni risposta
 8. **File di preparazione specifico per il ruolo** — per informazioni sull'azienda, domande documentate, strategia per il compenso

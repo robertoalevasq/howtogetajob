@@ -357,7 +357,7 @@ function loadContext() {
     cv:          readFile('cv.md')               ?? 'CV not found.',
     profile:     readFile('config/profile.yml')  ?? '',
     shared:      readFile('modes/_shared.md')    ?? '',
-    profileMode: readFile('modes/_profile.md')   ?? '',
+    profileMode: readFile('_profile.md')   ?? '',
   };
 }
 

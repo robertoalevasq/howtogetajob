@@ -51,7 +51,7 @@ function patchToProfile(p: ProfilePatch): Record<string, unknown> {
   if (p.remote) comp.location_flexibility = p.remote;
   if (Object.keys(comp).length) out.compensation = comp;
   // seniority intentionally not written (no canonical home in profile.yml);
-  // archetypes/narrative live in modes/_profile.md — this writer never touches them.
+  // archetypes/narrative live in _profile.md — this writer never touches them.
   return out;
 }
 

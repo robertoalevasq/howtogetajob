@@ -21,7 +21,7 @@ targets; this finds new targets reachable from current skills.
 
 - `cv.md` — the **only** source of evidence for suggestions (required)
 - `config/profile.yml` — `archetypes` (name / level / fit) for what's already targeted
-- `modes/_profile.md` — target roles, framing, and any deal-breakers the user has recorded
+- `_profile.md` — target roles, framing, and any deal-breakers the user has recorded
 - `portals.yml` — the current `title_filter.positive` (and `negative`) keywords
 - Optional: if `data/applications.md` has ≥5 entries progressed beyond
   `Evaluated`, note which suggestions the outcome data supports (e.g. an axis
@@ -66,7 +66,7 @@ list — this system optimizes for quality, not quantity.
    keyword already substring-matches — it is already covered, and suggesting
    it adds zero new recall.
 2. **Deal-breaker filter.** Never suggest titles that violate the
-   deal-breakers recorded in `modes/_profile.md` (e.g. "no people management"
+   deal-breakers recorded in `_profile.md` (e.g. "no people management"
    rules out Engineering Manager; "no on-site" rules out field roles). Titles
    matching `title_filter.negative` keywords are also off the table — the user
    already excluded them.
@@ -117,9 +117,9 @@ When the user accepts one or more suggestions:
 - `portals.yml` missing, or `title_filter.positive` empty → offer to create it
   from `templates/portals.example.yml` first, then re-run this mode. (An empty
   positive list means the scanner matches everything — nothing to broaden.)
-- `config/profile.yml` or `modes/_profile.md` missing → **hard stop**: do not
+- `config/profile.yml` or `_profile.md` missing → **hard stop**: do not
   generate suggestions. Point at onboarding (`node doctor.mjs --json`) and
   stop, then re-run this mode once both files exist — the same
   fix-first-then-re-run behavior as a missing `portals.yml` above.
-  Deal-breakers live in `modes/_profile.md` — suggestions generated without
+  Deal-breakers live in `_profile.md` — suggestions generated without
   them can propose exactly what the user excluded.

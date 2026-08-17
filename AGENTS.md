@@ -10,17 +10,17 @@ Built and used by [santifer](https://santifer.io) to evaluate 740+ offers, gener
 
 Two layers — full list in `DATA_CONTRACT.md`:
 
-- **User Layer (NEVER auto-updated; personalization goes HERE):** `cv.md`, `config/profile.yml`, `modes/_profile.md`, `modes/_custom.md`, `article-digest.md`, `portals.yml`, `data/*`, `reports/*`, `output/*`, `interview-prep/*`
+- **User Layer (NEVER auto-updated; personalization goes HERE):** `cv.md`, `config/profile.yml`, `_profile.md`, `_custom.md`, `article-digest.md`, `portals.yml`, `data/*`, `reports/*`, `output/*`, `interview-prep/*`
 - **System Layer (auto-updatable; DON'T put user data here):** `modes/_shared.md` and all other modes, `AGENTS.md`, `CLAUDE.md`, `CODEX.md`, `OPENCODE.md`, `KIMI.md`, `GEMINI.md`, `*.mjs` scripts, `dashboard/*`, `templates/*`, `batch/*`
 
-**THE RULE: When the user asks to customize facts or targeting (archetypes, narrative, negotiation scripts, proof points, location policy, comp targets), ALWAYS write to `modes/_profile.md` or `config/profile.yml`. When they ask for procedural house rules, custom workflows, output preferences, or automations, write to `modes/_custom.md` (copy it from `modes/_custom.template.md` if missing). NEVER edit `modes/_shared.md` for user-specific content.** This ensures system updates don't overwrite their customizations.
+**THE RULE: When the user asks to customize facts or targeting (archetypes, narrative, negotiation scripts, proof points, location policy, comp targets), ALWAYS write to `_profile.md` or `config/profile.yml`. When they ask for procedural house rules, custom workflows, output preferences, or automations, write to `_custom.md` (copy it from `modes/_custom.template.md` if missing). NEVER edit `modes/_shared.md` for user-specific content.** This ensures system updates don't overwrite their customizations.
 
 ## Source-of-Truth Boundary (CRITICAL)
 
 User-facing content (CV, cover letters, application emails, form answers, recruiter outreach) is generated **exclusively** from these files plus statements the user makes directly in the current conversation:
 
-- `cv.md` · `article-digest.md` · `config/profile.yml` · `modes/_profile.md` · `writing-samples/`
-- `modes/_custom.md` (procedural/style rules only — never introduces factual claims)
+- `cv.md` · `article-digest.md` · `config/profile.yml` · `_profile.md` · `writing-samples/`
+- `_custom.md` (procedural/style rules only — never introduces factual claims)
 - `voice-dna.md` (voice/style only — never introduces factual claims)
 - `interview-prep/story-bank.md` and `interview-prep/{company}-{role}.md` (the user's own STAR stories and prep notes — same trust level as `cv.md`; consumed by `interview` and `apply`/`match-star`)
 
@@ -134,7 +134,7 @@ Some users enable plugins (external integrations). If an enabled plugin ships a 
 node doctor.mjs --json
 ```
 
-Output: `{"onboardingNeeded": <bool>, "missing": [...], "warnings": [...], "autoCopied": [...]}` — `missing` lists whichever of `cv.md`, `config/profile.yml`, `modes/_profile.md`, `portals.yml` are absent; `warnings` is reserved for non-blocking setup signals; `autoCopied` lists customization files (`modes/_profile.md` or `modes/_custom.md`) doctor copied from `modes/_profile.template.md` / `modes/_custom.template.md`.
+Output: `{"onboardingNeeded": <bool>, "missing": [...], "warnings": [...], "autoCopied": [...]}` — `missing` lists whichever of `cv.md`, `config/profile.yml`, `_profile.md`, `portals.yml` are absent; `warnings` is reserved for non-blocking setup signals; `autoCopied` lists customization files (`_profile.md` or `_custom.md`) doctor copied from `modes/_profile.template.md` / `modes/_custom.template.md`.
 
 **If `onboardingNeeded` is true, enter onboarding mode.** Do NOT proceed with evaluations, scans, or any other mode until the basics are in place. Guide the user step by step:
 
@@ -170,7 +170,7 @@ If `config/profile.yml` is missing, copy from `config/profile.example.yml` and a
 >
 > I'll set everything up for you."
 
-Fill in `config/profile.yml` (including `spend_tier`, default `standard`). Archetypes and targeting narrative go to `modes/_profile.md` or `config/profile.yml` — never `modes/_shared.md`.
+Fill in `config/profile.yml` (including `spend_tier`, default `standard`). Archetypes and targeting narrative go to `_profile.md` or `config/profile.yml` — never `modes/_shared.md`.
 
 #### Step 3: Portals (recommended)
 If `portals.yml` is missing:
@@ -199,9 +199,9 @@ After the basics, proactively ask for more context:
 >
 > The more context you give me, the better I filter. Think of it as onboarding a recruiter — the first week I need to learn about you, then I become invaluable."
 
-Store insights in `config/profile.yml` (narrative), `modes/_profile.md`, or `article-digest.md` (proof points) — never in `modes/_shared.md`.
+Store insights in `config/profile.yml` (narrative), `_profile.md`, or `article-digest.md` (proof points) — never in `modes/_shared.md`.
 
-**After every evaluation, learn.** "This score is too high" or "you missed my experience in X" → update `modes/_profile.md`, `config/profile.yml`, or `article-digest.md`. The system gets smarter with every interaction without putting personalization into system-layer files.
+**After every evaluation, learn.** "This score is too high" or "you missed my experience in X" → update `_profile.md`, `config/profile.yml`, or `article-digest.md`. The system gets smarter with every interaction without putting personalization into system-layer files.
 
 #### Step 6: Ready
 Once all files exist, confirm:
@@ -223,12 +223,12 @@ If the user accepts, use the `/loop` or `/schedule` skill (if available) to set 
 
 This system is designed to be customized by YOU (AI Agent). When the user asks, edit directly:
 
-- Archetypes / targeting → `modes/_profile.md` or `config/profile.yml`
+- Archetypes / targeting → `_profile.md` or `config/profile.yml`
 - Translate modes → files in `modes/`
 - Add companies → `portals.yml`
 - Profile details → `config/profile.yml`
 - CV template design → `templates/cv-template.html`
-- Scoring weights → `modes/_profile.md` for the user; `modes/_shared.md` + `batch/batch-prompt.md` only when changing shared defaults for everyone
+- Scoring weights → `_profile.md` for the user; `modes/_shared.md` + `batch/batch-prompt.md` only when changing shared defaults for everyone
 
 ### Language Modes
 

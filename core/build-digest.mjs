@@ -4,7 +4,7 @@
  *
  * Added 2026-08-13 after two real cycle runs delivered the same match
  * content in two visibly different wordings — the digest was 100%
- * LLM-composed prose following `modes/_custom.md`'s spec, which constrains
+ * LLM-composed prose following `_custom.md`'s spec, which constrains
  * content/mechanics but was never rigid enough to guarantee identical
  * structure run to run. This replaces that with a two-step flow:
  *

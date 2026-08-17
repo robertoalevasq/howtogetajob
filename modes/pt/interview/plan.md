@@ -11,7 +11,7 @@ Dada uma descrição da vaga e a data/hora da entrevista, monte um plano de prep
 3. **Nome e cargo do entrevistador** (se souber) — definem a profundidade e o tom da preparação
 4. **Tipo de rodada** (se souber) — triagem, técnica/específica da área, design/estudo de caso, painel comportamental
 5. **CV** em `cv.md` + `article-digest.md` (se existir) — leia para experiência, competências, pontos de prova
-6. **Perfil** em `config/profile.yml` + `modes/_profile.md` — leia para narrativa, arquétipos e objetivos
+6. **Perfil** em `config/profile.yml` + `_profile.md` — leia para narrativa, arquétipos e objetivos
 7. **Story bank** em `interview-prep/story-bank.md` — histórias STAR+R já existentes
 8. **Question bank** em `interview-prep/question-bank.md` — lacunas já conhecidas (se o arquivo existir)
 

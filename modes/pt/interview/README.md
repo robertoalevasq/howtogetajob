@@ -25,7 +25,7 @@ Estas competências pressupõem que os arquivos abaixo existam (padrões do care
 | `cv.md` | CV do candidato — fonte de verdade para experiência e pontos de prova |
 | `article-digest.md` | Pontos de prova condensados do portfolio (opcional) |
 | `config/profile.yml` | Perfil do candidato — vagas-alvo, remuneração, narrativa |
-| `modes/_profile.md` | Arquétipos, narrativa e deal-breakers do candidato |
+| `_profile.md` | Arquétipos, narrativa e deal-breakers do candidato |
 | `interview-prep/story-bank.md` | Histórias STAR+R acumuladas |
 | `interview-prep/question-bank.md` | Banco de perguntas com rastreamento de lacunas (criado no primeiro uso) |
 | `interview-prep/interview-prep-guide.md` | Princípios gerais de entrevista (opcional) |

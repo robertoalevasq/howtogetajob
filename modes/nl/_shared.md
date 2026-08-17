@@ -8,7 +8,7 @@ career-ops in de Nederlandse versie. Voordat je career-ops gebruikt, MOET je:
 1. Vul config/profile.yml in met uw persoonlijke gegevens
 2. Maak cv.md aan in de root van het project (CV in Markdown)
 3. (Optioneel) Maak article-digest.md aan met je proof points
-4. Vul modes/_profile.md in en pas de secties met [AANPASSEN] hieronder aan
+4. Vul _profile.md in en pas de secties met [AANPASSEN] hieronder aan
      ============================================================ -->
 
 ## Bronnen van waarheid (UITSLUITEND)
@@ -20,10 +20,10 @@ Alleen de onderstaande bestanden mogen worden gebruikt voor kandidaatgerichte in
 | cv.md | `cv.md` (projectroot) | ALTIJD |
 | article-digest.md | `article-digest.md` (indien aanwezig) | ALTIJD (gedetailleerde proof points) |
 | profile.yml | `config/profile.yml` | ALTIJD (identiteit en doelrollen) |
-| _profile.md | `modes/_profile.md` | ALTIJD (archetypen, verhaal en onderhandeling) |
+| _profile.md | `_profile.md` | ALTIJD (archetypen, verhaal en onderhandeling) |
 | writing-samples/ en voice-dna.md | `writing-samples/`, `voice-dna.md` (indien aanwezig) | Bij kandidaatgerichte tekst; gebruik eerst de gecachte sectie `## Writing Style` in `_profile.md` en gebruik voice-dna.md om AI-achtige formuleringen af te vangen en de stem te bewaken |
 | interview-prep | `interview-prep/story-bank.md`, `interview-prep/{company}-{role}.md` | Voor formulierantwoorden en sollicitatiegesprekken; bevat eigen STAR-verhalen en notities van de gebruiker |
-| _custom.md | `modes/_custom.md` (indien aanwezig) | ALTIJD (vaste opmaak-, inhouds- en workflowregels; geen bron voor feitelijke claims) |
+| _custom.md | `_custom.md` (indien aanwezig) | ALTIJD (vaste opmaak-, inhouds- en workflowregels; geen bron voor feitelijke claims) |
 
 **REGEL: codeer NOOIT metrics uit proof points.** Lees ze uit `cv.md` en `article-digest.md` op het moment van evaluatie.
 **REGEL: Voor artikel-/projectmetrics heeft `article-digest.md` voorrang op `cv.md`.**

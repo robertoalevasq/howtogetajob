@@ -25,7 +25,7 @@ Estas habilidades asumen que existen los siguientes archivos (valores predetermi
 | `cv.md` | CV de la persona candidata — fuente de verdad para experiencia y puntos de prueba |
 | `article-digest.md` | Puntos de prueba resumidos del portafolio (opcional) |
 | `config/profile.yml` | Perfil de la persona candidata — roles objetivo, compensación, narrativa |
-| `modes/_profile.md` | Arquetipos de la persona candidata, narrativa y factores excluyentes |
+| `_profile.md` | Arquetipos de la persona candidata, narrativa y factores excluyentes |
 | `interview-prep/story-bank.md` | Historias STAR+R acumuladas |
 | `interview-prep/question-bank.md` | Banco de preguntas con seguimiento de brechas (se crea en el primer uso) |
 | `interview-prep/interview-prep-guide.md` | Principios generales para la entrevista (opcional) |

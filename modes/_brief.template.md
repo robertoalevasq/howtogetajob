@@ -1,7 +1,7 @@
 # {Your Name} — Triage Brief
 
 <!-- ============================================================
-     THIS FILE IS YOURS. Copy it to `modes/_brief.md` (doctor.mjs
+     THIS FILE IS YOURS. Copy it to `_brief.md` (doctor.mjs
      auto-copies it on first run) and fill in the placeholders.
      It is USER LAYER — never auto-updated by `node update-system.mjs`.
 

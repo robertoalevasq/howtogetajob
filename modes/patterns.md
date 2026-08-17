@@ -11,7 +11,7 @@ When interview sessions are available, it also reads *what the candidate actuall
 - `data/applications.md` — Application tracker
 - `reports/` — Individual evaluation reports
 - `config/profile.yml` — User profile (for recommendation context)
-- `modes/_profile.md` — User archetypes and framing
+- `_profile.md` — User archetypes and framing
 - `portals.yml` — Portal config (for filter update recommendations)
 - `interview-prep/sessions/*.md` — Interview sessions (optional; drives Step 1b). Drop real-interview transcripts and mock-session files here.
 
@@ -135,7 +135,7 @@ If sessions exist, for each one:
 
 Then aggregate across all sessions:
 - **Where do the fluent/specific answers cluster?** That competency cluster is the role-type the candidate is *actually* strongest at — regardless of the title on their résumé.
-- Compare that cluster against (a) the archetypes in `modes/_profile.md` and (b) the distribution of roles actually applied to in `data/applications.md`.
+- Compare that cluster against (a) the archetypes in `_profile.md` and (b) the distribution of roles actually applied to in `data/applications.md`.
 - **Surface the misfit:** if the strongest cluster (X) is under-represented in the roles applied to (Y), that is a targeting-correction signal:
   > "Your answers consistently light up around **X**, but you're mostly applying to **Y**. Consider adding archetype X and reweighting `portals.yml` `title_filter.positive` toward it."
 
@@ -238,13 +238,13 @@ Ask the user if they want to act on any recommendations:
 > - Update `portals.yml` to filter out geo-restricted roles
 > - Set a score threshold in `_profile.md` for PDF generation
 > - Adjust archetype targeting based on what's converting
-> - Realign targeting from the session signal — add the under-targeted archetype X to `modes/_profile.md` and reweight `portals.yml` `title_filter.positive` (if Step 1b ran)
+> - Realign targeting from the session signal — add the under-targeted archetype X to `_profile.md` and reweight `portals.yml` `title_filter.positive` (if Step 1b ran)
 >
 > Just say which ones, or 'all' to apply everything."
 
 If the user agrees:
 - For portal filter changes: edit `portals.yml`
-- For profile/archetype changes: edit `modes/_profile.md` (NEVER `_shared.md`)
+- For profile/archetype changes: edit `_profile.md` (NEVER `_shared.md`)
 - For score threshold: add to `config/profile.yml` under a `patterns` key
 
 ## Outcome Classification

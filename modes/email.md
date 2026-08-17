@@ -67,19 +67,19 @@ Read:
 - `cv.md`
 - `article-digest.md` if it exists
 - `modes/_writing.md` — shared writing guidance (Voice DNA guardrail, Writing Style calibration, Professional Writing rules). An application email is candidate-facing prose, the same category that module governs (#2006)
-- `modes/_profile.md` if it exists
-- `modes/_custom.md` if it exists
+- `_profile.md` if it exists
+- `_custom.md` if it exists
 - `voice-dna.md` if it exists, for writing style only
 - The selected report if invoked by report number or slug
 - `data/pdf-index.tsv` if present, to find generated PDF attachments
 
-Use `modes/_custom.md` only for procedural output preferences such as whether to
+Use `_custom.md` only for procedural output preferences such as whether to
 include a contact block, whether to show an attachment checklist, or how concise
 the email should be. It must never introduce contact details, work experience,
 or other factual claims.
 
 Use `voice-dna.md` only as a writing guardrail. It must never introduce factual
-claims. Precedence for voice is unchanged: `modes/_profile.md` wins over
+claims. Precedence for voice is unchanged: `_profile.md` wins over
 `voice-dna.md`, which wins over the generic defaults in `_writing.md`. Loading
 the module adds a standard where this mode had none; it never overrides the
 user's own rules.

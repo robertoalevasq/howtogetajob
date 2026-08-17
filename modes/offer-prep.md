@@ -279,7 +279,7 @@ paid hour efficient.
 told]` deltas and `[commonly negotiated]` tags. Phrased exclusively as
 questions or topics ("Can we discuss the exercise window?"), never as
 instructions or demands. Note that terms are generally easier to discuss
-before signing than after. Tone material from `modes/_profile.md` may inform
+before signing than after. Tone material from `_profile.md` may inform
 phrasing if present.
 
 ## Step 5 — Output

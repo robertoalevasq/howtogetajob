@@ -8,7 +8,7 @@ This mode is advisory. It must not replace official immigration, tax, labor, or 
 
 1. **JD text or URL** — role title, country, city, work model, stack, seniority, language, and application portal.
 2. **CV** at `cv.md` + `article-digest.md` — proof points and real achievements.
-3. **Profile** at `config/profile.yml` + `modes/_profile.md` — location, targets, constraints, compensation, and user-specific rules.
+3. **Profile** at `config/profile.yml` + `_profile.md` — location, targets, constraints, compensation, and user-specific rules.
 4. **Evaluation report** in `reports/` if one already exists.
 
 ## Step 1 — Market and Role Classification
@@ -95,7 +95,7 @@ Produce a concise addendum:
 - Use `pdf` mode for the submit-ready CV after calibration.
 - Use `apply` mode for portal answers after calibration.
 - Use `interview-prep` mode when the candidate reaches recruiter, hiring-manager, or technical rounds.
-- Store user-specific rules in `modes/_profile.md` or `config/profile.yml`, not in this mode.
+- Store user-specific rules in `_profile.md` or `config/profile.yml`, not in this mode.
 
 ## Rules
 

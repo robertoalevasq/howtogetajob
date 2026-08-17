@@ -87,6 +87,10 @@ function selfTest() {
       const { files, manifest } = seedFixture(dir, { state });
       check(files.length >= 8, `${state}: seeds ${files.length} files (>=8)`);
       check(!files.includes('expected.json'), `${state}: expected.json not seeded`);
+      // Fixture states are historical snapshots (pre-#workspace-multitenancy
+      // Task 3) and genuinely still carry _profile.md under modes/ — that's
+      // the real, correct layout for what those old installs looked like, so
+      // this check must match the on-disk fixtures, not the current layout.
       const REQUIRED = ['cv.md', 'config/profile.yml', 'modes/_profile.md', 'portals.yml', 'data/applications.md'];
       for (const r of REQUIRED) check(files.includes(r), `${state}: required file seeded: ${r}`);
       const again = seedFixture(dir, { state });

@@ -11,7 +11,7 @@ Data una descrizione del lavoro (JD) e la data/ora del colloquio, costruisci un 
 3. **Nome e ruolo dell'intervistatore** (se noto) — dà forma alla profondità e al tono della preparazione. Spesso i round successivi (panel / onsite) indicano più intervistatori contemporaneamente — forniti direttamente dall'utente o copiati da un invito a calendario / un'email di programmazione. Quando è nominato più di un panelist, vedi la nota Intel Panel al Passo 2.
 4. **Tipo di round** (se noto) — conoscitivo, tecnico/specifico di dominio, design/studio di un caso, comportamentale (panel)
 5. **CV** in `cv.md` + `article-digest.md` (se presente) — per leggere l'esperienza, le competenze, i punti di prova
-6. **Profilo** in `config/profile.yml` + `modes/_profile.md` — per leggere la narrativa, gli archetipi e gli obiettivi
+6. **Profilo** in `config/profile.yml` + `_profile.md` — per leggere la narrativa, gli archetipi e gli obiettivi
 7. **Banca delle storie** in `interview-prep/story-bank.md` — storie STAR+R esistenti
 8. **Banca delle domande** in `interview-prep/question-bank.md` — lacune esistenti (se il file esiste)
 9. **Compenso dichiarato in precedenza** — se il tracker# è noto, esegui `node salary-gap.mjs --stated-for <tracker#>` (zero token). Qualsiasi precedente osservazione in `stated` è una cifra per la quale il candidato si è già impegnato in un round precedente con un intervistatore specifico — inseriscilo nel riferimento rapido del Passo 4, affinché il candidato sia coerente invece di rinegoziare accidentalmente.

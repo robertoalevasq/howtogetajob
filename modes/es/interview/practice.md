@@ -10,7 +10,7 @@ Ejecuta una entrevista de práctica realista — una pregunta a la vez — y da 
 2. **Persona del entrevistador** (si se conoce) — nombre, rol, empresa; determina el estilo y profundidad de las preguntas
 3. **Lista de preguntas** (opcional) — preguntas específicas a cubrir; si no se proporcionan, generarlas a partir del tipo de ronda
 4. **CV** en `cv.md` + `article-digest.md` (si está presente) — para verificar las afirmaciones en las respuestas y fundamentar versiones más sólidas en la experiencia real
-5. **Perfil** en `config/profile.yml` + `modes/_profile.md` — narrativa del candidato, factores decisivos (deal-breakers), objetivos de compensación
+5. **Perfil** en `config/profile.yml` + `_profile.md` — narrativa del candidato, factores decisivos (deal-breakers), objetivos de compensación
 6. **Banco de historias** en `interview-prep/story-bank.md` — para verificar la precisión de la historia en los comentarios
 7. **Banco de preguntas** en `interview-prep/question-bank.md` — para actualizar el estado después de cada respuesta
 8. **Archivo de preparación específico del rol** — para inteligencia de la empresa, preguntas obtenidas, estrategia de compensación

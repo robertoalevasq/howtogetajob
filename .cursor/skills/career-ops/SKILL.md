@@ -175,23 +175,23 @@ Or paste a JD directly to run the full pipeline.
 
 After determining the mode, load the necessary files before executing:
 
-If `modes/_custom.md` exists, read it after `modes/_profile.md` and before the selected mode file. It contains user house rules and procedural preferences. It may override workflow/style defaults, but it never adds factual claims about the candidate.
+If `_custom.md` exists, read it after `_profile.md` and before the selected mode file. It contains user house rules and procedural preferences. It may override workflow/style defaults, but it never adds factual claims about the candidate.
 
 ### Modes that require `_shared.md` + their mode file
 
-Read `modes/_shared.md` + `modes/_profile.md` (if exists) + `modes/_custom.md` (if exists) + `modes/{mode}.md`
+Read `modes/_shared.md` + `_profile.md` (if exists) + `_custom.md` (if exists) + `modes/{mode}.md`
 
 Applies to: `auto-pipeline`, `oferta`, `ofertas`, `pdf`, `contacto`, `apply`, `apply-batch`, `telegram`, `pipeline`, `scan`, `batch`, `cycle`
 
 ### Standalone modes with profile and custom context
 
-Read `modes/_profile.md` (if exists) + `modes/_custom.md` (if exists) + `modes/{mode}.md`
+Read `_profile.md` (if exists) + `_custom.md` (if exists) + `modes/{mode}.md`
 
 Applies to: `tracker`, `agent-inbox`, `deep`, `interview-prep`, `interview`, `regional/eu-swe`, `interview/plan`, `interview/practice`, `interview/debrief`, `latex`, `latex-tex`, `training`, `project`, `patterns`, `titles`, `upskill`, `followup`, `reply-watch`, `outcome`, `cover`, `email`, `add`, `offer-prep`, `discover`
 
 ### `triage` — deliberately minimal context
 
-Read ONLY `modes/_brief.md` + `modes/triage.md`. Do NOT read `_shared.md`, `_profile.md`, `cv.md`, `config/profile.yml`, or `oferta.md` — skipping the full evaluation context is the entire point of this mode (a cheap filter gate before promoting a posting to full A-G evaluation).
+Read ONLY `_brief.md` + `modes/triage.md`. Do NOT read `_shared.md`, `_profile.md`, `cv.md`, `config/profile.yml`, or `oferta.md` — skipping the full evaluation context is the entire point of this mode (a cheap filter gate before promoting a posting to full A-G evaluation).
 
 ### Modes delegated to subagent
 
@@ -200,7 +200,7 @@ For `scan`, `apply` (with Playwright), and `pipeline` (3+ URLs): launch as a wor
 ```python
 Agent(
   subagent_type="general-purpose",
-  prompt="[output language directive]\n\n[content of modes/_shared.md]\n\n[content of modes/_profile.md if exists]\n\n[content of modes/_custom.md if exists]\n\n[content of modes/{mode}.md]\n\n[invocation-specific data]",
+  prompt="[output language directive]\n\n[content of modes/_shared.md]\n\n[content of _profile.md if exists]\n\n[content of _custom.md if exists]\n\n[content of modes/{mode}.md]\n\n[invocation-specific data]",
   description="career-ops {mode}"
 )
 ```

@@ -899,7 +899,7 @@ function analyze() {
   const topDiscardReason = discardReasonStats[0];
   if (topDiscardReason && topDiscardReason.frequency >= Math.max(3, Math.ceil(enriched.length * 0.15))) {
     recommendations.push({
-      action: `Add "${topDiscardReason.reason}" filter to modes/_custom.md to avoid wasting evaluation effort`,
+      action: `Add "${topDiscardReason.reason}" filter to _custom.md to avoid wasting evaluation effort`,
       reasoning: `"${topDiscardReason.reason}" is the most frequent discard reason (${topDiscardReason.frequency}x, ${topDiscardReason.percentage}% of all applications).`,
       impact: 'high',
     });

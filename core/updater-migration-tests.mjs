@@ -285,7 +285,7 @@ if (staticRelativeImport.test(source)) {
   pass('update-system.mjs is self-loading — no static relative imports (#1706)');
 }
 
-for (const userPath of ['cv.md', 'config/profile.yml', 'modes/_profile.md', 'portals.yml', 'data/', 'reports/']) {
+for (const userPath of ['cv.md', 'config/profile.yml', '_profile.md', 'portals.yml', 'data/', 'reports/']) {
   if (userPaths.includes(userPath)) pass(`USER_PATHS protects ${userPath}`);
   else fail(`USER_PATHS missing ${userPath}`);
 }

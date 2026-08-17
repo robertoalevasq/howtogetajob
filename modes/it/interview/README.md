@@ -25,7 +25,7 @@ Queste competenze presuppongono l'esistenza dei seguenti file (valori predefinit
 | `cv.md` | CV del candidato — fonte di verità per l'esperienza e i punti di prova |
 | `article-digest.md` | Punti di prova sintetizzati dal portfolio (opzionale) |
 | `config/profile.yml` | Profilo del candidato — ruoli target, compenso, narrativa |
-| `modes/_profile.md` | Archetipi del candidato, narrativa e fattori escludenti |
+| `_profile.md` | Archetipi del candidato, narrativa e fattori escludenti |
 | `interview-prep/story-bank.md` | Storie STAR+R accumulate |
 | `interview-prep/question-bank.md` | Banca delle domande con tracciamento delle lacune (creata al primo utilizzo) |
 | `interview-prep/interview-prep-guide.md` | Principi generali per il colloquio (opzionale) |

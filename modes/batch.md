@@ -25,7 +25,7 @@ Each worker is a headless child process with a clean 200K token context. The con
 
 Read `spend_tier` from `config/profile.yml` (see `modes/_shared.md` -- Spend Tier section; defaults to `standard` if absent).
 
-- **`standard` or `premium` tier:** Before a worker runs the full A-F evaluation on a JD, run a cheap pre-screen pass using the tier's economy-equivalent model (see the mapping table in `modes/_shared.md`) against the candidate's North Star archetypes (`modes/_profile.md`). If the JD is an obvious mismatch (wrong domain, wrong seniority band, disqualifying location/visa conflict), skip the full evaluation: mark the job `skipped` in `batch-state.tsv` with a one-line reason, and move to the next job.
+- **`standard` or `premium` tier:** Before a worker runs the full A-F evaluation on a JD, run a cheap pre-screen pass using the tier's economy-equivalent model (see the mapping table in `modes/_shared.md`) against the candidate's North Star archetypes (`_profile.md`). If the JD is an obvious mismatch (wrong domain, wrong seniority band, disqualifying location/visa conflict), skip the full evaluation: mark the job `skipped` in `batch-state.tsv` with a one-line reason, and move to the next job.
 - **`economy` tier:** No gate. The tier is already the cheapest available -- running a pre-screen on top of it adds latency without saving spend. Every job goes straight to the full evaluation.
 - This gate only applies to batch/pipeline processing. It never applies to a single interactive evaluation (the user already decided the JD is worth a look by pasting/sharing it).
 

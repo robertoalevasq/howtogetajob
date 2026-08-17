@@ -69,7 +69,7 @@ const PATHS = {
   // Canonical skill path referenced in Issue #344
   evaluate:    join(ROOT, '..', '.claude', 'skills', 'career-ops', 'SKILL.md'),
   cv:          join(ROOT, '..', 'cv.md'),
-  profile:     join(ROOT, '..', 'modes', '_profile.md'),
+  profile:     join(ROOT, '..', '_profile.md'),
   profileYml:  join(ROOT, '..', 'config', 'profile.yml'),
   reports:     join(ROOT, '..', 'reports'),
   tracker:     join(ROOT, '..', 'data', 'applications.md'),
@@ -235,7 +235,7 @@ console.log('\n📂  Loading context files...');
 const sharedContext  = readFile(PATHS.shared,      'modes/_shared.md');
 const ofertaLogic    = readFile(PATHS.oferta,      'modes/oferta.md');
 const cvContent      = readFile(PATHS.cv,          'cv.md');
-const profileContent = readFile(PATHS.profile,     'modes/_profile.md');
+const profileContent = readFile(PATHS.profile,     '_profile.md');
 const profileYml     = readFile(PATHS.profileYml,  'config/profile.yml');
 const languageInstruction = outputLanguageInstruction(parseOutputLanguage(profileYml));
 

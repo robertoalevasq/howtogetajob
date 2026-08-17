@@ -21,7 +21,7 @@ Interactive mode for when the candidate is filling out an application form in Ch
 5d. STATUS     → Warn if a form question screens for a specific immigration status rather than work authorization (warn-only; candidate decides)
 
 5c. PROHIBITED → Warn if a form field asks for content the candidate's jurisdiction prohibits (warn-only; candidate decides)
-5e. FRESHNESS  → Stop if cv.md/config/profile.yml/modes/_profile.md changed after this report was generated
+5e. FRESHNESS  → Stop if cv.md/config/profile.yml/_profile.md changed after this report was generated
 6. ANALYZE     → Identify ALL visible form questions
 6b. DEFAULTS   → Reuse cached boilerplate answers from data/application-defaults.md where applicable
 7. GENERATE    → For each question, generate a personalized response
@@ -119,10 +119,10 @@ If a field matches, warn the candidate BEFORE generating or filling an answer fo
 
 ## Step 5e — Source-freshness check
 
-The report a candidate applies from is only as honest as the source-of-truth files it was scored against. If `cv.md`, `config/profile.yml`, or `modes/_profile.md` change after a report is generated — a fabrication fix, a new proof point, a corrected metric — that report's score and any drafted proof points can silently go stale without anyone noticing until the wrong content reaches a real employer. (This is exactly what happened on 2026-08-04: a CV fabrication fix left dozens of already-generated reports scored and worded against claims that no longer existed.)
+The report a candidate applies from is only as honest as the source-of-truth files it was scored against. If `cv.md`, `config/profile.yml`, or `_profile.md` change after a report is generated — a fabrication fix, a new proof point, a corrected metric — that report's score and any drafted proof points can silently go stale without anyone noticing until the wrong content reaches a real employer. (This is exactly what happened on 2026-08-04: a CV fabrication fix left dozens of already-generated reports scored and worded against claims that no longer existed.)
 
 1. `report_mtime` = the matched report file's last-modified time.
-2. `source_mtime` = the newest last-modified time among `cv.md`, `config/profile.yml`, `modes/_profile.md`.
+2. `source_mtime` = the newest last-modified time among `cv.md`, `config/profile.yml`, `_profile.md`.
 3. If `source_mtime > report_mtime`, STOP before drafting and ask: "This report (`reports/{num}`) was generated on {report date}, but {the newer file(s)} changed afterward on {source date}. The score and any proof points here may not reflect your current CV/profile. Re-evaluate before applying, or continue anyway if you're confident the edit doesn't affect this role?"
 4. **Re-evaluate** = run a fresh A-F evaluation for this URL, update the report and score in place, then resume from Step 6 with the corrected content. **Continue anyway** = proceed as-is, but note the override in the eventual `## Application Answers` section (Step 8) so it's visible later.
 5. Skip silently if the report doesn't exist yet — a same-session `auto-pipeline` draft is current by construction.

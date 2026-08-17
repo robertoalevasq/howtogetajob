@@ -25,7 +25,7 @@ Ces compétences supposent l'existence des fichiers suivants (valeurs par défau
 | `cv.md` | CV du candidat — source de vérité pour l'expérience et les points de preuve |
 | `article-digest.md` | Points de preuve condensés issus du portfolio (optionnel) |
 | `config/profile.yml` | Profil du candidat — postes visés, rémunération, narratif |
-| `modes/_profile.md` | Archétypes du candidat, narratif et critères rédhibitoires |
+| `_profile.md` | Archétypes du candidat, narratif et critères rédhibitoires |
 | `interview-prep/story-bank.md` | Banque d'histoires STAR+R accumulées |
 | `interview-prep/question-bank.md` | Banque de questions avec suivi des lacunes (créée à la première utilisation) |
 | `interview-prep/interview-prep-guide.md` | Principes généraux d'entretien (optionnel) |

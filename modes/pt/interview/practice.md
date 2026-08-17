@@ -10,7 +10,7 @@ Conduza uma entrevista simulada realista — uma pergunta de cada vez — e dê 
 2. **Persona do entrevistador** (se souber) — nome, cargo, empresa; define o estilo e a profundidade das perguntas
 3. **Lista de perguntas** (opcional) — perguntas específicas a cobrir; se não fornecida, gere a partir do tipo de rodada
 4. **CV** em `cv.md` + `article-digest.md` (se existir) — para verificar alegações nas respostas e ancorar versões mais fortes em experiência real
-5. **Perfil** em `config/profile.yml` + `modes/_profile.md` — narrativa do candidato, deal-breakers, objetivos de remuneração
+5. **Perfil** em `config/profile.yml` + `_profile.md` — narrativa do candidato, deal-breakers, objetivos de remuneração
 6. **Story bank** em `interview-prep/story-bank.md` — para verificar a exatidão das histórias no feedback
 7. **Question bank** em `interview-prep/question-bank.md` — para atualizar o status após cada resposta
 8. **Arquivo de preparação específico da vaga** — para informações sobre a empresa, perguntas pesquisadas, estratégia de remuneração

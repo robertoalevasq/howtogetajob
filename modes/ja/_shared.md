@@ -3,7 +3,7 @@
 <!-- ============================================================
      THIS FILE IS AUTO-UPDATABLE. Don't put personal data here.
 
-     Your customizations go in modes/_profile.md (never auto-updated).
+     Your customizations go in _profile.md (never auto-updated).
      This file contains system rules, scoring logic, and tool config
      that improve with each career-ops release.
      ============================================================ -->
@@ -17,7 +17,7 @@
 | cv.md | `cv.md`（プロジェクトルート） | 常に |
 | article-digest.md | `article-digest.md`（存在する場合） | 常に（詳細な proof points） |
 | profile.yml | `config/profile.yml` | 常に（候補者の identity と target） |
-| _profile.md | `modes/_profile.md` | 常に（ユーザー固有のアーキタイプ、ナラティブ、交渉） |
+| _profile.md | `_profile.md` | 常に（ユーザー固有のアーキタイプ、ナラティブ、交渉） |
 | writing-samples/ | `writing-samples/` | 候補者が外部に出す文章を生成する場合。まず `_profile.md` のキャッシュ済み `## Writing Style` を確認し、存在しない場合だけファイルを読む |
 | voice-dna.md | `voice-dna.md`（プロジェクトルート、存在する場合） | 候補者が外部に出す文章を生成する場合。AI っぽさを避ける guardrail + voice。下の Voice DNA precedence を参照 |
 | interview-prep | `interview-prep/story-bank.md`, `interview-prep/{company}-{role}.md` | ATS フォーム回答 / 面接コンテンツを生成する場合。ユーザー自身の STAR stories と prep notes（`cv.md` と同じ信頼レベル）。`apply` / `match-star` と interview modes が使用 |
@@ -90,7 +90,7 @@ Block G は、求人が real, active opening である可能性を評価する�
 | AI Forward Deployed | "client-facing", "deploy", "prototype", "fast delivery", "field" |
 | AI Transformation | "change management", "adoption", "enablement", "transformation" |
 
-Archetype を検出した後、`modes/_profile.md` を読み、該当 archetype に対するユーザー固有の framing と proof points を使う。
+Archetype を検出した後、`_profile.md` を読み、該当 archetype に対するユーザー固有の framing と proof points を使う。
 
 ## 日本市場 -- 特記事項（重要）
 
@@ -235,7 +235,7 @@ Archetype を検出した後、`modes/_profile.md` を読み、該当 archetype 
 
 ### Persisting the extracted style
 
-Scan 後、user-provided sample が少なくとも 1 つあった場合のみ `modes/_profile.md` に書く。既存の `## Writing Style` section を見つけ、その section 全体を次の `##` heading（または EOF）まで置き換える。なければ append する。これにより canonical section は常に 1 つだけになる。Samples がなければ section を書かない、変更しない。
+Scan 後、user-provided sample が少なくとも 1 つあった場合のみ `_profile.md` に書く。既存の `## Writing Style` section を見つけ、その section 全体を次の `##` heading（または EOF）まで置き換える。なければ append する。これにより canonical section は常に 1 つだけになる。Samples がなければ section を書かない、変更しない。
 
 ```markdown
 ## Writing Style

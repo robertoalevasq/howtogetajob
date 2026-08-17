@@ -12,7 +12,7 @@ Key sections:
 - **location**: Country, timezone, visa status, on-site availability, and structured work authorization (`authorized_in`, `needs_sponsorship`) that drives the Work-Auth signal in job evaluation (flags an explicit no-sponsorship JD as a hard blocker)
 - **culture_screen**: Structural criteria for team culture (the `deprioritize_if_absent` strict flag caps the culture score at 2/5 if evidence is entirely missing)
 
-## Target Roles (modes/_profile.md)
+## Target Roles (_profile.md)
 
 The archetype table in `_profile.md` determines how offers are scored and CVs are framed. Edit the table to match YOUR career targets:
 

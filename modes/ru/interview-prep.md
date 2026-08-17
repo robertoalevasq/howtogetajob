@@ -8,7 +8,7 @@
 2. **Отчёт оценки** в `reports/` (если есть)
 3. **Банк историй** `interview-prep/story-bank.md`
 4. **CV** `cv.md` + `article-digest.md`
-5. **Профиль** `config/profile.yml` + `modes/_profile.md`
+5. **Профиль** `config/profile.yml` + `_profile.md`
 
 ## Шаг 1 — Исследование
 

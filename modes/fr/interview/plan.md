@@ -11,7 +11,7 @@
 3. **Nom et rôle de l'intervieweur** (si connu) — oriente la profondeur et le ton de la préparation
 4. **Type de round** (si connu) — sélection (screening), technique/spécifique au domaine, conception/étude de cas, panel comportemental
 5. **CV** dans `cv.md` + `article-digest.md` (si présent) — lire pour l'expérience, les compétences, les points de preuve
-6. **Profil** dans `config/profile.yml` + `modes/_profile.md` — lire pour la narration, les archétypes et les cibles
+6. **Profil** dans `config/profile.yml` + `_profile.md` — lire pour la narration, les archétypes et les cibles
 7. **Banque d'histoires** dans `interview-prep/story-bank.md` — histoires STAR+R existantes
 8. **Banque de questions** dans `interview-prep/question-bank.md` — lacunes existantes (si le fichier existe)
 

@@ -17,7 +17,7 @@ function hasCli(): boolean {
 const LABELS: Record<string, string> = {
   "cv.md": "your CV",
   "config/profile.yml": "your profile — target roles, comp, location",
-  "modes/_profile.md": "your personalization",
+  "_profile.md": "your personalization",
   "portals.yml": "the companies to scan",
 };
 

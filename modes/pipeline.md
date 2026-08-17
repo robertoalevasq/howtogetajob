@@ -44,7 +44,7 @@ This complements — does not replace — the per-URL liveness gate in `auto-pip
 
 Read `spend_tier` from `config/profile.yml` (see `modes/_shared.md` -- Spend Tier section; defaults to `standard` if absent).
 
-- **`standard` or `premium` tier:** Before running the full A-F evaluation on a pending URL that survived the liveness sweep, run a cheap pre-screen pass using the tier's economy-equivalent model (see the mapping table in `modes/_shared.md`) against the candidate's North Star archetypes (`modes/_profile.md`). If the JD is an obvious mismatch, skip the full evaluation: mark it `- [x] #-- | {url} | skipped (pre-screen mismatch: {reason})` in "Processed" and continue to the next URL.
+- **`standard` or `premium` tier:** Before running the full A-F evaluation on a pending URL that survived the liveness sweep, run a cheap pre-screen pass using the tier's economy-equivalent model (see the mapping table in `modes/_shared.md`) against the candidate's North Star archetypes (`_profile.md`). If the JD is an obvious mismatch, skip the full evaluation: mark it `- [x] #-- | {url} | skipped (pre-screen mismatch: {reason})` in "Processed" and continue to the next URL.
 - **`economy` tier:** No gate. The tier is already the cheapest available. Every surviving pending URL goes straight to the full evaluation.
 - This gate only applies to pipeline/batch processing. It never applies to a single interactive evaluation.
 
@@ -68,7 +68,7 @@ Read `spend_tier` from `config/profile.yml` (see `modes/_shared.md` -- Spend Tie
    c. If the URL is not accessible → mark as `- [!]` with a note and continue
    d. **Pre-screen gate**: apply the gate above (using the extracted JD). If the JD is an obvious mismatch, log the discard to `data/discard.log` (per the **Discard log** rule above — three fields, no job ID in interactive mode), mark it `- [x] #-- | {url} | skipped (pre-screen mismatch: {reason})` in "Processed", and continue to the next URL. No `REPORT_NUM` is claimed for discarded postings.
    e. Claim the next sequential `REPORT_NUM` atomically by running `node reserve-report-num.mjs` (and release the sentinel using `node reserve-report-num.mjs --release <num>` after the report is written)
-   f. **Execute full auto-pipeline**: Evaluation A-F → Report .md → PDF (if score >= `auto_pdf_score_threshold`) → Tracker. Read `modes/_custom.md` → Pipeline Rules, if it exists, and apply its override here. Default (if absent or silent): standard pipeline execution.
+   f. **Execute full auto-pipeline**: Evaluation A-F → Report .md → PDF (if score >= `auto_pdf_score_threshold`) → Tracker. Read `_custom.md` → Pipeline Rules, if it exists, and apply its override here. Default (if absent or silent): standard pipeline execution.
    g. **Move from "Pending" to "Processed"**: `- [x] #NNN | URL | Company | Role | Score/5 | PDF ✅/❌`
 
    **About the PDF gate (configurable):** Read `config/profile.yml` → `auto_pdf_score_threshold`. If the key does not exist, default to `3.0` (this mode's original gate). If the evaluation score is less than the threshold, skip PDF generation: write the report normally, show in the header `**PDF:** not generated — run /career-ops pdf {company-slug} to create on demand`, and mark PDF ❌ in the tracker. If the score is ≥ threshold, generate the PDF as usual.

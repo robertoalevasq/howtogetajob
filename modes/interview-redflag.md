@@ -262,7 +262,7 @@ Company          Rounds   Level
 
 ## Scope / Non-Goals
 
-- **No auto-action** — never edits `portals.yml`, `modes/_profile.md`, `data/applications.md`, or `data/blacklist.md`. At `🚩 Reconsider`, the output suggests a ready-to-copy blacklist row; the user (or their agent, on explicit instruction) still has to add it themselves. Advisory only.
+- **No auto-action** — never edits `portals.yml`, `_profile.md`, `data/applications.md`, or `data/blacklist.md`. At `🚩 Reconsider`, the output suggests a ready-to-copy blacklist row; the user (or their agent, on explicit instruction) still has to add it themselves. Advisory only.
 - **No new dependencies** — prompt-level analysis over local files.
 - **Privacy** — reads only local, gitignored session files. Nothing leaves the machine.
 - **Not a Glassdoor replacement** — analyses this candidate's live experience in this process, not crowd-sourced opinion.

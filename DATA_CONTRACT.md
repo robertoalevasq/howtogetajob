@@ -12,9 +12,9 @@ These files contain your personal data, customizations, and work product. Update
 | `config/profile.yml` | Your identity, targets, comp range |
 | `config/cv-facts.json` | Your CV fact-check allowlist and forbidden phrases |
 | `config/benchmarks.yml` | Your market calibration benchmark overrides (optional; copy `templates/benchmarks.yml` here and edit — read by `funnel-velocity.mjs`) |
-| `modes/_profile.md` | Your archetypes, narrative, negotiation scripts |
-| `modes/_custom.md` | Your house rules, custom workflows & output preferences (procedural — survives updates) |
-| `modes/_brief.md` | Your compact profile brief (~1.5–2K tokens) read by the two-pass triage first pass |
+| `_profile.md` | Your archetypes, narrative, negotiation scripts |
+| `_custom.md` | Your house rules, custom workflows & output preferences (procedural — survives updates) |
+| `_brief.md` | Your compact profile brief (~1.5–2K tokens) read by the two-pass triage first pass |
 | `voice-dna.md` | Your writing voice guardrail — banned words, anti-AI-slop rules, tone (optional) |
 | `article-digest.md` | Your proof points from portfolio |
 | `interview-prep/story-bank.md` | Your accumulated STAR+R stories |
@@ -57,9 +57,9 @@ These files contain system logic, scripts, templates, and instructions that impr
 |------|---------|
 | `modes/_shared.md` | Eval-core: scoring system, global rules, tools |
 | `modes/_writing.md` | Writing guardrails (Voice DNA / Writing Style / ATS) — loaded by the CV/cover/apply writing modes, not by evaluation (#1710) |
-| `modes/_custom.template.md` | Template seed for the user's `modes/_custom.md` |
-| `modes/_profile.template.md` | Template seed for the user's `modes/_profile.md` |
-| `modes/_brief.template.md` | Template seed for the user's `modes/_brief.md` |
+| `modes/_custom.template.md` | Template seed for the user's `_custom.md` |
+| `modes/_profile.template.md` | Template seed for the user's `_profile.md` |
+| `modes/_brief.template.md` | Template seed for the user's `_brief.md` |
 | `modes/oferta.md` | Evaluation mode instructions |
 | `modes/pdf.md` | PDF generation instructions |
 | `modes/cover.md` | Cover letter generation instructions |

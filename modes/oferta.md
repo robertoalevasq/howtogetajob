@@ -86,7 +86,7 @@ Rules (mirror the Geo-mismatch discipline):
 - Quote the JD **verbatim** — never paraphrase the sponsorship language.
 - A generic "must be authorized to work in {country}" where {country} **is** in `authorized_in` is ➖ Not needed, not ⛔.
 - If the profile has no `authorized_in`/`needs_sponsorship` keys and only the free-text `visa_status`, infer conservatively and default to ⚠️ Unstated rather than guessing a blocker.
-- **Scoring (aligns with `modes/_profile.md` "Your Location Policy"):** ✅ / ➖ / ⚠️ are score-neutral — do **not** apply a location or relocation penalty. Only ⛔ **No sponsorship** for a role the candidate cannot take from an authorized country is a genuine hard blocker: score location low and record it as a `hard_stop`.
+- **Scoring (aligns with `_profile.md` "Your Location Policy"):** ✅ / ➖ / ⚠️ are score-neutral — do **not** apply a location or relocation penalty. Only ⛔ **No sponsorship** for a role the candidate cannot take from an authorized country is a genuine hard blocker: score location low and record it as a `hard_stop`.
 
 On a ⛔ determination, add exactly one flag line at the top of Block B in the report, quoting the evidence **verbatim**:
 
@@ -583,7 +583,7 @@ Save full evaluation in `reports/{###}-{company-slug}-{YYYY-MM-DD}.md`.
 - Company — the END employer. If the JD is agency-mediated ("our client", agency domain, no employer named), ASK the user which agency it came through, use `?` as Company, and put a distinguishing descriptor in Notes (e.g. `fintech, Leeds`). Never write "Confidential" — the `?` marker is locale-invariant and can't collide with a real firm.
 - Via (when the tracker has the column) — the agency/recruiter firm, `—` for direct. In the tracker-addition TSV, append it as a tagged extra field: `via={Agency}` (see the TSV format spec).
 - Role
-- Score: match average (1-5) — Read `modes/_custom.md` → Scoring Rules, if it exists, and apply its override here. Default (if absent or silent): average of block scores.
+- Score: match average (1-5) — Read `_custom.md` → Scoring Rules, if it exists, and apply its override here. Default (if absent or silent): average of block scores.
 - Status: `Evaluated`
 - PDF: ❌ (or ✅ if auto-pipeline generated PDF)
 - Report: root-relative link `[001](reports/001-company-2026-01-01.md)` (when merged via `merge-tracker.mjs` it is normalized to be relative to the tracker's own dir, e.g. `../reports/...`; see #760)

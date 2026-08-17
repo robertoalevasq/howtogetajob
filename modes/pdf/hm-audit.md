@@ -1,6 +1,6 @@
 # Hiring-Manager Audit of a Tailored CV
 
-An opt-in pass inside `modes/pdf.md`, run at Step 20 — between the fact gate and the PDF render — when the invocation carried `--hm-audit` or `modes/_custom.md` turns it on. Not a mode of its own: `pdf` has already loaded `_shared.md`, `_profile.md`, and `_custom.md` by the time this runs, and those rules govern what the audit may recommend.
+An opt-in pass inside `modes/pdf.md`, run at Step 20 — between the fact gate and the PDF render — when the invocation carried `--hm-audit` or `_custom.md` turns it on. Not a mode of its own: `pdf` has already loaded `_shared.md`, `_profile.md`, and `_custom.md` by the time this runs, and those rules govern what the audit may recommend.
 
 **Off by default, deliberately.** The pass adds a subagent dispatch plus web research on top of the tailoring, so the user asks for it rather than declining it on every PDF.
 
@@ -35,7 +35,7 @@ Requires a tailored CV produced by `modes/pdf.md`. Normally that CV was just bui
 5. **Factual floor** — run `node jd-skill-gap.mjs jds/{slug}.md --summary` for the zero-LLM classification of every JD requirement into `existing` / `supportedByResume` / `gap`.
 
    If it prints a `🚨 LOW CONFIDENCE` diagnosis (`no-requirements-section`, `no-skill-candidates`, or `empty-jd`), the check did not run and an empty `gap` list is **not** "no gaps." Treat the classification as unavailable and brief the reviewer per Step 3 — never hand over empty buckets, which read as fit confirmation the check never established.
-6. **Scope of truth** — `cv.md`, `article-digest.md`, `config/profile.yml`, `modes/_profile.md`. These bound what the reviewer may recommend.
+6. **Scope of truth** — `cv.md`, `article-digest.md`, `config/profile.yml`, `_profile.md`. These bound what the reviewer may recommend.
 
 ## Step 1 — Gather
 
@@ -144,6 +144,6 @@ Placement follows the convention of the cover letter draft appended by `modes/of
 
 - **Not a fact checker.** `verify-cv-facts.mjs` owns that and runs first, at `pdf` Step 19.
 - **Not a rewriter.** This pass recommends; the user decides; `pdf` regenerates from Step 17.
-- **Not on by default.** `pdf.md` Step 20 runs it only for `--hm-audit`, or when `modes/_custom.md` turns it on for every CV. A `pdf` run that does not ask for it never prompts.
+- **Not on by default.** `pdf.md` Step 20 runs it only for `--hm-audit`, or when `_custom.md` turns it on for every CV. A `pdf` run that does not ask for it never prompts.
 - **Not a routable mode.** No entry in the router table or the argument-hint, and no mode name of its own — it is reached through `pdf --hm-audit`, the way `heuristics/recruiter-side.md` is reached through the modes that load it. The `AGENTS.md` and `modes/README.md` rows point at `pdf`, so the pass is discoverable without being addressable.
 - **Not a panel.** One reviewer. A multi-persona panel (recruiter + HM + peer) is a possible follow-up, deliberately out of scope for cost reasons.

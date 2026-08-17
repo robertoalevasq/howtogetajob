@@ -10,7 +10,7 @@ Run a realistic practice interview — one question at a time — and give struc
 2. **Interviewer persona** (if known) — name, role, company; shapes question style and depth
 3. **Question list** (optional) — specific questions to cover; if not provided, generate from round type
 4. **CV** at `cv.md` + `article-digest.md` (if present) — to verify claims in answers and ground stronger versions in real experience
-5. **Profile** at `config/profile.yml` + `modes/_profile.md` — candidate narrative, deal-breakers, comp targets
+5. **Profile** at `config/profile.yml` + `_profile.md` — candidate narrative, deal-breakers, comp targets
 6. **Story bank** at `interview-prep/story-bank.md` — to verify story accuracy in feedback
 7. **Question bank** at `interview-prep/question-bank.md` — to update status after each answer
 8. **Role-specific prep file** — for company intel, sourced questions, comp strategy

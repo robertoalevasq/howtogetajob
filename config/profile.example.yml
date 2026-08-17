@@ -81,7 +81,7 @@ location:
   authorized_in: ["United States"]
   # true if you need visa sponsorship for roles OUTSIDE authorized_in. When a JD
   # explicitly states it will not sponsor, that is a hard blocker (see
-  # modes/_profile.md "Your Location Policy"). Omit → treated as false.
+  # _profile.md "Your Location Policy"). Omit → treated as false.
   needs_sponsorship: false
   # For remote roles outside your country:
   # onsite_availability: "1 week/month in any city"
@@ -263,7 +263,7 @@ cover_letter:
 #
 # Used by `/career-ops pipeline`. Before running the full A-G evaluation on
 # every URL in a batch, a lightweight first pass (`modes/triage.md`) scores each
-# role from a compact profile brief (`modes/_brief.md`) and filters out the ones
+# role from a compact profile brief (`_brief.md`) and filters out the ones
 # that would clearly disqualify — so the expensive full evaluation only runs on
 # roles that pass. On a mixed batch this cuts total tokens by roughly half.
 #

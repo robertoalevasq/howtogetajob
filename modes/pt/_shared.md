@@ -3,7 +3,7 @@
 <!-- ============================================================
      THIS FILE IS AUTO-UPDATABLE. Don't put personal data here.
      
-     Your customizations go in modes/_profile.md (never auto-updated).
+     Your customizations go in _profile.md (never auto-updated).
      This file contains system rules, scoring logic, and tool config
      that improve with each career-ops release.
      ============================================================ -->
@@ -15,7 +15,7 @@
 | cv.md | `cv.md` (raiz do projeto) | SEMPRE |
 | article-digest.md | `article-digest.md` (se existir) | SEMPRE (proof points detalhados) |
 | profile.yml | `config/profile.yml` | SEMPRE (identidade e vagas-alvo) |
-| _profile.md | `modes/_profile.md` | SEMPRE (arquétipos, narrativa, negociação do usuário) |
+| _profile.md | `_profile.md` | SEMPRE (arquétipos, narrativa, negociação do usuário) |
 
 **REGRA: NUNCA fazer hardcode de métricas de proof points.** Leia-as de `cv.md` e `article-digest.md` no momento da avaliação.
 **REGRA: Para métricas de artigos/projetos, `article-digest.md` tem prioridade sobre `cv.md`** (`cv.md` pode conter números desatualizados).

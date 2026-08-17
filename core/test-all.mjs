@@ -1213,7 +1213,7 @@ for (const f of skillEntrypoints) {
 
 // Check user files are NOT tracked (gitignored)
 const userFiles = [
-  'config/profile.yml', 'modes/_profile.md', 'portals.yml',
+  'config/profile.yml', '_profile.md', 'portals.yml',
 ];
 for (const f of userFiles) {
   const tracked = run('git', ['ls-files', f], { cwd: ROOT });
@@ -2054,14 +2054,14 @@ const markersAppearInOrder = (text, markers) => {
   return true;
 };
 if (
-  shared.includes('| _custom.md | `modes/_custom.md` (if exists) |') &&
+  shared.includes('| _custom.md | `_custom.md` (if exists) |') &&
   markersAppearInOrder(shared, [
     'Read _profile.md AFTER this file',
     'Read _custom.md (if it exists) AFTER _profile.md',
     'honor its house rules in every mode',
   ]) &&
   shared.includes('does not expire between sessions or between items in a batch') &&
-  pdfModeCustom.includes('read `modes/_custom.md` (if it exists) and apply its formatting/content house rules')
+  pdfModeCustom.includes('read `_custom.md` (if it exists) and apply its formatting/content house rules')
 ) {
   pass('_custom.md is wired into the read path: Sources of Truth row + honor rule in _shared.md + explicit read in pdf.md (#1388)');
 } else {
@@ -2107,7 +2107,7 @@ if (
   emailMode.includes('cv.md') &&
   emailMode.includes('article-digest.md') &&
   emailMode.includes('config/profile.yml') &&
-  emailMode.includes('modes/_profile.md')
+  emailMode.includes('_profile.md')
 ) {
   pass('email mode covers formal drafts, no-send safety, variants, attachments, contact fields, and source boundaries');
 } else {
@@ -2131,29 +2131,29 @@ for (const skillPath of ['.claude/skills/career-ops/SKILL.md', '.agents/skills/c
   const sharedModeOrder = sectionOrder(
     '### Modes that require `_shared.md` + their mode file',
     '### Standalone modes',
-    ['modes/_shared.md', 'modes/_profile.md', 'modes/_custom.md', 'modes/{mode}.md'],
+    ['modes/_shared.md', '_profile.md', '_custom.md', 'modes/{mode}.md'],
   );
   const standaloneModeOrder = sectionOrder(
     '### Standalone modes',
     '### Modes delegated to subagent',
-    ['modes/_profile.md', 'modes/_custom.md', 'modes/{mode}.md'],
+    ['_profile.md', '_custom.md', 'modes/{mode}.md'],
   );
   const delegatedModeOrder = sectionOrder(
     '### Modes delegated to subagent',
     'Execute the instructions from the loaded mode file.',
-    ['content of modes/_shared.md', 'content of modes/_profile.md if exists', 'content of modes/_custom.md if exists', 'content of modes/{mode}.md'],
+    ['content of modes/_shared.md', 'content of _profile.md if exists', 'content of _custom.md if exists', 'content of modes/{mode}.md'],
   );
 
   if (
-    skill.includes('modes/_custom.md') &&
-    skill.includes('[content of modes/_custom.md if exists]') &&
+    skill.includes('_custom.md') &&
+    skill.includes('[content of _custom.md if exists]') &&
     sharedModeOrder &&
     standaloneModeOrder &&
     delegatedModeOrder
   ) {
-    pass(`${skillPath} loads modes/_custom.md after _profile.md and before the selected mode for direct and delegated modes`);
+    pass(`${skillPath} loads _custom.md after _profile.md and before the selected mode for direct and delegated modes`);
   } else {
-    fail(`${skillPath} does not load modes/_custom.md in the required _profile → _custom → mode order (#1388)`);
+    fail(`${skillPath} does not load _custom.md in the required _profile → _custom → mode order (#1388)`);
   }
 }
 
@@ -9836,7 +9836,7 @@ try {
   const ready = mkdtempSync(join(tmpdir(), 'co-ready-'));
   mkdirSync(join(ready, 'config'), { recursive: true });
   mkdirSync(join(ready, 'modes'), { recursive: true });
-  for (const f of ['cv.md', 'config/profile.yml', 'modes/_profile.md', 'portals.yml']) {
+  for (const f of ['cv.md', 'config/profile.yml', '_profile.md', 'portals.yml']) {
     writeFileSync(join(ready, f), 'x');
   }
   const r = JSON.parse(run(NODE, ['doctor.mjs', '--json', '--target', ready]) || '{}');
@@ -9847,7 +9847,7 @@ try {
   }
   rmSync(ready, { recursive: true, force: true });
 
-  // Auto-copy template: when modes/_profile.md or modes/_custom.md is missing but template exists,
+  // Auto-copy template: when _profile.md or _custom.md is missing but template exists,
   // doctor --json auto-copies them, records them in autoCopied, and does not report them as missing (#1369).
   const autoCopy = mkdtempSync(join(tmpdir(), 'co-autocopy-'));
   mkdirSync(join(autoCopy, 'config'), { recursive: true });
@@ -9863,14 +9863,14 @@ try {
     Array.isArray(ac.missing) &&
     ac.missing.length === 0 &&
     Array.isArray(ac.autoCopied) &&
-    ac.autoCopied.includes('modes/_profile.md') &&
-    ac.autoCopied.includes('modes/_custom.md') &&
-    existsSync(join(autoCopy, 'modes/_profile.md')) &&
-    readFileSync(join(autoCopy, 'modes/_profile.md'), 'utf-8') === '# profile template\n' &&
-    existsSync(join(autoCopy, 'modes/_custom.md')) &&
-    readFileSync(join(autoCopy, 'modes/_custom.md'), 'utf-8') === '# custom template\n'
+    ac.autoCopied.includes('_profile.md') &&
+    ac.autoCopied.includes('_custom.md') &&
+    existsSync(join(autoCopy, '_profile.md')) &&
+    readFileSync(join(autoCopy, '_profile.md'), 'utf-8') === '# profile template\n' &&
+    existsSync(join(autoCopy, '_custom.md')) &&
+    readFileSync(join(autoCopy, '_custom.md'), 'utf-8') === '# custom template\n'
   ) {
-    pass('Auto-copy template → modes/_profile.md and modes/_custom.md copied silently in --json mode (#1369)');
+    pass('Auto-copy template → _profile.md and _custom.md copied silently in --json mode (#1369)');
   } else {
     fail(`Auto-copy template failed in --json mode: ${JSON.stringify(ac)}`);
   }
@@ -11035,7 +11035,7 @@ try {
 
 // ── 29. CUSTOM INSTRUCTIONS extension point (user-layer, #1198) ────
 
-console.log('\n29. Custom instructions extension point (modes/_custom.md, #1198)');
+console.log('\n29. Custom instructions extension point (_custom.md, #1198)');
 
 try {
   // The template MUST ship — it seeds the user file on first run.
@@ -11051,10 +11051,10 @@ try {
   // the user's house rules — that is the whole point of #1198. Anchor to the
   // USER_PATHS array block so a stray match elsewhere can't give a false pass.
   const userBlock = (updater.match(/USER_PATHS\s*=\s*\[([\s\S]*?)\]/) || [, ''])[1];
-  if (userBlock.includes("'modes/_custom.md'")) {
-    pass('modes/_custom.md is in USER_PATHS (custom rules survive update-system.mjs)');
+  if (userBlock.includes("'_custom.md'")) {
+    pass('_custom.md is in USER_PATHS (custom rules survive update-system.mjs)');
   } else {
-    fail('modes/_custom.md is NOT in USER_PATHS — custom instructions would be wiped on update (#1198)');
+    fail('_custom.md is NOT in USER_PATHS — custom instructions would be wiped on update (#1198)');
   }
 
   // .claude/settings.json holds user-configured permissions and hooks (e.g. auto-backup).
@@ -11081,9 +11081,9 @@ try {
   const sourceBoundaryEnd = agentsMd.indexOf('Anything not in this list', sourceBoundaryStart);
   const sourceBoundary = agentsMd.slice(sourceBoundaryStart, sourceBoundaryEnd);
   if (
-    agentsMd.includes('modes/_custom.md') &&
+    agentsMd.includes('_custom.md') &&
     agentsMd.includes('modes/_custom.template.md') &&
-    sourceBoundary.includes('modes/_custom.md') &&
+    sourceBoundary.includes('_custom.md') &&
     sourceBoundary.includes('procedural/style rules only') &&
     sourceBoundary.includes('never introduces factual claims') &&
     claudeMd.trim().startsWith('@AGENTS.md')
@@ -11099,7 +11099,7 @@ try {
     guardedPaths.includes('/^modes\\/_custom\\.md$/') &&
     !guardedPaths.includes('/^voice-dna\\.md$/')
   ) {
-    pass('no-user-data guard protects modes/_custom.md without treating voice-dna.md as user data');
+    pass('no-user-data guard protects _custom.md without treating voice-dna.md as user data');
   } else {
     fail('no-user-data guard has the wrong custom/user-layer paths (#1736)');
   }
@@ -12557,7 +12557,7 @@ try {
     titlesMode.includes('scan.mjs') &&
     titlesMode.includes('case-insensitive substring') &&
     titlesMode.includes('deal-breakers') &&
-    titlesMode.includes('modes/_profile.md')
+    titlesMode.includes('_profile.md')
   ) {
     pass('titles mode dedups against existing keywords via scan.mjs semantics and filters by _profile.md deal-breakers');
   } else {
@@ -12594,12 +12594,12 @@ try {
   }
 
   if (
-    titlesFlat.includes('`config/profile.yml` or `modes/_profile.md` missing → **hard stop**: do not generate suggestions') &&
+    titlesFlat.includes('`config/profile.yml` or `_profile.md` missing → **hard stop**: do not generate suggestions') &&
     titlesFlat.includes('can propose exactly what the user excluded')
   ) {
-    pass('titles mode hard-stops on missing config/profile.yml or modes/_profile.md (deal-breakers unavailable)');
+    pass('titles mode hard-stops on missing config/profile.yml or _profile.md (deal-breakers unavailable)');
   } else {
-    fail('titles mode should hard stop (not best-effort from cv.md) when config/profile.yml or modes/_profile.md is missing');
+    fail('titles mode should hard stop (not best-effort from cv.md) when config/profile.yml or _profile.md is missing');
   }
 
   if (titlesMode.includes('#1353')) {

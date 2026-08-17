@@ -8,7 +8,7 @@
 
      This is for PROCEDURAL rules ("HOW I want things done").
      For WHO you are (archetypes, narrative, comp, negotiation),
-     use modes/_profile.md instead. Keeping the two separate keeps
+     use _profile.md instead. Keeping the two separate keeps
      each one readable.
 
      The agent reads this file alongside the system instructions;

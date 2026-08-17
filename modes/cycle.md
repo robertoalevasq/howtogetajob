@@ -14,7 +14,7 @@ volume) is exactly the scenario they were built for. Because the full ATS
 sweep can run for hours, a `cycle` run is thorough, not fast — that trade is
 intentional.
 
-**Read `modes/_custom.md` before starting, if it exists — cycle must not
+**Read `_custom.md` before starting, if it exists — cycle must not
 silently override the user's own house rules.** `_custom.md` may carry a
 documented, dated exception for `cycle` specifically (e.g. a parallelism cap
 higher than a general "sequential only" rule) where `cycle`'s volume is a
@@ -201,7 +201,7 @@ Before running `modes/pipeline.md`, count the surviving "Pending" entries in
 matches than a targeted scan, so this count needs an explicit check every
 time, not just when it "looks big":
 
-- **Read `spend_tier` from `config/profile.yml`, and check `modes/_custom.md`
+- **Read `spend_tier` from `config/profile.yml`, and check `_custom.md`
   for a pre-screen override.** On `economy` tier, `pipeline.md`'s pre-screen
   gate is a no-op *by default* — every surviving URL goes straight to a full
   A-F evaluation, uncapped. `_custom.md` may already force the standard-tier
@@ -317,7 +317,7 @@ re-running is safe and cheap rather than starting over.
 
 Every result from this run so far lives in `batch/tracker-additions/*.tsv`,
 not `data/applications.md` (see Step 2's tracker-write note). Whether that
-stays that way depends on `modes/_custom.md`:
+stays that way depends on `_custom.md`:
 
 - **`_custom.md` states a deferred-merge preference** (e.g. "do NOT run
   `merge-tracker.mjs` until explicitly told to") → leave the TSVs unmerged.
@@ -436,9 +436,9 @@ roll-up, not a re-print.
 
 ## Step 5 — Deliver (Discord + Telegram)
 
-**Canonical delivery spec:** Read `modes/_custom.md` if it exists. If present, follow its "Discord Notifications" and "Telegram Notifications" sections exactly as written. If `modes/_custom.md` is missing or omits those sections, use the fallback implementation below.
+**Canonical delivery spec:** Read `_custom.md` if it exists. If present, follow its "Discord Notifications" and "Telegram Notifications" sections exactly as written. If `_custom.md` is missing or omits those sections, use the fallback implementation below.
 
-### Fallback (if `modes/_custom.md` is absent or silent)
+### Fallback (if `_custom.md` is absent or silent)
 
 **Discord:**
 1. If Discord plugin is not configured (`node plugins.mjs list`) or `DISCORD_WEBHOOK_URL` is missing from `.env`, skip Discord delivery and log it in the final report.

@@ -11,7 +11,7 @@
 3. **面试官姓名与角色**（如已知）— 影响准备的深度与语气。后续轮次（panel / onsite loop）常会一次点名多位面试官——来自用户直接告知、粘贴的日历邀请，或粘贴的排期邮件。当点名超过一位小组成员时，见 Step 2 中的 Panel Intel 说明。
 4. **轮次类型**（如已知）— screening、technical/domain-specific、design/case study、behavioral panel
 5. **简历**，位于 `cv.md` + `article-digest.md`（如存在）— 读取经验、技能与证明点
-6. **画像**，位于 `config/profile.yml` + `modes/_profile.md` — 读取叙事、原型与目标
+6. **画像**，位于 `config/profile.yml` + `_profile.md` — 读取叙事、原型与目标
 7. **故事库**，位于 `interview-prep/story-bank.md` — 已有的 STAR+R 故事
 8. **题库**，位于 `interview-prep/question-bank.md` — 已有短板（如文件存在）
 9. **此前已表态的薪酬** — 若已知 tracker#，运行 `node salary-gap.mjs --stated-for <tracker#>`（零 token）。任何先前的 `stated` 观察值，都是候选人在更早一轮、对某位具体面试官已经承诺过的数字——把它写入 Step 4 的速查页，让候选人保持口径一致，避免无意中重新谈价。

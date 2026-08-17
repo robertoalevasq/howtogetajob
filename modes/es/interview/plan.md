@@ -11,7 +11,7 @@ Dada una descripción de puesto (JD) y la fecha/hora de la entrevista, construye
 3. **Nombre y rol del entrevistador** (si se conoce) — determina la profundidad y el tono de la preparación
 4. **Tipo de ronda** (si se conoce) — filtro (screening), técnico/específico del dominio, diseño/estudio de caso, panel conductual (behavioral)
 5. **CV** en `cv.md` + `article-digest.md` (si está presente) — lee para obtener experiencia, habilidades y puntos de prueba
-6. **Perfil** en `config/profile.yml` + `modes/_profile.md` — lee para la narrativa, arquetipos y objetivos
+6. **Perfil** en `config/profile.yml` + `_profile.md` — lee para la narrativa, arquetipos y objetivos
 7. **Banco de historias** en `interview-prep/story-bank.md` — historias STAR+R existentes
 8. **Banco de preguntas** en `interview-prep/question-bank.md` — carencias existentes (si el archivo existe)
 

@@ -149,7 +149,7 @@ export function readApplications(): Application[] {
 
 /**
  * Server-side lifecycle of the user's setup — mirrors the prerequisite list that
- * doctor.mjs uses (cv.md, config/profile.yml, modes/_profile.md, portals.yml), by
+ * doctor.mjs uses (cv.md, config/profile.yml, _profile.md, portals.yml), by
  * plain file-stat (no subprocess). Drives the home branch: first-run (no CV) →
  * the CV takeover; in-between (CV but no profile) → gentle nudges; established.
  */
@@ -158,7 +158,7 @@ export type LifecyclePhase = "first-run" | "in-between" | "established";
  * Server-side lifecycle, mirroring the core doctor.mjs prerequisite list with the
  * SAME existsSync semantics (the SSOT the OnboardingBanner already reads via
  * /api/doctor). The 4 user-layer prereqs: cv.md, config/profile.yml,
- * modes/_profile.md, portals.yml.
+ * _profile.md, portals.yml.
  *   - first-run  → a TRULY empty install (no cv AND no data): the CV takeover.
  *     CRITICAL back-compat (maintainer): NEVER force onboarding on a user who
  *     already has data (a full pipeline/tracker with no cv.md is valid).
@@ -183,7 +183,7 @@ export function doctorState(): {
   const prereqs: [string, string][] = [
     ["cv.md", "cv.md"],
     ["config/profile.yml", "config/profile.yml"],
-    ["modes/_profile.md", "modes/_profile.md"],
+    ["_profile.md", "_profile.md"],
     ["portals.yml", "portals.yml"],
   ];
   const missing = prereqs.filter(([rel]) => !has(rel)).map(([, label]) => label);
@@ -249,13 +249,13 @@ export function findApplication(n: string): Application | null {
  *  web assistant learns go HERE (single source of truth) inside a managed marker
  *  block — so the CLI sees them too. No web-only memory store (that would drift). */
 export function profilePath(): string {
-  return path.join(careerOpsRoot(), "modes", "_profile.md");
+  return path.join(careerOpsRoot(), "_profile.md");
 }
 
 const NOTES_START = "<!-- co-web-notes:start -->";
 const NOTES_END = "<!-- co-web-notes:end -->";
 
-/** Read back ONLY the web-assistant managed notes from modes/_profile.md (small,
+/** Read back ONLY the web-assistant managed notes from _profile.md (small,
  *  focused — the agent reads the rest of the canonical files itself). Falls back
  *  to the legacy web-only memory file for back-compat. */
 export function readMemory(): string {
@@ -274,7 +274,7 @@ export function readMemory(): string {
   }
 }
 
-/** Append a durable fact to the canonical modes/_profile.md (creating the file +
+/** Append a durable fact to the canonical _profile.md (creating the file +
  *  managed block if needed), PRESERVING existing user content. */
 export function rememberFact(fact: string): "ok" | "deduped" | "error" {
   const f = fact.trim().replace(/\s+/g, " ").slice(0, 300);

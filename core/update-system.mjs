@@ -284,9 +284,9 @@ const BOOTSTRAP_PATHS = [
 const USER_PATHS = [
   'cv.md',
   'config/profile.yml',
-  'modes/_profile.md',
-  'modes/_custom.md',
-  'modes/_brief.md',
+  '_profile.md',
+  '_custom.md',
+  '_brief.md',
   'voice-dna.md',
   'portals.yml',
   'article-digest.md',

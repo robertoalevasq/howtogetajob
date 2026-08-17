@@ -25,7 +25,7 @@ These skills assume the following files exist (career-ops defaults):
 | `cv.md` | Candidate CV — source of truth for experience and proof points |
 | `article-digest.md` | Compact proof points from portfolio (optional) |
 | `config/profile.yml` | Candidate profile — target roles, compensation, narrative |
-| `modes/_profile.md` | Candidate archetypes, narrative, and deal-breakers |
+| `_profile.md` | Candidate archetypes, narrative, and deal-breakers |
 | `interview-prep/story-bank.md` | Accumulated STAR+R stories |
 | `interview-prep/question-bank.md` | Question bank with gap tracking (created on first use) |
 | `interview-prep/interview-prep-guide.md` | General interview principles (optional) |

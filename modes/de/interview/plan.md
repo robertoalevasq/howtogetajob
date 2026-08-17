@@ -11,7 +11,7 @@ Erstelle aus einer Stellenanzeige und einem Interviewtermin einen strukturierten
 3. **Name und Rolle des Interviewers** (falls bekannt) — bestimmt Tiefe und Ton der Vorbereitung
 4. **Art der Runde** (falls bekannt) — Screening, technisch/fachspezifisch, Design/Case Study, Behavioral Panel
 5. **Lebenslauf** unter `cv.md` + `article-digest.md` (falls vorhanden) — für Erfahrung, Skills, Proof Points lesen
-6. **Profil** unter `config/profile.yml` + `modes/_profile.md` — für Narrativ, Archetypen und Ziele lesen
+6. **Profil** unter `config/profile.yml` + `_profile.md` — für Narrativ, Archetypen und Ziele lesen
 7. **Story Bank** unter `interview-prep/story-bank.md` — vorhandene STAR+R-Stories
 8. **Question Bank** unter `interview-prep/question-bank.md` — bestehende Lücken (falls die Datei existiert)
 

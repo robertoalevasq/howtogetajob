@@ -12,17 +12,17 @@ thousands of tokens; triage reads one compact file instead.
 
 ## Context
 
-Read ONLY `modes/_brief.md`. Do NOT read:
+Read ONLY `_brief.md`. Do NOT read:
 - cv.md
 - config/profile.yml
 - modes/_shared.md
-- modes/_profile.md
+- _profile.md
 - modes/oferta.md
 
 This is the entire point of triage mode. Full context is expensive and not needed
 to score a role for go/no-go. Read `_brief.md` once, then evaluate.
 
-`modes/_brief.md` is a user-layer file created from `modes/_brief.template.md`
+`_brief.md` is a user-layer file created from `modes/_brief.template.md`
 (auto-copied by `doctor.mjs` on first run). If it does not exist or has not been
 filled in, triage cannot run — fall back to full evaluation.
 
@@ -89,7 +89,7 @@ MARGINAL band below depends on.
 (`triage_threshold` is `config/profile.yml → pipeline.triage_threshold`, default `3.5`.)
 
 **Priority override:** If the company is on the Priority Override List in
-`modes/_brief.md`, return PASS regardless of score. Check the company name before
+`_brief.md`, return PASS regardless of score. Check the company name before
 returning a verdict.
 
 ### 5. Return

@@ -3,7 +3,7 @@
 <!-- ============================================================
      BU DOSYA OTOMATİK GÜNCELLENEBİLİR. Buraya kişisel veri ekleme.
      
-     Özelleştirmeler modes/_profile.md dosyasına gider (hiçbir zaman
+     Özelleştirmeler _profile.md dosyasına gider (hiçbir zaman
      otomatik güncellenmez). Bu dosya sistem kurallarını, puanlama
      mantığını ve her sürümde gelişen araç yapılandırmasını içerir.
      ============================================================ -->
@@ -15,7 +15,7 @@
 | cv.md | `cv.md` (proje kök dizini) | Her zaman |
 | article-digest.md | `article-digest.md` (varsa) | Her zaman — ayrıntılı kanıtlar |
 | profile.yml | `config/profile.yml` | Her zaman — kişisel bilgiler ve hedef roller |
-| _profile.md | `modes/_profile.md` | Her zaman — kullanıcı arketipleri, anlatı, müzakere |
+| _profile.md | `_profile.md` | Her zaman — kullanıcı arketipleri, anlatı, müzakere |
 
 **KURAL: Kanıt noktalarındaki ölçüm değerlerini ASLA sabit kodlama.** Değerlendirme sırasında bunları cv.md + article-digest.md dosyalarından oku.
 **KURAL: Makale/proje metrikleri için `article-digest.md`, `cv.md`'ye göre önceliklidir.**
@@ -99,7 +99,7 @@ Her ilanı aşağıdaki türlerden birine (ya da en fazla ikisine) sınıflandı
 | AI Forward Deployed | "client-facing", "deploy", "prototype", "fast delivery", "field" |
 | AI Transformation | "change management", "adoption", "enablement", "transformation" |
 
-Arketipi tespit ettikten sonra kullanıcıya özgü çerçeveleme ve kanıt noktaları için `modes/_profile.md` dosyasını oku.
+Arketipi tespit ettikten sonra kullanıcıya özgü çerçeveleme ve kanıt noktaları için `_profile.md` dosyasını oku.
 
 ### Arketipe Göre Uyarlama
 

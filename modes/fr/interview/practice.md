@@ -10,7 +10,7 @@ Dirigez un entretien d'entraînement réaliste — une question à la fois — e
 2. **Persona de l'intervieweur** (si connu) — nom, rôle, entreprise ; oriente le style et la profondeur des questions
 3. **Liste de questions** (facultatif) — questions spécifiques à couvrir ; si non fournie, générez-les à partir du type de round
 4. **CV** dans `cv.md` + `article-digest.md` (si présent) — pour vérifier les affirmations dans les réponses et ancrer des versions plus solides dans une expérience réelle
-5. **Profil** dans `config/profile.yml` + `modes/_profile.md` — narration du candidat, critères rédhibitoires, cibles de rémunération
+5. **Profil** dans `config/profile.yml` + `_profile.md` — narration du candidat, critères rédhibitoires, cibles de rémunération
 6. **Banque d'histoires** dans `interview-prep/story-bank.md` — pour vérifier l'exactitude de l'histoire dans les retours
 7. **Banque de questions** dans `interview-prep/question-bank.md` — pour mettre à jour le statut après chaque réponse
 8. **Fichier de préparation spécifique au rôle** — pour les informations sur l'entreprise, les questions sourcées, la stratégie de rémunération

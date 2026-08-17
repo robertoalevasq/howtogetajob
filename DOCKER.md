@@ -86,7 +86,7 @@ echo "GEMINI_API_KEY=..." >> .env
 
 Everything under the project root is on your host filesystem:
 
-- `cv.md`, `config/profile.yml`, `modes/_profile.md`, `portals.yml`
+- `cv.md`, `config/profile.yml`, `_profile.md`, `portals.yml`
 - `data/applications.md`, `data/pipeline.md`, `data/scan-history.tsv`
 - `reports/`, `output/`, `interview-prep/`, `jds/`
 

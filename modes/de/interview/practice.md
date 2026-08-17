@@ -10,7 +10,7 @@ Führe ein realistisches Übungsinterview — eine Frage nach der anderen — un
 2. **Interviewer-Persona** (falls bekannt) — Name, Rolle, Unternehmen; prägt Fragestil und Tiefe
 3. **Fragenliste** (optional) — konkrete abzudeckende Fragen; falls nicht angegeben, aus der Rundenart generieren
 4. **Lebenslauf** unter `cv.md` + `article-digest.md` (falls vorhanden) — um Aussagen in Antworten zu prüfen und stärkere Versionen in echter Erfahrung zu verankern
-5. **Profil** unter `config/profile.yml` + `modes/_profile.md` — Kandidaten-Narrativ, Deal-Breaker, Gehaltsziele
+5. **Profil** unter `config/profile.yml` + `_profile.md` — Kandidaten-Narrativ, Deal-Breaker, Gehaltsziele
 6. **Story Bank** unter `interview-prep/story-bank.md` — um die Richtigkeit der Stories im Feedback zu prüfen
 7. **Question Bank** unter `interview-prep/question-bank.md` — um den Status nach jeder Antwort zu aktualisieren
 8. **Rollenspezifische Prep-Datei** — für Unternehmensinfos, recherchierte Fragen, Gehaltsstrategie

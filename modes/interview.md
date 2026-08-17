@@ -2,7 +2,7 @@
 
 When the user runs `/career-ops interview`, execute this interactive profile/CV interview flow.
 
-The purpose of this mode is to conduct a conversational interview to extract rich context, specific project tasks, technologies used, and measurable business impact to build or enhance `cv.md`, `config/profile.yml`, and `modes/_profile.md`.
+The purpose of this mode is to conduct a conversational interview to extract rich context, specific project tasks, technologies used, and measurable business impact to build or enhance `cv.md`, `config/profile.yml`, and `_profile.md`.
 
 ---
 
@@ -12,7 +12,7 @@ The purpose of this mode is to conduct a conversational interview to extract ric
 
 - Read `cv.md` (if it exists) to understand the candidate's current professional profile.
 - Read `config/profile.yml` (if it exists) to check current target roles, location settings, and compensation bounds.
-- Read `modes/_profile.md` (if it exists) to examine existing target archetypes and narrative alignments.
+- Read `_profile.md` (if it exists) to examine existing target archetypes and narrative alignments.
 
 ### 2. Interview Structure & Tone
 
@@ -58,7 +58,7 @@ Ask about adjacent experience or forgotten skills:
 Once the interview is complete, or once enough new details have been collected:
 1. **Update `cv.md`**: Update the professional summary, rewrite project bullet points to incorporate the new keywords and metrics, and append new skills.
 2. **Update `config/profile.yml`**: Update the targets, compensation, and narrative sections.
-3. **Update `modes/_profile.md`**: Map the new projects/proof points to the target archetypes and update the adaptive framing rules.
+3. **Update `_profile.md`**: Map the new projects/proof points to the target archetypes and update the adaptive framing rules.
 4. Run `node doctor.mjs` silently to verify project integrity.
 5. Provide a summary of the files updated:
    > "✅ Interactive interview completed! Updated your profile:

@@ -291,9 +291,9 @@ const USER_LAYER_PREREQS = [
     ],
   },
   {
-    path: 'modes/_profile.md',
+    path: '_profile.md',
     fix: [
-      'Run: cp modes/_profile.template.md modes/_profile.md',
+      'Run: cp modes/_profile.template.md _profile.md',
       'Then customize your archetypes / targeting narrative',
     ],
   },
@@ -522,9 +522,9 @@ async function main() {
 function onboardingState(root) {
   const autoCopied = [];
   const templates = [
-    { target: 'modes/_profile.md', template: 'modes/_profile.template.md' },
-    { target: 'modes/_custom.md', template: 'modes/_custom.template.md' },
-    { target: 'modes/_brief.md', template: 'modes/_brief.template.md' },
+    { target: '_profile.md', template: 'modes/_profile.template.md' },
+    { target: '_custom.md', template: 'modes/_custom.template.md' },
+    { target: '_brief.md', template: 'modes/_brief.template.md' },
   ];
   for (const { target, template } of templates) {
     const targetPath = join(root, ...target.split('/'));

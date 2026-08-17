@@ -48,8 +48,8 @@ table in `AGENTS.md` (mirrored in `CLAUDE.md`).
 | File | Role |
 |---|---|
 | `_shared.md` | System context shared across modes: scoring system, global rules, source-of-truth boundary. System-owned — never put personal data here |
-| `_profile.template.md` | Seed for your `modes/_profile.md` (archetypes, narrative, negotiation scripts) |
-| `_custom.template.md` | Seed for your `modes/_custom.md` (house rules, procedural preferences) |
+| `_profile.template.md` | Seed for your `_profile.md` (archetypes, narrative, negotiation scripts) |
+| `_custom.template.md` | Seed for your `_custom.md` (house rules, procedural preferences) |
 
 Your copies (`_profile.md`, `_custom.md`) are user-layer files: gitignored
 and never touched by `update-system.mjs` (see
