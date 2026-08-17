@@ -26,6 +26,7 @@ import { parseTrackerRow, resolveColumns, extractTrackerReportNumbers } from './
 import { roleFuzzyMatch } from './role-matcher.mjs';
 import { resolveTrackerPath, normalizeCompany } from './tracker-utils.mjs';
 import { parsePdfIndex } from './find.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
 const CAREER_OPS = dirname(fileURLToPath(import.meta.url));
 const NODE = process.execPath;
@@ -141,7 +142,7 @@ if (!outcomeConfig) {
   failExit(`Invalid outcome_type "${rawOutcomeType}". Valid types: ${validTypes}`, 'invalid-outcome', EXIT_USAGE);
 }
 
-const appsFile = resolveTrackerPath(dirname(CAREER_OPS));
+const appsFile = resolveTrackerPath(workspaceRoot());
 if (!existsSync(appsFile)) {
   failExit(`Tracker not found at ${appsFile}`, 'tracker-not-found', EXIT_NOT_FOUND);
 }
@@ -397,7 +398,7 @@ if (matchedRow.role) {
 
 let setStatusResult = null;
 try {
-  const statusOutput = execFileSync(NODE, setStatusArgs, { cwd: CAREER_OPS, env: process.env, encoding: 'utf-8' });
+  const statusOutput = execFileSync(NODE, setStatusArgs, { cwd: workspaceRoot(), env: process.env, encoding: 'utf-8' });
   setStatusResult = JSON.parse(statusOutput);
 } catch (err) {
   failExit(`Tracker update via set-status.mjs failed: ${err.message}`, 'tracker-update-failed', 1);

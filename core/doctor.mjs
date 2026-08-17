@@ -6,24 +6,24 @@
  */
 
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 import yaml from 'js-yaml';
 import dotenv from 'dotenv';
 import { discoverPlugins, pluginRoots, pluginStatus } from '../plugins/_engine.mjs';
 import { resolveExtractorMode } from './browser-extract.mjs';
 import { parseConfigByExtension } from './jsonc-parse.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-// doctor.mjs now lives in core/, one directory below the repo root
-// (#workspace-multitenancy Task 1), so the default projectRoot must go up one
-// level — __dirname alone would treat core/ itself as the project root and
-// look for fonts/, data/pipeline.md, node_modules, .env, etc. under core/.
-const REPO_ROOT = dirname(__dirname);
 const argv = process.argv.slice(2);
 const targetIdx = argv.indexOf('--target');
+// --target stays the highest-priority override (used by the test suite to
+// point doctor at a simulated environment); the fallback is the current
+// workspace, not this script's own directory — doctor.mjs now lives in
+// core/, one directory below the repo root (#workspace-multitenancy Task 1),
+// and user-layer prerequisites (cv.md, config/profile.yml, portals.yml, ...)
+// live in the workspace, not beside the script.
 const projectRoot =
-  targetIdx !== -1 && argv[targetIdx + 1] ? argv[targetIdx + 1] : REPO_ROOT;
+  targetIdx !== -1 && argv[targetIdx + 1] ? argv[targetIdx + 1] : workspaceRoot();
 const JSON_OUT = argv.includes('--json');
 // --strict adds a live ATS-slug probe of portals.yml (network). Opt-in so the
 // default `npm run doctor` stays fast and fully offline.
