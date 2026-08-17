@@ -167,7 +167,7 @@
 
 ### 2. Зареєструвати в трекері
 
-Для **нового** запису не редагувати `data/applications.md` напряму. Замість цього записати один TSV-рядок у `batch/tracker-additions/{num}-{company-slug}.tsv` з 8 або 9 колонками через табуляцію:
+Для **нового** запису не редагувати `data/applications.md` напряму. Замість цього записати один TSV-рядок у `data/tracker-additions/{num}-{company-slug}.tsv` з 8 або 9 колонками через табуляцію:
 
 ```
 {num}\t{date}\t{company}\t{role}\t{status}\t{score}\t{pdf_emoji}\t[{num}](reports/{num}-{slug}-{date}.md)\t{note}

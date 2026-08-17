@@ -61,7 +61,7 @@ batch/
 
 ## Tracker Merge
 
-Workers write one TSV per offer to `batch/tracker-additions/`. The merge script (`npm run merge`) handles:
+Workers write one TSV per offer to `data/tracker-additions/`. The merge script (`npm run merge`) handles:
 
 - Deduplication by company + role fuzzy match and report number
 - Column order conversion (TSV has status before score; applications.md has score before status)

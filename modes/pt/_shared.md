@@ -202,7 +202,7 @@ Em vagas e negociações brasileiras, existem termos e práticas que não aparec
 7. Ser direto e prático — sem enrolação
 8. Ao gerar texto em português (PDF summaries, bullets, mensagens LinkedIn, histórias STAR): português tech natural, não tradução literal. Frases curtas, verbos de ação, evitar voz passiva. Termos técnicos (stack, pipeline, deployment, embedding) não precisam ser traduzidos
 8b. **URLs de case studies no PDF Professional Summary:** Se o PDF menciona case studies ou demos, as URLs DEVEM aparecer já no primeiro parágrafo (Professional Summary). Recrutadores frequentemente só leem o resumo. Todos os URLs no HTML com `white-space: nowrap`
-9. **Entradas no tracker como TSV** — NUNCA editar `applications.md` diretamente para novos registros. Escrever TSV em `batch/tracker-additions/`, `merge-tracker.mjs` cuida do merge
+9. **Entradas no tracker como TSV** — NUNCA editar `applications.md` diretamente para novos registros. Escrever TSV em `data/tracker-additions/`, `merge-tracker.mjs` cuida do merge
 10. **Incluir `**URL:**` em todo header de report** — entre Score e PDF
 
 ### Tools
@@ -213,6 +213,6 @@ Em vagas e negociações brasileiras, existem termos e práticas que não aparec
 | WebFetch | Fallback para extrair descrições de vagas de páginas estáticas |
 | Playwright | Verificar se vagas ainda estão ativas (browser_navigate + browser_snapshot), extrair descrições de SPAs. **CRÍTICO: NUNCA iniciar 2+ agentes com Playwright em paralelo — eles compartilham a mesma instância do navegador** |
 | Read | cv.md, _profile.md, article-digest.md, cv-template.html |
-| Write | HTML temporário para PDF, reports .md, TSV em `batch/tracker-additions/` |
+| Write | HTML temporário para PDF, reports .md, TSV em `data/tracker-additions/` |
 | Edit | Ajustes de conteúdo (não usar para criar novos registros no tracker) |
 | Bash | `node generate-pdf.mjs`, `node merge-tracker.mjs` |

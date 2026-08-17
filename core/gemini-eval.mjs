@@ -73,7 +73,7 @@ const PATHS = {
   profileYml:  join(ROOT, '..', 'config', 'profile.yml'),
   reports:     join(ROOT, '..', 'reports'),
   tracker:     join(ROOT, '..', 'data', 'applications.md'),
-  trackerAdditions: join(ROOT, '..', 'batch', 'tracker-additions'),
+  trackerAdditions: join(ROOT, '..', 'data', 'tracker-additions'), // relocated from batch/ — see Task 9
 };
 
 // ---------------------------------------------------------------------------
@@ -435,7 +435,7 @@ ${evaluationText.replace(/---SCORE_SUMMARY---[\s\S]*?---END_SUMMARY---/, '').tri
       ];
       writeFileSync(trackerPath, `${trackerFields.join('\t')}\n`, 'utf-8');
       console.log(`\n✅  Report saved: reports/${filename}`);
-      console.log(`📊  Tracker addition saved: batch/tracker-additions/${num}-${companySlug}.tsv`);
+      console.log(`📊  Tracker addition saved: data/tracker-additions/${num}-${companySlug}.tsv`);
       reportSaved = true;
     } catch (err) {
       console.warn(`⚠️   Could not save report: ${err.message}`);

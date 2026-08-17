@@ -68,7 +68,7 @@ npm run doctor
 
 ## verify
 
-Health check for pipeline data integrity. Validates `data/applications.md` against nine rules: canonical statuses (per `templates/states.yml`), no duplicate company+role pairs, all report links point to existing files, scores match `X.XX/5` / `N/A` / `DUP`, rows have proper pipe-delimited format, no pending TSVs in `batch/tracker-additions/`, no markdown bold in scores, no two `reports/*.md` files covering the same company+role, and no orphan reports without a tracker row (#1425). The report checks are warning-level: duplicate reports can be legitimate (re-evaluation after a JD change), so they never fail the run.
+Health check for pipeline data integrity. Validates `data/applications.md` against nine rules: canonical statuses (per `templates/states.yml`), no duplicate company+role pairs, all report links point to existing files, scores match `X.XX/5` / `N/A` / `DUP`, rows have proper pipe-delimited format, no pending TSVs in `data/tracker-additions/`, no markdown bold in scores, no two `reports/*.md` files covering the same company+role, and no orphan reports without a tracker row (#1425). The report checks are warning-level: duplicate reports can be legitimate (re-evaluation after a JD change), so they never fail the run.
 
 ```bash
 npm run verify
@@ -110,7 +110,7 @@ Creates a `.bak` backup before writing.
 
 ## merge
 
-Merges batch tracker additions (`batch/tracker-additions/*.tsv`) into `applications.md`. Handles 9-column TSV, 8-column TSV, and pipe-delimited markdown formats. Detects duplicates by report number, entry number, and company+role fuzzy match. Higher-scored re-evaluations update existing entries in place.
+Merges batch tracker additions (`data/tracker-additions/*.tsv`) into `applications.md`. Handles 9-column TSV, 8-column TSV, and pipe-delimited markdown formats. Detects duplicates by report number, entry number, and company+role fuzzy match. Higher-scored re-evaluations update existing entries in place.
 
 ```bash
 npm run merge                 # apply merge
@@ -118,7 +118,7 @@ npm run merge -- --dry-run    # preview without writing
 npm run merge -- --verify     # merge then run verify-pipeline
 ```
 
-Processed TSVs are moved to `batch/tracker-additions/merged/`.
+Processed TSVs are moved to `data/tracker-additions/merged/`.
 
 **Exit codes:** `0` success, `1` verification errors (with `--verify`).
 
@@ -746,7 +746,7 @@ npm run or:apply                # application assistance
 
 ## reconcile
 
-Syncs the `data/pipeline.md` "Pendientes" section with `batch/batch-state.tsv`.
+Syncs the `data/pipeline.md` "Pendientes" section with `data/batch-state.tsv`.
 `batch-runner.sh` records evaluated offers in the state file but never writes
 back to `pipeline.md`, so batch-processed offers would otherwise be
 re-surfaced by every later scan or pipeline run.

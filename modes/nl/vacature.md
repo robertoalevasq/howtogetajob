@@ -149,7 +149,7 @@ Sla de volledige evaluatie op in `reports/{###}-{company-slug}-{YYYY-MM-DD}.md`.
 
 ### 2. Opslaan in tracker
 
-**ALTIJD** registreren via een TSV-bestand in `batch/tracker-additions/`; bewerk `data/applications.md` nooit rechtstreeks. Voer vóór voltooiing, in deze volgorde, `node merge-tracker.mjs`, `node verify-pipeline.mjs`, `node normalize-statuses.mjs` en `node dedup-tracker.mjs` uit:
+**ALTIJD** registreren via een TSV-bestand in `data/tracker-additions/`; bewerk `data/applications.md` nooit rechtstreeks. Voer vóór voltooiing, in deze volgorde, `node merge-tracker.mjs`, `node verify-pipeline.mjs`, `node normalize-statuses.mjs` en `node dedup-tracker.mjs` uit:
 - Volgend opeenvolgend nummer
 - De datum van vandaag
 - Bedrijf

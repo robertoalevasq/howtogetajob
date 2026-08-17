@@ -38,7 +38,7 @@ const APPS_FILE = process.env.CAREER_OPS_TRACKER
   : existsSync(join(CAREER_OPS, 'data/applications.md'))
     ? join(CAREER_OPS, 'data/applications.md')
     : join(CAREER_OPS, 'applications.md');
-const ADDITIONS_DIR = join(CAREER_OPS, 'batch/tracker-additions');
+const ADDITIONS_DIR = join(CAREER_OPS, 'data/tracker-additions'); // relocated from batch/ — see Task 9
 // CAREER_OPS_REPORTS overrides the reports dir (used by tests, mirrors CAREER_OPS_TRACKER).
 const REPORTS_DIR = process.env.CAREER_OPS_REPORTS || join(CAREER_OPS, 'reports');
 const STATES_FILE = existsSync(join(CAREER_OPS, 'templates/states.yml'))

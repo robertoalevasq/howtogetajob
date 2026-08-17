@@ -461,7 +461,7 @@ function parseAppLine(line) {
  * rejects additions without a usable tracker number so malformed batch output
  * cannot corrupt applications.md.
  *
- * @param {string} content - Raw file content from batch/tracker-additions.
+ * @param {string} content - Raw file content from data/tracker-additions.
  * @param {string} filename - Source filename used in warning messages.
  * @returns {object|null} Parsed tracker addition, or null when malformed.
  */

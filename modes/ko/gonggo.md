@@ -151,7 +151,7 @@ WebSearch를 사용합니다.
 
 ### 2. tracker 추가 항목 작성
 
-새 tracker row를 위해 `data/applications.md`를 직접 수정하지 않습니다. 평가마다 `batch/tracker-additions/{num}-{company-slug}.tsv`에 TSV 한 줄을 쓰고, 이후 `node merge-tracker.mjs`로 병합합니다.
+새 tracker row를 위해 `data/applications.md`를 직접 수정하지 않습니다. 평가마다 `data/tracker-additions/{num}-{company-slug}.tsv`에 TSV 한 줄을 쓰고, 이후 `node merge-tracker.mjs`로 병합합니다.
 
 **TSV format (status before score):**
 

@@ -58,10 +58,11 @@ const EXCLUDES = [
   'renovate.json',
   'flake.lock',
   'flake.nix',
-  'batch/logs/.gitkeep',
-  'batch/tracker-additions/.gitkeep',
   'interview-prep/.gitkeep',
 ];
+// data/tracker-additions/.gitkeep and data/batch-logs/.gitkeep (relocated from
+// batch/ — see Task 9) no longer need explicit EXCLUDES entries: they're
+// already covered by the 'data/' prefix in USER_PATHS below.
 
 // Trees that live in the repo but deliberately OUTSIDE the updater's world:
 // web/ is the experimental web UI — its own release-please component, never

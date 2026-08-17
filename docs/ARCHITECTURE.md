@@ -53,7 +53,7 @@ system/user data-contract layers live in [../ARCHITECTURE.md](../ARCHITECTURE.md
 5. **Score**: Weighted average across 5 dimensions (1-5)
 6. **Report**: Save as `reports/{num}-{company}-{date}.md`
 7. **PDF**: Generate ATS-optimized CV (`generate-pdf.mjs`)
-8. **Track**: New entries via TSV in `batch/tracker-additions/` merged by
+8. **Track**: New entries via TSV in `data/tracker-additions/` merged by
    `merge-tracker.mjs`; status updates to existing rows via `set-status.mjs`
 
 ## Batch Processing
@@ -90,7 +90,7 @@ templates/cv-template.html → PDF generation template
 
 - Reports: `{###}-{company-slug}-{YYYY-MM-DD}.md` (3-digit zero-padded)
 - PDFs: `cv-candidate-{company-slug}-{YYYY-MM-DD}.pdf`
-- Tracker TSVs: `batch/tracker-additions/{id}.tsv`
+- Tracker TSVs: `data/tracker-additions/{id}.tsv`
 
 ## Pipeline Integrity
 

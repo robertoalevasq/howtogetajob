@@ -187,7 +187,7 @@ I danske opslag og forhandlinger optræder visse termer, som ikke findes på EN/
 7. Vær direkte og konkret -- ingen smøren
 8. Naturligt tech-dansk til genererede tekster. Korte sætninger, aktive verber, undgå passiv. Oversæt ikke tekniske termer med tvang (stack, pipeline, deployment, embedding)
 8b. **Case-study-URL'er i PDF'ens Professional Summary:** Hvis PDF'en nævner case studies eller demoer, SKAL URL'erne optræde i det første afsnit (Professional Summary). Rekrutterere læser ofte kun summary. Alle URL'er i HTML med `white-space: nowrap`
-9. **Tracker-poster som TSV** -- rediger ALDRIG applications.md direkte for nye tilføjelser. Skriv TSV i `batch/tracker-additions/`, `merge-tracker.mjs` håndterer sammenfletningen
+9. **Tracker-poster som TSV** -- rediger ALDRIG applications.md direkte for nye tilføjelser. Skriv TSV i `data/tracker-additions/`, `merge-tracker.mjs` håndterer sammenfletningen
 10. **`**URL:**` i hver report-header** -- mellem Score og PDF
 
 ### Værktøjer

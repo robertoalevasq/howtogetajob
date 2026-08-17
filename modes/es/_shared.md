@@ -187,7 +187,7 @@ En las ofertas y negociaciones en español, ciertos términos no existen en los 
 7. Ser directo y concreto — sin relleno
 8. Español técnico natural en los textos generados. Frases cortas, verbos de acción, evitar la voz pasiva. No forzar la traducción de términos técnicos (stack, pipeline, deployment, embedding)
 8b. **URLs de case studies en el Professional Summary del PDF:** Si el PDF menciona case studies o demos, las URLs DEBEN aparecer en el primer párrafo (Professional Summary). Los reclutadores suelen leer solo el summary. Todas las URLs en HTML con `white-space: nowrap`
-9. **Entradas del tracker en TSV** — NUNCA editar applications.md directamente para nuevas entradas. Escribir el TSV en `batch/tracker-additions/`, `merge-tracker.mjs` gestiona la fusión
+9. **Entradas del tracker en TSV** — NUNCA editar applications.md directamente para nuevas entradas. Escribir el TSV en `data/tracker-additions/`, `merge-tracker.mjs` gestiona la fusión
 10. **`**URL:**` en cada cabecera de report** — entre Score y PDF
 
 ### Herramientas

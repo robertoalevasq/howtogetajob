@@ -10,6 +10,8 @@ data/*
 !data/.gitkeep
 !data/offers/
 !data/parser-output/
+!data/tracker-additions/
+!data/batch-logs/
 # Received offers/contracts, promise notes, prep reports (PII — never commit)
 data/offers/*
 !data/offers/.gitkeep
@@ -21,12 +23,14 @@ reports/*.md
 !reports/.gitkeep
 output/*
 !output/.gitkeep
-batch/logs/*
-!batch/logs/.gitkeep
-batch/batch-state.tsv
-batch/batch-input.tsv
-batch/tracker-additions/**/*.tsv
-!batch/tracker-additions/.gitkeep
+data/batch-logs/*
+!data/batch-logs/.gitkeep
+data/batch-state.tsv
+data/batch-input.tsv
+data/tracker-additions/**/*.tsv
+data/batch-wave*
+data/batch-*-worker.mjs
+!data/tracker-additions/.gitkeep
 jds/*
 !jds/.gitkeep
 

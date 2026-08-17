@@ -3,7 +3,7 @@
  * reconcile-pipeline.mjs — Sync pipeline.md "Pendientes" with batch-state.tsv
  *
  * THE PROBLEM
- * batch-runner.sh records every evaluated offer in batch/batch-state.tsv, but
+ * batch-runner.sh records every evaluated offer in data/batch-state.tsv, but
  * it never writes back to data/pipeline.md. Offers processed via batch mode
  * therefore stay in the "Pendientes" section forever — the next scan and the
  * next `/career-ops pipeline` run both re-surface them, and they get evaluated
@@ -78,7 +78,7 @@ const defaultPipeline = existsSync(join(ROOT, 'data/pipeline.md'))
   ? join(ROOT, 'data/pipeline.md')
   : join(ROOT, 'pipeline.md');
 const PIPELINE_FILE = resolveInsideRepo(argValue('--pipeline'), defaultPipeline, '--pipeline');
-const STATE_FILE = resolveInsideRepo(argValue('--state'), join(ROOT, 'batch/batch-state.tsv'), '--state');
+const STATE_FILE = resolveInsideRepo(argValue('--state'), join(ROOT, 'data/batch-state.tsv'), '--state'); // relocated from batch/ — see Task 9
 const REPORTS_DIR = join(ROOT, 'reports');
 
 // ---- guards ----

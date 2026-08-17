@@ -43,7 +43,7 @@ Interactieve modus voor wanneer de kandidaat een sollicitatieformulier in Chrome
 Als de rol op het scherm afwijkt van de geëvalueerde rol:
 - **Waarschuw de kandidaat**: "De rol is veranderd van [X] in [Y]. Wil je dat ik de antwoorden opnieuw evalueer of aanpas aan de nieuwe titel?"
 - **Indien aangepast**: Pas de antwoorden eenmalig aan de zichtbare rol aan zonder opnieuw te evalueren. Laat de oorspronkelijke roltitel in de tracker, de rapportmetadata en blok G ongewijzigd en sla de aangepaste antwoorden niet in het oude rapport op
-- **Indien opnieuw geëvalueerd**: Start de volledige A-F-evaluatie voor de zichtbare rol, werk de rapportmetadata bij en genereer blok G opnieuw. Schrijf de gewijzigde roltitel als TSV-toevoeging in `batch/tracker-additions/`; bewerk `applications.md` niet rechtstreeks
+- **Indien opnieuw geëvalueerd**: Start de volledige A-F-evaluatie voor de zichtbare rol, werk de rapportmetadata bij en genereer blok G opnieuw. Schrijf de gewijzigde roltitel als TSV-toevoeging in `data/tracker-additions/`; bewerk `applications.md` niet rechtstreeks
 - **Na herbeoordeling**: Voer in deze volgorde `node merge-tracker.mjs`, `node verify-pipeline.mjs`, `node normalize-statuses.mjs` en `node dedup-tracker.mjs` uit
 
 ## Stap 4 -- Analyseer de formuliervragen

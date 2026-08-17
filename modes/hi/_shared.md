@@ -192,7 +192,7 @@ Profile को **"Demonstrable practice वाले Technical Builder"** के
 7. Direct और concrete रहें — बकवास नहीं
 8. Natural Hindi tech language use करें। Short sentences, action verbs, passive avoid करें। Technical terms force-translate न करें (stack, pipeline, deployment, embedding)
 8b. **PDF में case study URLs:** यदि PDF में case studies या demos mention हों, URLs Professional Summary के पहले paragraph में होने चाहिए। Recruiters अक्सर सिर्फ summary पढ़ते हैं। सभी URLs HTML में `white-space: nowrap` के साथ
-9. **Tracker entries TSV में** — applications.md सीधे edit कभी नहीं करें (नई entries के लिए)। TSV `batch/tracker-additions/` में लिखें, `merge-tracker.mjs` merge करेगा
+9. **Tracker entries TSV में** — applications.md सीधे edit कभी नहीं करें (नई entries के लिए)। TSV `data/tracker-additions/` में लिखें, `merge-tracker.mjs` merge करेगा
 10. **हर report header में `**URL:**`** — Score और PDF के बीच
 
 ### Tools

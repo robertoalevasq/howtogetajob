@@ -196,7 +196,7 @@ Nederland en België gebruiken deels dezelfde taal, maar hebben verschillende ar
 7. Wees direct en concreet – geen gebabbel
 8. Natuurlijk technisch Nederlands voor gegenereerde teksten. Korte zinnen, actiewerkwoorden, vermijd het passieve. Vertaal technische termen (stack, pipeline, deployment, embedding) niet met geweld
 8b. **Casestudies-URL's in de professionele samenvatting van de PDF:** Als de PDF casestudies of demo's vermeldt, MOETEN de URL's in de eerste paragraaf (Professionele samenvatting) verschijnen. Recruiters lezen vaak alleen de samenvatting. Alle URL's in HTML met `white-space: nowrap`
-9. **TSV-trackergegevens** -- Bewerk applications.md NOOIT rechtstreeks voor nieuwe toevoegingen. Schrijf de TSV in `batch/tracker-additions/`, `merge-tracker.mjs` beheert de samenvoeging
+9. **TSV-trackergegevens** -- Bewerk applications.md NOOIT rechtstreeks voor nieuwe toevoegingen. Schrijf de TSV in `data/tracker-additions/`, `merge-tracker.mjs` beheert de samenvoeging
 10. **`**URL:**` in elke rapportkop** -- tussen Score en PDF
 
 ### Hulpmiddelen
@@ -207,6 +207,6 @@ Nederland en België gebruiken deels dezelfde taal, maar hebben verschillende ar
 | WebFetch | Terugval om vacatures uit statische pagina's te halen |
 | Playwright | Controleer of de vacatures actief zijn (browser_navigate + browser_snapshot), extraheer de vacatures uit SPA's. **KRITIEK: NOOIT 2+ agenten parallel met Playwright -- ze delen dezelfde browserinstantie** |
 | Read | `config/profile.yml`, cv.md, article-digest.md, `_profile.md`, `_custom.md`, voice-dna.md, writing-samples/ en cv-template.html |
-| Write | Tijdelijke HTML voor PDF, rapporten .md en TSV-bestanden in `batch/tracker-additions/` |
+| Write | Tijdelijke HTML voor PDF, rapporten .md en TSV-bestanden in `data/tracker-additions/` |
 | Edit | Bestaande rapportinhoud bijwerken; bewerk `applications.md` nooit rechtstreeks |
 | Bash | `node generate-pdf.mjs` |

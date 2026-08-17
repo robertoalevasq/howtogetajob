@@ -117,7 +117,7 @@ TRIAGE: SKIP | Umbrella | Program Manager | 0/5 | Posting redirected to generic 
 ## Rules
 - Max 500 tokens of output total
 - Return the TRIAGE line as the very last line of your response
-- Do not write any files (no reports/, no batch/tracker-additions/)
+- Do not write any files (no reports/, no data/tracker-additions/)
 - Do not generate cover letters, STAR stories, or application answers
 - If you are uncertain whether a DQ applies, score conservatively and note it
 - Triage produces INTERNAL assessments only — no employer-facing content

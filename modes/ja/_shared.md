@@ -139,7 +139,7 @@ Archetype を検出した後、`_profile.md` を読み、該当 archetype に対
 7. 直接的で actionable に書く。fluff を避ける
 8. 日本語で生成する場合は、自然な tech Japanese を使う。短い文、action verbs、不要な受動態を避ける
 8b. PDF Professional Summary に case study URLs を含める（recruiter はそこだけ読む可能性がある）
-9. **Tracker additions as TSV** -- `applications.md` を新規追加のために直接編集しない。`batch/tracker-additions/` に TSV を書く
+9. **Tracker additions as TSV** -- `applications.md` を新規追加のために直接編集しない。`data/tracker-additions/` に TSV を書く
 10. **すべての report header に `**URL:**` を含める**
 
 ### Tools

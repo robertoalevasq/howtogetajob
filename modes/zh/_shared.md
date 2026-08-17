@@ -145,7 +145,7 @@
 6. 完成评估后，及时记录到 tracker 登记簿。
 7. 生成内容与 JD 的语言保持一致（默认使用英文，中文 JD 使用中文）。
 8. 生成中文技术文本（自荐信、LinkedIn 话术等）时：使用自然地道的中文技术交流习惯。多使用短句、主动语态，避免西式生硬的被动句式。常见的通用行业术语（如 stack, pipeline, deployment, embedding）无需强行生硬汉化，保留英文即可。
-9. **向 tracker 添加新记录时必须使用 TSV 格式** -- 严禁直接编辑 `applications.md`，将 TSV 文件写入 `batch/tracker-additions/` 目录，由 `merge-tracker.mjs` 统一合并。
+9. **向 tracker 添加新记录时必须使用 TSV 格式** -- 严禁直接编辑 `applications.md`，将 TSV 文件写入 `data/tracker-additions/` 目录，由 `merge-tracker.mjs` 统一合并。
 10. **在每份评估报告的头部，必须包含 `**URL:**` 字段。**
 
 ---
