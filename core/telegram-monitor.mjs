@@ -35,6 +35,7 @@ import { existsSync } from 'fs';
 import { resolve, dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { acquirePipelineLock } from './pipeline-lock.mjs';
+import { telegramDaemonLockPath } from './hub-paths.mjs';
 
 // ROOT is this script's own directory (core/, after the #workspace-multitenancy
 // Task 1 move) — kept as the cwd for spawning sibling scripts below ('plugins.mjs',
@@ -46,8 +47,8 @@ const ROOT = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = dirname(ROOT);
 // acquirePipelineLock derives its actual lock directory by appending
 // ".lock" to this path (lockDirFor in pipeline-lock.mjs) — so the real lock
-// dir on disk is data/telegram-daemon.lock, not a double-suffixed name.
-const DAEMON_LOCK_PATH = resolve(REPO_ROOT, 'data', 'telegram-daemon');
+// dir on disk is core/data/telegram-daemon.lock, not a double-suffixed name.
+const DAEMON_LOCK_PATH = telegramDaemonLockPath();
 
 /**
  * Resolve the real command (and whether a shell is required) to invoke

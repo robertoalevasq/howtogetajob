@@ -17,6 +17,7 @@ import { existsSync, unlinkSync } from 'fs';
 import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { runHook } from '../plugins/_engine.mjs';
+import { telegramOffsetPath } from './hub-paths.mjs';
 
 // This script now lives in core/, one directory below the repo root; ROOT is
 // the actual repo root that data/ and plugins/ live under (see
@@ -56,7 +57,7 @@ function parseCommand(text) {
 }
 
 function offsetPath() {
-  return process.env.CAREER_OPS_TELEGRAM_OFFSET || resolve(ROOT, 'data', 'telegram-offset.json');
+  return process.env.CAREER_OPS_TELEGRAM_OFFSET || telegramOffsetPath();
 }
 
 async function poll() {
