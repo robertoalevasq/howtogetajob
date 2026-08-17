@@ -76,9 +76,16 @@ import {
   rebuildRow, resolveTrackerPath, writeFileAtomic, loadCanonicalStates, resolveCanonicalState,
   normalizeCompany, cell, CLI_EXIT, makeCliFailWith, acquireTrackerLockForCli,
 } from './tracker-utils.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
-const CAREER_OPS = dirname(fileURLToPath(import.meta.url));
-const STATES_FILE = join(CAREER_OPS, '..', 'templates/states.yml');
+// ROOT is this script's own directory (core/) — used ONLY for system-layer
+// siblings such as templates/states.yml, which always live at a fixed
+// location relative to the installed code, never inside a workspace. Tracker
+// data (APPS_FILE below) resolves through workspaceRoot() instead, since it
+// is user-layer content that must land inside the ACTIVE workspace rather
+// than wherever this script happens to be installed (see workspace-root.mjs).
+const ROOT = dirname(fileURLToPath(import.meta.url));
+const STATES_FILE = join(ROOT, '..', 'templates/states.yml');
 
 // LOCK_TIMEOUT is not destructured here — that exit path is raised inside
 // acquireTrackerLockForCli() itself (tracker-utils.mjs), via CLI_EXIT.LOCK_TIMEOUT.
@@ -215,7 +222,7 @@ if (!newStatus) {
 
 // ── tracker access ───────────────────────────────────────────────
 
-const APPS_FILE = resolveTrackerPath(dirname(CAREER_OPS));
+const APPS_FILE = resolveTrackerPath(workspaceRoot());
 if (!existsSync(APPS_FILE)) {
   failWith(EXIT_NOT_FOUND, 'no-tracker', `No tracker found at ${APPS_FILE}`);
 }
