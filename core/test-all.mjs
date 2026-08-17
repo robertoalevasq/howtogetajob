@@ -10151,10 +10151,14 @@ console.log('\n13. Batch rate-limit pause');
 try {
   const tmp = mkdtempSync(join(tmpdir(), 'co-batch-rate-'));
   const batchDir = join(tmp, 'batch');
+  // batch-runner.sh resolves its user-runtime paths (input/state) under
+  // data/, one level up from its own script dir — see #workspace-multitenancy
+  // Task 9. The fixture must mirror that layout, not put them in batchDir.
+  const dataDir = join(tmp, 'data');
   const fakeBin = join(tmp, 'bin');
   mkdirSync(batchDir, { recursive: true });
   mkdirSync(join(tmp, 'reports'), { recursive: true });
-  mkdirSync(join(tmp, 'data'), { recursive: true });
+  mkdirSync(dataDir, { recursive: true });
   mkdirSync(fakeBin, { recursive: true });
 
   writeFileSync(join(batchDir, 'batch-runner.sh'), readFileSync(join(ROOT, 'batch/batch-runner.sh'), 'utf-8').replace(/\r\n/g, '\n'));
@@ -10166,7 +10170,7 @@ try {
   writeFileSync(join(tmp, 'merge-tracker.mjs'), 'console.log("merge fixture");\n');
   writeFileSync(join(tmp, 'verify-pipeline.mjs'), 'console.log("verify fixture");\n');
   writeFileSync(join(batchDir, 'batch-prompt.md'), 'URL={{URL}}\nJD={{JD_FILE}}\nREPORT={{REPORT_NUM}}\n');
-  writeFileSync(join(batchDir, 'batch-input.tsv'), [
+  writeFileSync(join(dataDir, 'batch-input.tsv'), [
     'id\turl\tsource\tnotes',
     '1\thttps://example.com/one\tfixture\t-',
     '2\thttps://example.com/two\tfixture\t-',
@@ -10189,7 +10193,7 @@ try {
     env,
     stdio: ['pipe', 'pipe', 'pipe'],
   }) || '';
-  const state = readFileSync(join(batchDir, 'batch-state.tsv'), 'utf-8').trim().split('\n');
+  const state = readFileSync(join(dataDir, 'batch-state.tsv'), 'utf-8').trim().split('\n');
   const first = state[1]?.split('\t') || [];
 
   if (state.length === 2 && first[0] === '1' && first[2] === 'paused_rate_limit' && first[8] === '0') {
@@ -10198,7 +10202,7 @@ try {
     fail(`session-limit pause wrong: lines=${state.length}, first=${JSON.stringify(first)}, out=${JSON.stringify(out.slice(-240))}`);
   }
 
-  writeFileSync(join(batchDir, 'batch-state.tsv'), [
+  writeFileSync(join(dataDir, 'batch-state.tsv'), [
     'id\turl\tstatus\tstarted_at\tcompleted_at\treport_num\tscore\terror\tretries',
     '1\thttps://example.com/one\tpaused_rate_limit\t2026-01-01T00:00:00Z\t2026-01-01T00:00:01Z\t001\t-\tsession-limit; paused\t0',
     '2\thttps://example.com/two\tfailed\t2026-01-01T00:00:00Z\t2026-01-01T00:00:01Z\t002\t-\tworker-crash\t1',
@@ -10214,10 +10218,10 @@ try {
     fail(`--resume-paused selection wrong: ${dry}`);
   }
 
-  rmSync(join(batchDir, 'batch-input.tsv'), { force: true });
+  rmSync(join(dataDir, 'batch-input.tsv'), { force: true });
   rmSync(join(batchDir, 'batch-prompt.md'), { force: true });
   rmSync(join(fakeBin, 'claude'), { force: true });
-  writeFileSync(join(batchDir, 'batch-state.tsv'), [
+  writeFileSync(join(dataDir, 'batch-state.tsv'), [
     'id\turl\tstatus\tstarted_at\tcompleted_at\treport_num\tscore\terror\tretries',
     '1\thttps://example.com/one\tcompleted\t2026-01-01T00:00:00Z\t2026-01-01T00:00:01Z\t001\t4.5\t-\t0',
     '2\thttps://example.com/two\tcompleted\t2026-01-01T00:00:00Z\t2026-01-01T00:00:01Z\t002\tbad);system("oops")\t-\t0',
@@ -10249,12 +10253,16 @@ console.log('\n14. Batch spend_tier model routing');
 function makeTierFixture(profileYml) {
   const tmp = mkdtempSync(join(tmpdir(), 'co-batch-tier-'));
   const batchDir = join(tmp, 'batch');
+  // batch-runner.sh resolves batch-input.tsv (and other user-runtime paths)
+  // under data/, one level up from its own script dir — see
+  // #workspace-multitenancy Task 9.
+  const dataDir = join(tmp, 'data');
   const fakeBin = join(tmp, 'bin');
   const configDir = join(tmp, 'config');
   mkdirSync(batchDir, { recursive: true });
   mkdirSync(configDir, { recursive: true });
   mkdirSync(join(tmp, 'reports'), { recursive: true });
-  mkdirSync(join(tmp, 'data'), { recursive: true });
+  mkdirSync(dataDir, { recursive: true });
   mkdirSync(fakeBin, { recursive: true });
 
   writeFileSync(join(batchDir, 'batch-runner.sh'), readFileSync(join(ROOT, 'batch/batch-runner.sh'), 'utf-8').replace(/\r\n/g, '\n'));
@@ -10266,7 +10274,7 @@ function makeTierFixture(profileYml) {
   writeFileSync(join(tmp, 'merge-tracker.mjs'), 'console.log("merge fixture");\n');
   writeFileSync(join(tmp, 'verify-pipeline.mjs'), 'console.log("verify fixture");\n');
   writeFileSync(join(batchDir, 'batch-prompt.md'), 'URL={{URL}}\nJD={{JD_FILE}}\nREPORT={{REPORT_NUM}}\n');
-  writeFileSync(join(batchDir, 'batch-input.tsv'), [
+  writeFileSync(join(dataDir, 'batch-input.tsv'), [
     'id\turl\tsource\tnotes',
     '1\thttps://example.com/one\tfixture\t-',
   ].join('\n') + '\n');
@@ -10376,11 +10384,15 @@ try {
     // by stripping the trailing invocation line, then call log_discard directly.
     const sourceable = runnerSrc.replace(/\nmain "\$@"\s*$/, '\n');
     writeFileSync(join(batchDir, 'batch-runner.lib.sh'), sourceable);
+    // log_discard() resolves LOGS_DIR under data/, one level up from
+    // batch-runner.sh's own dir (see #workspace-multitenancy Task 9) — mkdir -p
+    // inside log_discard() creates tmp/data/batch-logs on demand, no fixture
+    // pre-creation needed.
     const script = [
       'set -euo pipefail',
       `source "${toBashPath(join(batchDir, 'batch-runner.lib.sh'))}"`,
       'log_discard "7" "https://example.com/mismatch" "wrong seniority band"',
-      `cat "${toBashPath(join(batchDir, 'logs', 'discard.log'))}"`,
+      `cat "${toBashPath(join(tmp, 'data', 'batch-logs', 'discard.log'))}"`,
     ].join('\n');
     const out = run(getBash(), ['-c', script], { cwd: tmp, stdio: ['pipe', 'pipe', 'pipe'] }) || '';
     const line = out.trim().split('\n').pop() || '';
@@ -10393,7 +10405,7 @@ try {
       cols[2] === 'https://example.com/mismatch' &&
       cols[3] === 'wrong seniority band'
     ) {
-      pass('log_discard appends a one-line, auditable {timestamp, id, url, reason} record to batch/logs/discard.log');
+      pass('log_discard appends a one-line, auditable {timestamp, id, url, reason} record to data/batch-logs/discard.log');
     } else {
       fail(`log_discard output malformed: ${JSON.stringify(out)}`);
     }

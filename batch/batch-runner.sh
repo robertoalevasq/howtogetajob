@@ -13,18 +13,24 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 BATCH_DIR="$SCRIPT_DIR"
-INPUT_FILE="$BATCH_DIR/batch-input.tsv"
-STATE_FILE="$BATCH_DIR/batch-state.tsv"
+# All user-runtime content (input/state/logs/tracker-additions/lock+pause
+# control files) lives one level up under data/, not batch/ — batch/ is pure
+# System Layer, safe to junction wholesale across workspaces (see
+# #workspace-multitenancy Task 9). Only the system-owned prompt template and
+# this script's own bundled aggregate-tokens.mjs stay under $BATCH_DIR.
+DATA_DIR="$PROJECT_DIR/data"
+INPUT_FILE="$DATA_DIR/batch-input.tsv"
+STATE_FILE="$DATA_DIR/batch-state.tsv"
 PROMPT_FILE="$BATCH_DIR/batch-prompt.md"
 PROFILE_FILE="$PROJECT_DIR/config/profile.yml"
-LOGS_DIR="$BATCH_DIR/logs"
+LOGS_DIR="$DATA_DIR/batch-logs"
 DISCARD_LOG="$LOGS_DIR/discard.log"
-TRACKER_DIR="$BATCH_DIR/tracker-additions"
+TRACKER_DIR="$DATA_DIR/tracker-additions"
 REPORTS_DIR="$PROJECT_DIR/reports"
 APPLICATIONS_FILE="$PROJECT_DIR/data/applications.md"
-LOCK_FILE="$BATCH_DIR/batch-runner.pid"
-PAUSE_FILE="$BATCH_DIR/batch-runner.paused"
-STATE_LOCK_DIR="$BATCH_DIR/.batch-state.lock"
+LOCK_FILE="$DATA_DIR/batch-runner.pid"
+PAUSE_FILE="$DATA_DIR/batch-runner.paused"
+STATE_LOCK_DIR="$DATA_DIR/.batch-state.lock"
 STATE_LOCK_PID_FILE="$STATE_LOCK_DIR/pid"
 STATE_LOCK_TIMEOUT_SECONDS=30
 MAIN_PID="${BASHPID:-$$}"
@@ -78,12 +84,12 @@ Options:
   --watch              Live-refresh progress until the run completes
   -h, --help           Show this help
 
-Files:
-  batch-input.tsv      Input offers (id, url, source, notes)
-  batch-state.tsv      Processing state (auto-managed)
-  batch-prompt.md      Prompt template for workers
-  logs/                Per-offer logs
-  tracker-additions/   Tracker lines for post-batch merge
+Files (all under data/ except the system-owned prompt template):
+  data/batch-input.tsv       Input offers (id, url, source, notes)
+  data/batch-state.tsv       Processing state (auto-managed)
+  batch-prompt.md            Prompt template for workers
+  data/batch-logs/           Per-offer logs
+  data/tracker-additions/    Tracker lines for post-batch merge
 
 Examples:
   # Dry run to see pending offers
@@ -364,7 +370,7 @@ resolve_worker_model() {
 }
 
 # Append a one-line, auditable record of a pre-screen-gate discard to
-# batch/logs/discard.log (see modes/batch.md — Pre-screen gate). Format:
+# data/batch-logs/discard.log (see modes/batch.md — Pre-screen gate). Format:
 # {ISO8601 timestamp}\t{job id}\t{url}\t{reason}
 log_discard() {
   local id="$1" url="$2" reason="$3"

@@ -475,7 +475,7 @@ Design rules:
 Write exactly one TSV line to:
 
 ```text
-batch/tracker-additions/{{ID}}.tsv
+data/tracker-additions/{{ID}}.tsv
 ```
 
 Format, no header, 9 tab-separated columns:
