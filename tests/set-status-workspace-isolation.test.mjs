@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -18,8 +18,15 @@ test('set-status.mjs writes to the workspace cwd, not the repo root', () => {
     execFileSync('node', [join(REPO_ROOT, 'core', 'set-status.mjs'), '1', 'Applied'], { cwd: ws });
     const content = readFileSync(join(ws, 'data', 'applications.md'), 'utf-8');
     assert.match(content, /Applied/);
-    const repoRootTracker = readFileSync(join(REPO_ROOT, 'data', 'applications.md'), 'utf-8').toString();
-    assert.doesNotMatch(repoRootTracker, /\| 1 \| 2026-08-15 \| Acme \|/);
+    // data/applications.md is gitignored user-layer content — present in a
+    // provisioned working copy, absent in a clean checkout/worktree. Either
+    // way its absence or its unchanged content both prove the write landed
+    // in the workspace, not the repo root.
+    const repoRootTrackerPath = join(REPO_ROOT, 'data', 'applications.md');
+    if (existsSync(repoRootTrackerPath)) {
+      const repoRootTracker = readFileSync(repoRootTrackerPath, 'utf-8').toString();
+      assert.doesNotMatch(repoRootTracker, /\| 1 \| 2026-08-15 \| Acme \|/);
+    }
   } finally {
     rmSync(ws, { recursive: true, force: true });
   }

@@ -7188,7 +7188,14 @@ try {
       '| 12 | 2026-01-04 | Acme | Engineer | 4.2/5 | Evaluated | ✅ | [12](reports/012-acme-2026-01-04.md) | ok |\n');
 
     // Migrate by pointing the script at the fixture tracker via env override.
-    run(NODE, ['merge-tracker.mjs', '--migrate'], { env: { ...process.env, CAREER_OPS_TRACKER: tracker } });
+    // CAREER_OPS_ADDITIONS is also pinned into tmpDir — without it,
+    // merge-tracker.mjs's ADDITIONS_DIR default resolves through
+    // workspaceRoot() (process.cwd(), which run()'s default cwd sets to
+    // CORE_DIR for this call) and mkdirSync's a stray core/data/tracker-additions/
+    // into the real checkout (#workspace-multitenancy Task 6 review finding).
+    run(NODE, ['merge-tracker.mjs', '--migrate'], {
+      env: { ...process.env, CAREER_OPS_TRACKER: tracker, CAREER_OPS_ADDITIONS: join(tmpDir, 'data', 'tracker-additions') },
+    });
     const after = readFileSync(tracker, 'utf-8');
     if (after.includes('[12](../reports/012-acme-2026-01-04.md)')) {
       pass('migration rewrites fixture tracker links to ../reports/...');
