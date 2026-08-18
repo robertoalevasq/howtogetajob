@@ -6,13 +6,21 @@
  */
 
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import yaml from 'js-yaml';
 import dotenv from 'dotenv';
 import { discoverPlugins, pluginRoots, pluginStatus } from '../plugins/_engine.mjs';
 import { resolveExtractorMode } from './browser-extract.mjs';
 import { parseConfigByExtension } from './jsonc-parse.mjs';
 import { workspaceRoot } from './workspace-root.mjs';
+
+// This script's own real directory (core/) -- System Layer scripts like
+// browser-extract.mjs always live here, never inside a workspace. Distinct
+// from `projectRoot`/workspaceRoot() below, which is where USER-layer
+// prerequisites (cv.md, config/profile.yml, portals.yml, ...) live
+// (#workspace-multitenancy final-review Important 5).
+const DOCTOR_DIR = dirname(fileURLToPath(import.meta.url));
 
 const argv = process.argv.slice(2);
 const targetIdx = argv.indexOf('--target');
@@ -259,7 +267,13 @@ function checkPlaywrightMcp(root, activeCli) {
 function checkScanExtractor(root) {
   const mode = resolveExtractorMode(join(root, 'config', 'profile.yml'));
   if (mode === 'cli') {
-    if (existsSync(join(root, 'browser-extract.mjs'))) {
+    // browser-extract.mjs is a System Layer script (core/), not user-layer
+    // content -- checking for it under the workspace `root` looks for a bare
+    // top-level file that only ever exists via the (directory-only) core/
+    // junction, so this always warned "missing" even when it wasn't
+    // (#workspace-multitenancy final-review Important 5). Check DOCTOR_DIR
+    // (this script's own real directory) instead.
+    if (existsSync(join(DOCTOR_DIR, 'browser-extract.mjs'))) {
       return { pass: true, label: 'Scan extractor: cli (browser-extract.mjs)' };
     }
     return {
