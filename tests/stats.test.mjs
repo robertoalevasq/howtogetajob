@@ -210,7 +210,12 @@ try {
 
   // CLI smoke — must emit the full contract with null sections in a checkout
   // with no user data (exactly the CI environment).
-  const cliOut = run(NODE, [join(ROOT, 'core', 'stats.mjs')]);
+  // cwd: ROOT — stats.mjs resolves its data/ and portals.yml paths through
+  // workspaceRoot() (#workspace-multitenancy Task 15), i.e. process.cwd(),
+  // not its own script location. run()'s default cwd is CORE_DIR, which
+  // would make the CLI look for core/data/... instead of the fixture files
+  // this test reads/writes at ROOT/data/... below.
+  const cliOut = run(NODE, [join(ROOT, 'core', 'stats.mjs')], { cwd: ROOT });
   const parsed = JSON.parse(cliOut);
   if (parsed && parsed.metadata && 'tracker' in parsed && 'scan' in parsed && 'portals' in parsed
       && 'followups' in parsed && 'funnel' in parsed && 'runs' in parsed) {
@@ -218,7 +223,7 @@ try {
   } else {
     fail(`stats.mjs CLI missing sections: ${parsed ? Object.keys(parsed).join(',') : cliOut}`);
   }
-  const summaryOut = run(NODE, [join(ROOT, 'core', 'stats.mjs'), '--summary']);
+  const summaryOut = run(NODE, [join(ROOT, 'core', 'stats.mjs'), '--summary'], { cwd: ROOT });
   if (summaryOut && summaryOut.includes('Pipeline Stats')) {
     pass('stats.mjs --summary renders the human table');
   } else {
@@ -226,8 +231,10 @@ try {
   }
 
   // --summary cold-classification integration (#2123): the CLI reads its
-  // fixed data/ paths, so exercise it against real (temporary) tracker +
-  // follow-ups files at those exact paths, then restore whatever was there.
+  // fixed data/ paths (resolved through workspaceRoot(), which falls back to
+  // process.cwd() — see cwd: ROOT above), so exercise it against real
+  // (temporary) tracker + follow-ups files at those exact paths, then
+  // restore whatever was there.
   const liveAppsFile = join(ROOT, 'data', 'applications.md');
   const liveFupsFile = join(ROOT, 'data', 'follow-ups.md');
   const { existsSync, readFileSync: readFileSyncNode, mkdirSync } = await import('fs');
@@ -240,7 +247,7 @@ try {
     if (!dataDirExisted) mkdirSync(join(ROOT, 'data'), { recursive: true });
     writeFileSync(liveAppsFile, coldTrackerMd);
     writeFileSync(liveFupsFile, coldFollowupsMd);
-    const coldSummaryOut = run(NODE, [join(ROOT, 'core', 'stats.mjs'), '--summary']);
+    const coldSummaryOut = run(NODE, [join(ROOT, 'core', 'stats.mjs'), '--summary'], { cwd: ROOT });
     if (coldSummaryOut && coldSummaryOut.includes('3 active (2 live, 1 cold)')) {
       pass('stats.mjs --summary integrates live/cold counts into the existing Tracker line');
     } else {

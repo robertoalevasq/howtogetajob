@@ -24,11 +24,14 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import yaml from 'js-yaml';
 import { resolveColumns, parseTrackerRow } from './tracker-parse.mjs';
 import { normalizeStatus, analyzeFromContent } from './followup-cadence.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
-// This script now lives in core/, one directory below the repo root; ROOT is
-// the actual repo root that data/ and portals.yml live under (see
-// #workspace-multitenancy Task 1).
-const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+// User-layer sources (data/, portals.yml) resolve through workspaceRoot() —
+// the current workspace, not this script's own directory — so this reads
+// the operator's real tracker/scan history whether invoked from the repo
+// root (pre-multitenancy, cwd === repo root) or from inside a provisioned
+// workspaces/{slug}/ (#workspace-multitenancy Task 15).
+const ROOT = workspaceRoot();
 const APPS_FILE = join(ROOT, 'data', 'applications.md');
 const SCAN_HISTORY_FILE = join(ROOT, 'data', 'scan-history.tsv');
 const FOLLOWUPS_FILE = join(ROOT, 'data', 'follow-ups.md');

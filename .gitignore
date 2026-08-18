@@ -147,3 +147,19 @@ plan/
 # (see DATA_CONTRACT.md). Re-include them past the unanchored user-layer
 # patterns above (cv.md, portals.yml).
 !test-fixtures/**
+
+# Workspaces (multi-tenant instances — see
+# docs/superpowers/specs/2026-08-15-workspace-multitenancy-core-design.md).
+# Each workspaces/{slug}/ mixes real per-tenant User Layer content (cv.md,
+# config/, data/, reports/, output/, jds/, interview-prep/, writing-samples/,
+# portals.yml, _profile.md, _custom.md, _brief.md, .env, workspace.json) with
+# whole-directory junctions back to the already-tracked System Layer (core/,
+# modes/, templates/, ...). Ignoring the whole tree does double duty: it keeps
+# every tenant's personal data out of git (same policy as the root-level User
+# Layer patterns above, just scoped per workspace instead of repo-wide), and
+# it stops `git add -A` from walking each junction and re-staging the entire
+# System Layer as "new" files under every workspace path. A tracked file can
+# still be explicitly `git add`/`git mv`-ed into an ignored path if ever
+# needed (git allows this) — this rule only blocks the automatic sweep.
+workspaces/*
+!workspaces/.gitkeep
