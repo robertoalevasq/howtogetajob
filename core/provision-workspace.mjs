@@ -134,14 +134,42 @@ export function provisionWorkspace(slug, opts = {}) {
   return wsDir;
 }
 
+/**
+ * Re-run provisionWorkspace(slug, { repair: true }) for every existing
+ * workspaces/{slug}/ directory, so a newly-added JUNCTION_DIRS entry gets
+ * picked up by every already-provisioned workspace without a full re-provision.
+ *
+ * @param {{ reposRoot?: string }} [opts]
+ * @returns {string[]} slugs that were repaired
+ */
+export function repairAllWorkspaces(opts = {}) {
+  const repoRoot = opts.reposRoot || ROOT;
+  const workspacesDir = join(repoRoot, 'workspaces');
+  if (!existsSync(workspacesDir)) return [];
+  const slugs = readdirSync(workspacesDir, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name);
+  const repaired = [];
+  for (const slug of slugs) {
+    provisionWorkspace(slug, { reposRoot: repoRoot, repair: true });
+    repaired.push(slug);
+  }
+  return repaired;
+}
+
 async function main() {
-  const [, , slug, ...rest] = process.argv;
-  if (!slug) {
-    console.error('Usage: node provision-workspace.mjs <slug> [--repair]');
+  const [, , first, ...rest] = process.argv;
+  if (first === '--repair-all') {
+    const repaired = repairAllWorkspaces({});
+    console.log(`repaired ${repaired.length} workspace(s): ${repaired.join(', ')}`);
+    return;
+  }
+  if (!first) {
+    console.error('Usage: node provision-workspace.mjs <slug> [--repair] | node provision-workspace.mjs --repair-all');
     process.exit(1);
   }
   const repair = rest.includes('--repair');
-  const wsDir = provisionWorkspace(slug, { repair });
+  const wsDir = provisionWorkspace(first, { repair });
   console.log(`workspace ready: ${wsDir}`);
 }
 

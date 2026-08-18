@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, existsSync, lstatSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { provisionWorkspace, SLUG_RE } from '../core/provision-workspace.mjs';
+import { provisionWorkspace, SLUG_RE, JUNCTION_DIRS, repairAllWorkspaces } from '../core/provision-workspace.mjs';
 
 test('rejects invalid slugs', () => {
   assert.equal(SLUG_RE.test('../etc'), false);
@@ -52,6 +52,37 @@ test('provisionWorkspace is idempotent — re-running does not error or duplicat
   try {
     provisionWorkspace('bob', { reposRoot: root });
     assert.doesNotThrow(() => provisionWorkspace('bob', { reposRoot: root, repair: true }));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('repairAllWorkspaces adds a junction for a directory introduced after initial provisioning', () => {
+  const root = mkdtempSync(join(tmpdir(), 'career-ops-root-'));
+  try {
+    // Simulate a brand-new top-level System Layer directory that didn't exist
+    // in JUNCTION_DIRS at provisioning time: hold back an existing, real
+    // entry ('examples') and add it back after provisioning, rather than
+    // fabricating a directory under `root`. ensureJunction's SOURCE always
+    // resolves off the real repo ROOT (see provision-workspace.mjs's own
+    // comment on that call) — reposRoot only relocates where the workspace
+    // itself is created — so a directory that exists only under the fake
+    // `root` would never get linked; it has to be something real at ROOT.
+    const originalDirs = [...JUNCTION_DIRS];
+    const heldBackIndex = JUNCTION_DIRS.indexOf('examples');
+    assert.notEqual(heldBackIndex, -1, 'expected "examples" in JUNCTION_DIRS to hold back for this test');
+    try {
+      JUNCTION_DIRS.splice(heldBackIndex, 1);
+      provisionWorkspace('carol', { reposRoot: root });
+      assert.equal(existsSync(join(root, 'workspaces', 'carol', 'examples')), false);
+
+      JUNCTION_DIRS.push('examples');
+      repairAllWorkspaces({ reposRoot: root });
+      assert.ok(existsSync(join(root, 'workspaces', 'carol', 'examples')));
+    } finally {
+      JUNCTION_DIRS.length = 0;
+      JUNCTION_DIRS.push(...originalDirs);
+    }
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
