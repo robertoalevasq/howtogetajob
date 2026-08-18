@@ -49,6 +49,7 @@ import { withPipelineLock } from './pipeline-lock.mjs';
 import { flagValue, hasFlag } from '../lib/cli-flags.mjs';
 import { withPortalHealthLock } from './portal-health-lock.mjs';
 import { isMainModule } from './is-main.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
 try {
   const { config } = await import('dotenv');
@@ -63,26 +64,55 @@ const parseYaml = yaml.load;
 
 // ── Config ──────────────────────────────────────────────────────────
 
-const PORTALS_PATH = process.env.CAREER_OPS_PORTALS || 'portals.yml';
-const PROFILE_PATH = process.env.CAREER_OPS_PROFILE || 'config/profile.yml';
+// Every User Layer path below (portals.yml, config/profile.yml, data/*) is a
+// FUNCTION, not a frozen constant, so it re-resolves workspaceRoot() on every
+// call rather than baking in whatever cwd happened to be active the first
+// time this ES module was evaluated (module evaluation runs exactly once per
+// process — a second `import()` returns the cached module without re-running
+// top-level code). That distinction matters here specifically: test-all.mjs
+// imports scan.mjs once, then exercises several scenarios via
+// `process.chdir()` between them rather than spawning a fresh process each
+// time (see the fresh-install-pipeline and pipeline-lock tests in
+// test-all.mjs) — a frozen path computed at first import would silently keep
+// pointing at the FIRST test's directory for every test after it. A function
+// call also fixes the actual bug this exists for
+// (#workspace-multitenancy final-review Important 7): these used to be bare
+// cwd-relative literals that ignored CAREER_OPS_WORKSPACE entirely. Every
+// CAREER_OPS_* env var below still wins outright and is used as a literal
+// path, never joined with workspaceRoot() — same precedence
+// resolveTrackerPath() uses in tracker-utils.mjs.
+// get*Path() naming (rather than e.g. profilePath()) is deliberate: several
+// functions below already take a same-named LOCAL PARAMETER (profilePath,
+// pipelinePath, scanHistoryPath) whose default value calls this getter — a
+// parameter named identically to the outer function it defaults to would
+// shadow it inside that same parameter list (`profilePath = profilePath()`
+// throws a TDZ ReferenceError, it can't see the outer one), so the getters
+// need names no parameter also uses.
+const getPortalsPath = () => process.env.CAREER_OPS_PORTALS || path.join(workspaceRoot(), 'portals.yml');
+const getProfilePath = () => process.env.CAREER_OPS_PROFILE || path.join(workspaceRoot(), 'config', 'profile.yml');
 // Overridable for the same reason the two inputs above are (#2271). A second
 // search lane - a bridge/income track, a career-change track, a partner sharing
 // the checkout - already gets its own portals.yml and profile, but without these
 // two it still writes into the one inbox and the one dedup history. That is not
 // just untidy: scan-history.tsv IS the dedup source, so a posting surfaced in
 // lane A is silently counted as a duplicate in lane B and never shown at all.
-const SCAN_HISTORY_PATH = process.env.CAREER_OPS_SCAN_HISTORY || 'data/scan-history.tsv';
-const PIPELINE_PATH = process.env.CAREER_OPS_PIPELINE || 'data/pipeline.md';
-const APPLICATIONS_PATH = 'data/applications.md';
+const getScanHistoryPath = () => process.env.CAREER_OPS_SCAN_HISTORY || path.join(workspaceRoot(), 'data', 'scan-history.tsv');
+const getPipelinePath = () => process.env.CAREER_OPS_PIPELINE || path.join(workspaceRoot(), 'data', 'pipeline.md');
+const getApplicationsPath = () => path.join(workspaceRoot(), 'data', 'applications.md');
 const PROVIDERS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'providers');
 
-// Ensure required directories exist (fresh setup). Stays literal: the paths that
-// are NOT overridable still live here. The two that are need no equivalent -
-// scan-history creates its own parent before writing, and the pipeline's parent
-// is created by acquirePipelineLock, which runs before the first pipeline write.
+// Ensure required directories exist (fresh setup). Stays literal-shaped (just
+// workspaceRoot()-anchored now): the paths that are NOT overridable still live
+// here. The two that are need no equivalent - scan-history creates its own
+// parent before writing, and the pipeline's parent is created by
+// acquirePipelineLock, which runs before the first pipeline write.
 // tests/scan-output-paths.test.mjs pins that, so an override into a directory
-// that does not exist yet keeps working if either of those changes.
-mkdirSync('data', { recursive: true });
+// that does not exist yet keeps working if either of those changes. This one
+// call genuinely only needs to run once at real-process startup (a fresh
+// install's very first data/ creation), so — unlike the path functions above —
+// it stays a plain top-level side effect against whatever cwd is active at
+// first import.
+mkdirSync(path.join(workspaceRoot(), 'data'), { recursive: true });
 
 const CONCURRENCY = 10;
 
@@ -751,7 +781,7 @@ export function addDays(dateStr, days) {
 // no-op" and simply skips the literal-country-name pass-through, which is
 // the same conservative "don't penalize missing data" default used
 // throughout this file.
-export function loadCandidateCountry(profilePath = PROFILE_PATH) {
+export function loadCandidateCountry(profilePath = getProfilePath()) {
   if (!existsSync(profilePath)) return '';
   try {
     const raw = yaml.load(readFileSync(profilePath, 'utf-8')) || {};
@@ -762,7 +792,7 @@ export function loadCandidateCountry(profilePath = PROFILE_PATH) {
   }
 }
 
-export function loadReApplyWindows(profilePath = PROFILE_PATH) {
+export function loadReApplyWindows(profilePath = getProfilePath()) {
   if (!existsSync(profilePath)) return {};
   try {
     const raw = yaml.load(readFileSync(profilePath, 'utf-8')) || {};
@@ -1032,8 +1062,8 @@ export function loadSeenUrls(policy = {}) {
   let recheckEligible = 0;
 
   // scan-history.tsv
-  if (existsSync(SCAN_HISTORY_PATH)) {
-    const lines = readFileSync(SCAN_HISTORY_PATH, 'utf-8').split('\n');
+  if (existsSync(getScanHistoryPath())) {
+    const lines = readFileSync(getScanHistoryPath(), 'utf-8').split('\n');
     for (const line of lines.slice(1)) { // skip header
       const [url, firstSeen, , , , status = 'added'] = line.split('\t');
       if (!url) continue;
@@ -1043,16 +1073,16 @@ export function loadSeenUrls(policy = {}) {
   }
 
   // pipeline.md — extract URLs from checkbox lines
-  if (existsSync(PIPELINE_PATH)) {
-    const text = readFileSync(PIPELINE_PATH, 'utf-8');
+  if (existsSync(getPipelinePath())) {
+    const text = readFileSync(getPipelinePath(), 'utf-8');
     for (const match of text.matchAll(/- \[[ x]\] (https?:\/\/\S+)/g)) {
       seen.add(normalizeUrlForDedup(match[1]));
     }
   }
 
   // applications.md — extract URLs from report links and any inline URLs
-  if (existsSync(APPLICATIONS_PATH)) {
-    const text = readFileSync(APPLICATIONS_PATH, 'utf-8');
+  if (existsSync(getApplicationsPath())) {
+    const text = readFileSync(getApplicationsPath(), 'utf-8');
     for (const match of text.matchAll(/https?:\/\/[^\s|)]+/g)) {
       seen.add(normalizeUrlForDedup(match[0]));
     }
@@ -1409,20 +1439,20 @@ function readIfExists(filePath) {
  * sandbox tracker would otherwise pick up the developer's real scan-history and
  * pipeline (CI only avoids this because those files are gitignored).
  *
- * @param {string} [appsPath=APPLICATIONS_PATH] - Applications tracker path.
+ * @param {string} [appsPath=getApplicationsPath()] - Applications tracker path.
  * @param {(name: unknown) => string} [canonicalize=defaultCompanyNormalizer] -
  *   Company canonicalizer shared with scan-side dedupe.
  * @param {object} [options] - Additional sources and policy.
  * @param {{recheckAfterDays?: number|null, today?: string}} [options.policy] -
  *   Scan-history recheck policy, shared with `loadSeenUrls`.
- * @param {string} [options.scanHistoryPath=SCAN_HISTORY_PATH] - Scan-history path.
- * @param {string} [options.pipelinePath=PIPELINE_PATH] - Pipeline inbox path.
+ * @param {string} [options.scanHistoryPath=getScanHistoryPath()] - Scan-history path.
+ * @param {string} [options.pipelinePath=getPipelinePath()] - Pipeline inbox path.
  * @returns {Set<string>} Existing company+role dedupe keys.
  */
 export function loadSeenCompanyRoles(
-  appsPath = APPLICATIONS_PATH,
+  appsPath = getApplicationsPath(),
   canonicalize = defaultCompanyNormalizer,
-  { policy = {}, scanHistoryPath = SCAN_HISTORY_PATH, pipelinePath = PIPELINE_PATH } = {},
+  { policy = {}, scanHistoryPath = getScanHistoryPath(), pipelinePath = getPipelinePath() } = {},
 ) {
   return collectSeenCompanyRoles({
     applicationsText: readIfExists(appsPath),
@@ -1591,7 +1621,7 @@ export function formatScanHistoryRow(offer, date, status = 'added') {
  * @param {string} [historyPath] - Override for tests.
  * @returns {Array<{url: string, dateStr: string, company: string, title: string, fingerprint: string}>}
  */
-export function loadFingerprintHistory(historyPath = SCAN_HISTORY_PATH) {
+export function loadFingerprintHistory(historyPath = getScanHistoryPath()) {
   if (!existsSync(historyPath)) return [];
   const rows = [];
   for (const line of readFileSync(historyPath, 'utf-8').split('\n')) {
@@ -1635,13 +1665,13 @@ const PROCESSED_MARKERS = ['## Processed', '## Procesadas'];
 export async function appendToPipeline(offers) {
   if (offers.length === 0) return;
 
-  await withPipelineLock(PIPELINE_PATH, async () => {
+  await withPipelineLock(getPipelinePath(), async () => {
     // Auto-create with standard skeleton if missing (fresh-install guard).
-    if (!existsSync(PIPELINE_PATH)) {
-      writeFileSync(PIPELINE_PATH, PIPELINE_SKELETON, 'utf-8');
+    if (!existsSync(getPipelinePath())) {
+      writeFileSync(getPipelinePath(), PIPELINE_SKELETON, 'utf-8');
     }
 
-    let text = readFileSync(PIPELINE_PATH, 'utf-8');
+    let text = readFileSync(getPipelinePath(), 'utf-8');
 
     const marker = PENDING_MARKERS.find(m => text.includes(m)) ?? null;
     const idx = marker !== null ? text.indexOf(marker) : -1;
@@ -1665,7 +1695,7 @@ export async function appendToPipeline(offers) {
       text = text.slice(0, insertAt) + block + text.slice(insertAt);
     }
 
-    writeFileSync(PIPELINE_PATH, text, 'utf-8');
+    writeFileSync(getPipelinePath(), text, 'utf-8');
   });
 }
 
@@ -1680,19 +1710,19 @@ export function appendToScanHistory(offers, date, status = 'added') {
   // by its `url\t` prefix, or skip non-URL col-0 rows, so widening it stays
   // backward-compatible. `status` is parameterized so callers can record verify
   // outcomes (`skipped_expired`, etc.) without the legacy `(expired)` suffix.
-  if (!existsSync(SCAN_HISTORY_PATH)) {
-    mkdirSync(path.dirname(SCAN_HISTORY_PATH), { recursive: true });
-    writeFileSync(SCAN_HISTORY_PATH, 'url\tfirst_seen\tportal\ttitle\tcompany\tstatus\tlocation\tfingerprint\tposted_at\ttrust_score\ttrust_flags\tnormalized_company\n', 'utf-8');
+  if (!existsSync(getScanHistoryPath())) {
+    mkdirSync(path.dirname(getScanHistoryPath()), { recursive: true });
+    writeFileSync(getScanHistoryPath(), 'url\tfirst_seen\tportal\ttitle\tcompany\tstatus\tlocation\tfingerprint\tposted_at\ttrust_score\ttrust_flags\tnormalized_company\n', 'utf-8');
   }
 
   const lines = offers.map(o => formatScanHistoryRow(o, date, status)).join('\n') + '\n';
 
-  appendFileSync(SCAN_HISTORY_PATH, lines, 'utf-8');
+  appendFileSync(getScanHistoryPath(), lines, 'utf-8');
 }
 
 // ── Company blacklist (#1742) ───────────────────────────────────────
 
-const BLACKLIST_PATH = 'data/blacklist.md';
+const getBlacklistPath = () => path.join(workspaceRoot(), 'data', 'blacklist.md');
 
 /**
  * Parse the user's do-not-apply list (data/blacklist.md, user layer, opt-in).
@@ -1734,14 +1764,14 @@ export function parseBlacklist(text) {
  * @param {string} [filePath] - Override for tests.
  * @returns {Map<string, {company: string, since: string, scope: string, reason: string}>}
  */
-export function loadBlacklist(filePath = BLACKLIST_PATH) {
+export function loadBlacklist(filePath = getBlacklistPath()) {
   if (!existsSync(filePath)) return new Map();
   return parseBlacklist(readFileSync(filePath, 'utf-8'));
 }
 
 // ── Scan-run persistence (#1604) ────────────────────────────────────
 
-const SCAN_RUNS_PATH = 'data/scan-runs.tsv';
+const getScanRunsPath = () => path.join(workspaceRoot(), 'data', 'scan-runs.tsv');
 
 // One row of run counters per non-dry scan — today these numbers are printed
 // once in the summary and lost when the terminal scrolls. Full ISO timestamp
@@ -1751,7 +1781,7 @@ const SCAN_RUNS_PATH = 'data/scan-runs.tsv';
 // position — columns may be appended in later versions.
 export const SCAN_RUNS_HEADER = 'timestamp\tstatus\tcompanies\tboards\tfound\tfiltered_title\tfiltered_tier\tfiltered_location\tfiltered_posting_age\tfiltered_salary\tfiltered_content\tfiltered_cooldown\tdupes\tnew_added\terrors\tfiltered_blacklist\tfiltered_visa\tfiltered_posted_date\tfiltered_country_eligibility\n';
 
-export function appendScanRunSummary(c, filePath = SCAN_RUNS_PATH) {
+export function appendScanRunSummary(c, filePath = getScanRunsPath()) {
   if (!existsSync(filePath)) writeFileSync(filePath, SCAN_RUNS_HEADER, 'utf-8');
   const row = [
     c.timestamp, c.status ?? 'completed', c.companies, c.boards, c.found,
@@ -1773,13 +1803,13 @@ export function appendScanRunSummary(c, filePath = SCAN_RUNS_PATH) {
 
 // ── Portal health persistence (#1744) ───────────────────────────────
 
-const PORTAL_HEALTH_PATH = 'data/portal-health.tsv';
+const getPortalHealthPath = () => path.join(workspaceRoot(), 'data', 'portal-health.tsv');
 export const PORTAL_HEALTH_HEADER = 'timestamp\tcompany\tstatus\n';
 
 // Locked (portal-health-lock.mjs) so a concurrent read-modify-write of this
 // same file — e.g. tests/portal-health-guard.mjs's regression-cleanup path —
 // can never interleave with this append and silently discard one side.
-export async function appendPortalHealth(healthRecords, filePath = PORTAL_HEALTH_PATH) {
+export async function appendPortalHealth(healthRecords, filePath = getPortalHealthPath()) {
   await withPortalHealthLock(filePath, async () => {
     mkdirSync(path.dirname(filePath), { recursive: true });
     if (!existsSync(filePath)) writeFileSync(filePath, PORTAL_HEALTH_HEADER, 'utf-8');
@@ -1791,7 +1821,7 @@ export async function appendPortalHealth(healthRecords, filePath = PORTAL_HEALTH
   });
 }
 
-export function loadPortalHealth(filePath = PORTAL_HEALTH_PATH) {
+export function loadPortalHealth(filePath = getPortalHealthPath()) {
   if (!existsSync(filePath)) return [];
   const lines = readFileSync(filePath, 'utf-8').split('\n');
   const records = [];
@@ -2048,23 +2078,23 @@ async function main() {
   // Opt-in: merge enabled keyed/auth-gated provider plugins. Returns immediately
   // (no discovery, no dotenv, no process.env mutation) when config/plugins.yml is
   // absent — so a plain scan with no plugins configured stays byte-identical.
-  await mergeProviderPlugins(providers, { root: path.dirname(PROVIDERS_DIR) });
+  await mergeProviderPlugins(providers, { root: path.dirname(PROVIDERS_DIR), workspaceRoot: workspaceRoot() });
   if (providers.size === 0) {
     console.error('Error: no providers loaded from providers/');
     process.exit(1);
   }
 
   // 2. Read portals.yml
-  if (!existsSync(PORTALS_PATH)) {
+  if (!existsSync(getPortalsPath())) {
     console.error('Error: portals.yml not found. Run onboarding first.');
     process.exit(1);
   }
 
   let rawConfig;
   try {
-    rawConfig = parseYaml(readFileSync(PORTALS_PATH, 'utf-8'));
+    rawConfig = parseYaml(readFileSync(getPortalsPath(), 'utf-8'));
   } catch (err) {
-    console.error(`Error: failed to parse ${PORTALS_PATH}: ${err.message}`);
+    console.error(`Error: failed to parse ${getPortalsPath()}: ${err.message}`);
     process.exit(1);
   }
   const config = rawConfig && typeof rawConfig === 'object' ? rawConfig : {};
@@ -2164,7 +2194,7 @@ async function main() {
   const seenUrlState = loadSeenUrls(historyPolicy);
   const seenUrls = seenUrlState.seen;
   const canonicalizeCompany = buildCompanyCanonicalizer(config.company_aliases);
-  const seenCompanyRoles = loadSeenCompanyRoles(APPLICATIONS_PATH, canonicalizeCompany, { policy: historyPolicy });
+  const seenCompanyRoles = loadSeenCompanyRoles(getApplicationsPath(), canonicalizeCompany, { policy: historyPolicy });
 
   // 5. Fetch from each target
   const date = new Date().toISOString().slice(0, 10);
@@ -2603,7 +2633,7 @@ async function main() {
     if (dryRun) {
       console.log('\n(dry run — run without --dry-run to save results)');
     } else {
-      console.log(`\nResults saved to ${PIPELINE_PATH} and ${SCAN_HISTORY_PATH}`);
+      console.log(`\nResults saved to ${getPipelinePath()} and ${getScanHistoryPath()}`);
     }
   }
 

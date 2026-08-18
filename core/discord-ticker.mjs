@@ -45,8 +45,14 @@ import { isMainModule } from './is-main.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 // This script lives in core/, one directory below the repo root
-// (#workspace-multitenancy Task 1) — REPO_ROOT is the actual repo root
-// runHook()/pluginRoots() need, matching the pattern in telegram-monitor.mjs.
+// (#workspace-multitenancy Task 1) — REPO_ROOT is the System Layer root
+// runHook()/pluginRoots() need for bundled plugin discovery (always this
+// script's own real location). Discord has no Telegram-style single-token
+// constraint, so -- unlike telegram-poll.mjs's intentionally hub-based
+// ingest hook (see hub-paths.mjs) -- realNotify() below pairs this with
+// workspaceRoot() for the actual config/plugins.yml resolution, so a
+// per-workspace webhook is read from the right place
+// (#workspace-multitenancy final-review Critical 3).
 const REPO_ROOT = dirname(ROOT);
 // Overridable so tests can isolate state in a sandbox instead of touching
 // this repo's real data/ directory (same convention as
@@ -178,7 +184,7 @@ function logLine(line) {
  * network or the engine's SSRF/host-allowlist guard.
  */
 async function realNotify(payload) {
-  const results = await runHook('notify', payload, { root: REPO_ROOT, dryRun: false, only: 'discord' });
+  const results = await runHook('notify', payload, { root: REPO_ROOT, workspaceRoot: workspaceRoot(), dryRun: false, only: 'discord' });
   const discordResult = results.find((r) => r.id === 'discord');
   if (!discordResult) {
     throw new Error('discord plugin not enabled/configured — run `node plugins.mjs list` first');

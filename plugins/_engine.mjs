@@ -287,17 +287,24 @@ export function discoverPlugins(roots, overrideIds = new Set()) {
  * Anything short of (c) — off-registry drift, unverified, not installed —
  * leaves the bundled reference in charge. This is the trust hinge of the whole
  * seed/successor model: only a reviewed, pinned, installed successor wins.
- * @param {string} root
+ *
+ * Same System/User split as pluginRoots() above: the registry (a maintainer-
+ * reviewed, junctioned System Layer file) resolves off `systemRoot`;
+ * plugins.lock (an explicitly-documented User Layer, gitignored file -- see
+ * plugins/_lock.mjs's own header comment) and the plugins.local/ install it
+ * references both resolve off `userRoot`.
+ * @param {string} systemRoot   Real script location -- source of the plugin registry.
+ * @param {string} [userRoot]   Current workspace -- source of plugins.lock + plugins.local/. Defaults to systemRoot.
  * @returns {Set<string>}
  */
-export function resolveSuccessorIds(root) {
+export function resolveSuccessorIds(systemRoot, userRoot = systemRoot) {
   const ids = new Set();
   try {
-    const reg = loadRegistry(root);
-    const lock = readLock(root);
+    const reg = loadRegistry(systemRoot);
+    const lock = readLock(userRoot);
     for (const e of reg.plugins) {
       if (e.supersedesBundled !== true || typeof e.id !== 'string') continue;
-      const localManifest = path.join(root, 'plugins.local', e.id, 'manifest.json');
+      const localManifest = path.join(userRoot, 'plugins.local', e.id, 'manifest.json');
       const installedSha = lock?.plugins?.[e.id]?.sha;
       if (existsSync(localManifest) && installedSha && installedSha === e.sha) ids.add(e.id);
     }
@@ -310,10 +317,24 @@ export function resolveSuccessorIds(root) {
 /**
  * The standard pair of roots for a project: bundled plugins/ then user
  * plugins.local/ (the latter only matters when it exists).
- * @param {string} root
+ *
+ * These two roots are NOT interchangeable. `plugins/` is System Layer, shared
+ * across every workspace via a directory junction (provision-workspace.mjs
+ * JUNCTION_DIRS) -- it always resolves off the script's own real location.
+ * `plugins.local/` is User Layer -- deliberately absent from JUNCTION_DIRS,
+ * a real per-workspace directory where a user installs their own unreviewed
+ * plugins -- so it must resolve off the CURRENT workspace, not the script's
+ * location. Resolving it off `systemRoot` instead (the pre-workspace-aware
+ * bug) means a workspace's plugins.local/ installs are silently invisible to
+ * discovery. Two params so a caller can't collapse this distinction by
+ * accident; `userRoot` defaults to `systemRoot` for a caller that hasn't
+ * gone through workspaceRoot() (e.g. a plain, pre-workspaces checkout, where
+ * they're the same directory anyway).
+ * @param {string} systemRoot   Real script location -- source of bundled plugins/.
+ * @param {string} [userRoot]   Current workspace -- source of plugins.local/. Defaults to systemRoot.
  */
-export function pluginRoots(root) {
-  return [path.join(root, 'plugins'), path.join(root, 'plugins.local')];
+export function pluginRoots(systemRoot, userRoot = systemRoot) {
+  return [path.join(systemRoot, 'plugins'), path.join(userRoot, 'plugins.local')];
 }
 
 /**
@@ -489,8 +510,16 @@ async function importHook(manifest, kind) {
  * Load all ENABLED plugins exposing `kind`, with their ctx ready. Skips any that
  * fail to import. Caller is responsible for dotenv (loadDotenvOnce) before this
  * if the keys live in .env.
+ *
+ * `root` is the System Layer root (bundled plugins/, plugin registry) and
+ * always the script's own real location. `workspaceRoot` is the User Layer
+ * root (config/plugins.yml, plugins.lock, plugins.local/) and must be the
+ * CURRENT workspace -- see pluginRoots()/resolveSuccessorIds()/lockGate()'s
+ * own doc comments for why these are not interchangeable. Defaults to `root`
+ * so a caller that hasn't gone through workspaceRoot() still behaves exactly
+ * as before (identical directory either way outside a workspace checkout).
  * @param {string} kind
- * @param {{ root: string, dryRun?: boolean }} opts
+ * @param {{ root: string, workspaceRoot?: string, dryRun?: boolean }} opts
  * @returns {Promise<Array<{ id: string, manifest: PluginManifestNormalized, hook: any, ctx: PluginContext }>>}
  */
 // Phrases that suggest a skill is trying to hijack the agent rather than
@@ -537,11 +566,19 @@ function pluginSource(manifest, root) {
  * Integrity gate run on an ENABLED plugin before importing it (the rug-pull
  * defense). Returns { load }. Re-pins the lock on the benign cases (silent).
  * Fail-open on the engine itself (a lock-read error never blocks).
+ *
+ * Same System/User split as pluginRoots()/resolveSuccessorIds(): bundled-vs-
+ * local classification (pluginSource) is a System Layer question (resolved
+ * off `systemRoot`, matching however `manifest.dir` was actually
+ * constructed); plugins.lock is User Layer (resolved off `userRoot`).
+ * @param {PluginManifestNormalized} manifest
+ * @param {string} systemRoot   Real script location.
+ * @param {string} [userRoot]   Current workspace. Defaults to systemRoot.
  */
-export function lockGate(manifest, root) {
-  const source = pluginSource(manifest, root);
+export function lockGate(manifest, systemRoot, userRoot = systemRoot) {
+  const source = pluginSource(manifest, systemRoot);
   let lock;
-  try { lock = readLock(root); } catch { return { load: true }; }
+  try { lock = readLock(userRoot); } catch { return { load: true }; }
   const entry = lock.plugins?.[manifest.id];
   let d;
   try { d = diffPlugin(manifest, entry); }
@@ -550,7 +587,7 @@ export function lockGate(manifest, root) {
   const repin = () => {
     try {
       const tree = hashPluginTree(manifest.dir);
-      writeLockEntry(root, manifest.id, {
+      writeLockEntry(userRoot, manifest.id, {
         source, version: manifest.version || '0.0.0',
         integrity: tree.integrity, files: tree.files, consent: consentSurface(manifest),
       });
@@ -572,13 +609,13 @@ export function lockGate(manifest, root) {
   }
 }
 
-export async function loadPlugins(kind, { root, dryRun = false }) {
-  const cfg = await loadPluginConfig(root);
-  const manifests = discoverPlugins(pluginRoots(root), resolveSuccessorIds(root)).filter(m => m.hooks.includes(kind));
+export async function loadPlugins(kind, { root, workspaceRoot = root, dryRun = false }) {
+  const cfg = await loadPluginConfig(workspaceRoot);
+  const manifests = discoverPlugins(pluginRoots(root, workspaceRoot), resolveSuccessorIds(root, workspaceRoot)).filter(m => m.hooks.includes(kind));
   const out = [];
   for (const manifest of manifests) {
     if (!pluginStatus(manifest, cfg).enabled) continue;
-    if (!lockGate(manifest, root).load) continue;
+    if (!lockGate(manifest, root, workspaceRoot).load) continue;
     const hook = await importHook(manifest, kind);
     if (!hook) continue;
     out.push({ id: manifest.id, manifest, hook, ctx: buildCtx(manifest, { dryRun, settings: pluginSettings(manifest.id, cfg) }) });
@@ -607,14 +644,20 @@ export async function loadDotenvOnce() {
  * batch; a sync-hang or a process.exit can. Bundled plugins are reviewed to
  * avoid both, exactly like providers/.
  *
+ * `root`/`workspaceRoot` split matches loadPlugins() above -- `root` is
+ * always the script's own real (System Layer) location; `workspaceRoot`
+ * defaults to `root` but MUST be passed as the current workspace (e.g.
+ * `workspaceRoot()` from ./workspace-root.mjs) by any caller that can run
+ * inside a workspaces/{slug}/ checkout, or config/plugins.yml resolves off
+ * the wrong directory and every plugin reads as disabled.
  * @param {string} kind
  * @param {*} payload   For provider this is unused; for ingest none; search a query; export a snapshot; notify a payload.
- * @param {{ root: string, dryRun?: boolean, timeoutMs?: number }} opts
+ * @param {{ root: string, workspaceRoot?: string, dryRun?: boolean, timeoutMs?: number }} opts
  * @returns {Promise<Array<{ id: string, ok: boolean, result?: any, error?: string }>>}
  */
-export async function runHook(kind, payload, { root, dryRun = false, timeoutMs = DEFAULT_HOOK_TIMEOUT_MS }) {
+export async function runHook(kind, payload, { root, workspaceRoot = root, dryRun = false, timeoutMs = DEFAULT_HOOK_TIMEOUT_MS }) {
   await loadDotenvOnce();
-  const loaded = await loadPlugins(kind, { root, dryRun });
+  const loaded = await loadPlugins(kind, { root, workspaceRoot, dryRun });
   const results = [];
   for (const { id, hook, ctx } of loaded) {
     const invoke = kind === 'search'
@@ -656,7 +699,7 @@ export async function runHook(kind, payload, { root, dryRun = false, timeoutMs =
  *     the plugin off yields a helpful error, not a confusing "unknown provider".
  *
  * @param {Map<string, any>} providersMap   The Map returned by scan.mjs loadProviders.
- * @param {{ root: string }} opts
+ * @param {{ root: string, workspaceRoot?: string }} opts   Same System/User split as runHook() above; workspaceRoot defaults to root.
  */
 // A detect-exempt provider whose fetch throws an actionable message — used when
 // a known provider plugin is inactive (disabled / missing key / failed import)
@@ -669,15 +712,15 @@ function inactiveProviderStub(id, reason) {
   };
 }
 
-export async function mergeProviderPlugins(providersMap, { root }) {
-  if (!existsSync(pluginsConfigPath(root))) return; // (1) opted out → inert (no work, no env read)
+export async function mergeProviderPlugins(providersMap, { root, workspaceRoot = root }) {
+  if (!existsSync(pluginsConfigPath(workspaceRoot))) return; // (1) opted out → inert (no work, no env read)
 
   // Everything past the opt-out gate is wrapped so an UNANTICIPATED throw
   // (a callee regression) degrades to a ⚠️ and leaves the core providers Map
   // untouched — fail-open is enforced structurally here, not just emergently.
   try {
-    const cfg = await loadPluginConfig(root);
-    const providerManifests = discoverPlugins(pluginRoots(root), resolveSuccessorIds(root)).filter(m => m.hooks.includes('provider'));
+    const cfg = await loadPluginConfig(workspaceRoot);
+    const providerManifests = discoverPlugins(pluginRoots(root, workspaceRoot), resolveSuccessorIds(root, workspaceRoot)).filter(m => m.hooks.includes('provider'));
     if (providerManifests.length === 0) return;
 
     // Only the plugins the user actually switched on in plugins.yml matter.
@@ -697,7 +740,7 @@ export async function mergeProviderPlugins(providersMap, { root }) {
         providersMap.set(manifest.id, inactiveProviderStub(manifest.id, reason)); // (5)
         continue;
       }
-      if (!lockGate(manifest, root).load) {
+      if (!lockGate(manifest, root, workspaceRoot).load) {
         providersMap.set(manifest.id, inactiveProviderStub(manifest.id, 'integrity/consent check failed — see ⚠️ above; run `node plugins.mjs trust ' + manifest.id + '` or `enable ' + manifest.id + '`'));
         continue;
       }

@@ -47,12 +47,23 @@ import { buildTitleFilter, buildLocationFilter, buildContentFilter, matchedTitle
 import { SEED_SOURCES, toPortalEntry } from '../seeds/vc-portfolios.mjs';
 import { normalizeCompany } from './tracker-utils.mjs';
 import { isMainModule } from './is-main.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
 // ── Config ──────────────────────────────────────────────────────────
 
-const PORTALS_PATH = process.env.CAREER_OPS_PORTALS || 'portals.yml';
-const PIPELINE_PATH = 'data/pipeline.md';
-const CACHE_DIR = 'data/cache/ats-companies';
+// Functions, not frozen constants, for the same reason as scan.mjs's own
+// path getters (#workspace-multitenancy final-review Important 7): re-resolve
+// workspaceRoot() on every call instead of baking in whatever cwd was active
+// the first time this ES module was evaluated — identical behavior to the old
+// bare cwd-relative literals for a normal invocation, but also honors
+// CAREER_OPS_WORKSPACE when cwd isn't trustworthy, and stays correct if a
+// future caller imports this module once and changes cwd/workspace between
+// calls (see scan.mjs's own path-getter comment for the concrete test-all.mjs
+// scenario this class of bug bit). CAREER_OPS_PORTALS still wins outright as
+// a literal path, matching scan.mjs's precedence.
+const getPortalsPath = () => process.env.CAREER_OPS_PORTALS || path.join(workspaceRoot(), 'portals.yml');
+const getPipelinePath = () => path.join(workspaceRoot(), 'data', 'pipeline.md');
+const getCacheDir = () => path.join(workspaceRoot(), 'data', 'cache', 'ats-companies');
 const CACHE_TTL_HOURS = 24;
 // Tracks `main` deliberately: the dataset's value is freshness (new boards
 // appear weekly), so pinning a commit would defeat the purpose. Integrity rests
@@ -71,10 +82,10 @@ const RESOLVER_FAILURE_LIMIT = 50;
 // Crash insurance for multi-hour directory sweeps: progress + matches are
 // checkpointed every CHECKPOINT_EVERY companies so --resume can continue a
 // dead run (with its ORIGINAL date window) instead of restarting from zero.
-const CHECKPOINT_PATH = 'data/cache/ats-full-checkpoint.json';
+const getCheckpointPath = () => path.join(workspaceRoot(), 'data', 'cache', 'ats-full-checkpoint.json');
 const CHECKPOINT_EVERY = 500;
 
-export function loadCheckpoint(file = CHECKPOINT_PATH) {
+export function loadCheckpoint(file = getCheckpointPath()) {
   if (!existsSync(file)) return null;
   try {
     const cp = JSON.parse(readFileSync(file, 'utf-8'));
@@ -115,10 +126,10 @@ export function checkpointCompatible(cp, opts) {
 // it exists to protect. A failed write costs resumability, not the results.
 function writeCheckpoint(cp) {
   try {
-    mkdirSync(CACHE_DIR, { recursive: true });
-    const tmp = `${CHECKPOINT_PATH}.tmp`;
+    mkdirSync(getCacheDir(), { recursive: true });
+    const tmp = `${getCheckpointPath()}.tmp`;
     writeFileSync(tmp, JSON.stringify(cp), 'utf-8');
-    renameSync(tmp, CHECKPOINT_PATH); // atomic: a crash mid-write can't corrupt the checkpoint
+    renameSync(tmp, getCheckpointPath()); // atomic: a crash mid-write can't corrupt the checkpoint
     return true;
   } catch (err) {
     console.error(`\n⚠ checkpoint write failed (${err.message}) — sweep continues, --resume unavailable`);
@@ -319,8 +330,8 @@ function parseArgs(argv) {
 //   'empty' — no data at all (no cache, fetch failed/non-array)
 // The status lets callers (and --json) distinguish a degraded scan from an empty one.
 async function loadCompanyList(name, url) {
-  mkdirSync(CACHE_DIR, { recursive: true });
-  const cacheFile = path.join(CACHE_DIR, `${name}.json`);
+  mkdirSync(getCacheDir(), { recursive: true });
+  const cacheFile = path.join(getCacheDir(), `${name}.json`);
   if (existsSync(cacheFile)) {
     const ageHours = (Date.now() - statSync(cacheFile).mtimeMs) / 3_600_000;
     if (ageHours < CACHE_TTL_HOURS) {
@@ -590,7 +601,7 @@ async function main() {
   if (opts.resume) {
     const cp = loadCheckpoint();
     if (!cp) {
-      console.error(`Error: --resume passed but no checkpoint found at ${CHECKPOINT_PATH}.`);
+      console.error(`Error: --resume passed but no checkpoint found at ${getCheckpointPath()}.`);
       process.exit(1);
     }
     if (!checkpointCompatible(cp, opts)) {
@@ -599,7 +610,7 @@ async function main() {
     }
     checkpoint = cp;
   } else if (loadCheckpoint() && !opts.dryRun) {
-    console.error(`⚠️  Unfinished sweep checkpoint found at ${CHECKPOINT_PATH} — pass --resume to continue it; this fresh run will overwrite it.`);
+    console.error(`⚠️  Unfinished sweep checkpoint found at ${getCheckpointPath()} — pass --resume to continue it; this fresh run will overwrite it.`);
   }
   // Resume reuses the ORIGINAL cutoff so the date window stays consistent
   // across the interruption instead of silently sliding forward.
@@ -609,11 +620,11 @@ async function main() {
   const log = opts.json ? (...a) => console.error(...a) : (...a) => console.log(...a);
   const progress = (s) => { if (!opts.json) process.stdout.write(s); };
 
-  if (!existsSync(PORTALS_PATH)) {
+  if (!existsSync(getPortalsPath())) {
     console.error('Error: portals.yml not found. Run onboarding first — the reverse scan reuses its title_filter/location_filter.');
     process.exit(1);
   }
-  const config = yaml.load(readFileSync(PORTALS_PATH, 'utf-8'));
+  const config = yaml.load(readFileSync(getPortalsPath(), 'utf-8'));
   const titleFilter = buildTitleFilter(config?.title_filter);
   const locationFilter = buildLocationFilter(config?.location_filter);
   // Same content_filter (incl. by_title_keyword scoping) scan.mjs applies —
@@ -759,7 +770,7 @@ async function main() {
       const hashMismatch = checkpoint.current.datasetHash != null
         && checkpoint.current.datasetHash !== datasetHash;
       if (checkpoint.current.datasetLen !== list.length || hashMismatch) {
-        console.error(`Error: ${name} company dataset changed since the checkpoint — resume order is no longer valid. Delete ${CHECKPOINT_PATH} and rerun.`);
+        console.error(`Error: ${name} company dataset changed since the checkpoint — resume order is no longer valid. Delete ${getCheckpointPath()} and rerun.`);
         process.exit(1);
       }
       startAt = checkpoint.current.resumeAt;
@@ -968,14 +979,14 @@ async function main() {
   let saved = false;
   if (offers.length && !opts.dryRun) {
     // appendToPipeline assumes the file exists (onboarding creates it) — cover fresh setups.
-    if (!existsSync(PIPELINE_PATH)) {
-      mkdirSync(path.dirname(PIPELINE_PATH), { recursive: true });
-      writeFileSync(PIPELINE_PATH, '# Pipeline\n\n## Pendientes\n', 'utf-8');
+    if (!existsSync(getPipelinePath())) {
+      mkdirSync(path.dirname(getPipelinePath()), { recursive: true });
+      writeFileSync(getPipelinePath(), '# Pipeline\n\n## Pendientes\n', 'utf-8');
     }
     await appendToPipeline(offers);
     appendToScanHistory(offers, date);
     saved = true;
-    log(`\nResults saved to ${PIPELINE_PATH} and data/scan-history.tsv`);
+    log(`\nResults saved to ${getPipelinePath()} and data/scan-history.tsv`);
 
     if (opts.mdOut) {
       try {
@@ -1001,7 +1012,7 @@ async function main() {
   // Sweep completed — the checkpoint's job is done. A run the breaker stopped
   // did NOT complete: deleting here would destroy the resume point the outage
   // branch just wrote, which is the one case --resume exists for (#2283).
-  if (!opts.dryRun && !stoppedByOutage && existsSync(CHECKPOINT_PATH)) unlinkSync(CHECKPOINT_PATH);
+  if (!opts.dryRun && !stoppedByOutage && existsSync(getCheckpointPath())) unlinkSync(getCheckpointPath());
 
   // The authoritative machine-readable result: lets a caller (e.g. the web)
   // tell a *degraded* scan (capped / stale dataset / undated dropped) apart

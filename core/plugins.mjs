@@ -30,14 +30,24 @@ import { readLock, writeLockEntry, removeLockEntry, hashPluginTree, consentSurfa
 import { installFromRepo, scaffoldNew, parseRepoArg } from './plugin-install.mjs';
 import { appendToPipeline } from './scan.mjs';
 import { isMainModule } from './is-main.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
-// This script now lives in core/, one directory below the repo root; ROOT is
-// the actual repo root that plugins/, config/, and data/ live under — every
-// use of ROOT below is a repo-root-anchored reference, never a sibling
-// script in core/ (see #workspace-multitenancy Task 1).
+// This script now lives in core/, one directory below the repo root
+// (#workspace-multitenancy Task 1). ROOT is the System Layer root: bundled
+// plugins/, the plugin registry, and the plugins/_template scaffold — always
+// this script's own real location, shared by every workspace via a junction.
+// WS_ROOT is the User Layer root: config/plugins.yml, plugins.lock,
+// plugins.local/, and this user's data/ — the CURRENT workspace, which is
+// NOT the same directory as ROOT once you're running from inside
+// workspaces/{slug}/. Conflating the two was the #workspace-multitenancy
+// final-review Critical 3 bug: every plugin read as disabled because
+// config/plugins.yml was being read off ROOT after Task 15 moved it into
+// the workspace. See plugins/_engine.mjs's pluginRoots()/runHook() doc
+// comments for the full System/User split this file follows throughout.
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const APPLICATIONS_PATH = path.join(ROOT, 'data', 'applications.md');
-const PIPELINE_PATH = path.join(ROOT, 'data', 'pipeline.md');
+const WS_ROOT = workspaceRoot();
+const APPLICATIONS_PATH = path.join(WS_ROOT, 'data', 'applications.md');
+const PIPELINE_PATH = path.join(WS_ROOT, 'data', 'pipeline.md');
 
 // A misbehaving plugin's stray rejection should be attributed and not silently
 // crash the host (the engine's per-hook try/catch handles the common case; this
@@ -98,9 +108,9 @@ function buildSnapshot() {
 }
 
 async function cmdList() {
-  const cfg = await loadPluginConfig(ROOT);
-  const overridden = resolveSuccessorIds(ROOT); // ids where an installed successor is active
-  const manifests = discoverPlugins(pluginRoots(ROOT), overridden);
+  const cfg = await loadPluginConfig(WS_ROOT);
+  const overridden = resolveSuccessorIds(ROOT, WS_ROOT); // ids where an installed successor is active
+  const manifests = discoverPlugins(pluginRoots(ROOT, WS_ROOT), overridden);
   if (manifests.length === 0) {
     console.log('No plugins discovered. Bundled plugins live in plugins/; your own in plugins.local/.');
     return;
@@ -164,8 +174,8 @@ async function cmdRun(args) {
   const id = positional[0];
   if (!id) { console.error('Usage: node plugins.mjs run <id> [hook] [args…] [--dry-run]'); process.exit(1); }
 
-  const cfg = await loadPluginConfig(ROOT);
-  const manifest = discoverPlugins(pluginRoots(ROOT), resolveSuccessorIds(ROOT)).find(m => m.id === id);
+  const cfg = await loadPluginConfig(WS_ROOT);
+  const manifest = discoverPlugins(pluginRoots(ROOT, WS_ROOT), resolveSuccessorIds(ROOT, WS_ROOT)).find(m => m.id === id);
   if (!manifest) { console.error(`Unknown plugin "${id}". Run \`node plugins.mjs list\`.`); process.exit(1); }
 
   // Provider hooks ride scan, never this CLI.
@@ -194,7 +204,7 @@ async function cmdRun(args) {
   if (hook === 'ingest' || hook === 'search') {
     const payload = hook === 'search' ? positional.slice(hookArgStart).join(' ') : undefined;
     if (hook === 'search' && !payload) { console.error(`search needs a query: node plugins.mjs run ${id} search "<query>"`); process.exit(1); }
-    const results = await runHook(hook, payload, { root: ROOT, dryRun });
+    const results = await runHook(hook, payload, { root: ROOT, workspaceRoot: WS_ROOT, dryRun });
     const found = results.filter(r => r.ok && Array.isArray(r.result)).flatMap(r => r.result).map(sanitizeJob).filter(Boolean);
     // Additive de-dup: never re-add a URL already in the pipeline.
     const known = existingPipelineUrls();
@@ -208,7 +218,7 @@ async function cmdRun(args) {
 
   if (hook === 'export') {
     const snapshot = buildSnapshot();
-    const results = await runHook('export', snapshot, { root: ROOT, dryRun });
+    const results = await runHook('export', snapshot, { root: ROOT, workspaceRoot: WS_ROOT, dryRun });
     for (const r of results) {
       if (r.ok) console.log(`${r.id} export: pushed ${r.result?.pushed ?? 0} record(s).`);
       else console.log(`${r.id} export: failed — ${r.error}`);
@@ -231,7 +241,7 @@ async function cmdRun(args) {
     if (embed) payload.embed = embed;
     if (filePaths.length) payload.filePaths = filePaths;
     if (editMessageId) payload.editMessageId = editMessageId;
-    const results = await runHook('notify', payload, { root: ROOT, dryRun });
+    const results = await runHook('notify', payload, { root: ROOT, workspaceRoot: WS_ROOT, dryRun });
     for (const r of results) {
       if (!r.ok) { console.log(`${r.id} notify: failed — ${r.error}`); continue; }
       const id = r.result && r.result.messageId;
@@ -247,19 +257,19 @@ async function cmdRun(args) {
 }
 
 function findManifest(id) {
-  return discoverPlugins(pluginRoots(ROOT), resolveSuccessorIds(ROOT)).find(m => m.id === id) || null;
+  return discoverPlugins(pluginRoots(ROOT, WS_ROOT), resolveSuccessorIds(ROOT, WS_ROOT)).find(m => m.id === id) || null;
 }
 
 // Write enabled:true/false into config/plugins.yml, merging (never clobbering
 // the user's other plugins or non-secret settings).
 function setEnabled(id, on, settings) {
-  const file = path.join(ROOT, 'config', 'plugins.yml');
+  const file = path.join(WS_ROOT, 'config', 'plugins.yml');
   let cfg = {};
   if (existsSync(file)) { try { cfg = yaml.load(readFileSync(file, 'utf8')) || {}; } catch {} }
   if (!cfg.plugins || typeof cfg.plugins !== 'object') cfg.plugins = {};
   const prev = (cfg.plugins[id] && typeof cfg.plugins[id] === 'object') ? cfg.plugins[id] : {};
   cfg.plugins[id] = { ...prev, ...(settings || {}), enabled: on };
-  mkdirSync(path.join(ROOT, 'config'), { recursive: true });
+  mkdirSync(path.join(WS_ROOT, 'config'), { recursive: true });
   writeFileSync(file, '# career-ops plugin activation — see templates/plugins.example.yml\n' + yaml.dump(cfg), 'utf8');
 }
 
@@ -299,7 +309,7 @@ async function cmdAvailable() {
 function cmdSkill(args) {
   const id = args[0];
   if (!id) {
-    const withSkill = discoverPlugins(pluginRoots(ROOT), resolveSuccessorIds(ROOT)).filter(m => m.skill);
+    const withSkill = discoverPlugins(pluginRoots(ROOT, WS_ROOT), resolveSuccessorIds(ROOT, WS_ROOT)).filter(m => m.skill);
     console.log(withSkill.length ? 'Plugins that ship a skill:\n' + withSkill.map(m => `  ${m.id}`).join('\n') + '\n\nRead one: node plugins.mjs skill <id>' : 'No installed plugin ships a skill.');
     return;
   }
@@ -318,7 +328,7 @@ function cmdEnable(args) {
   if (!id) { console.error('Usage: node plugins.mjs enable <id> [--confirm]'); process.exit(1); }
   const m = findManifest(id);
   if (!m) { console.error(`Unknown plugin "${id}". Run \`node plugins.mjs list\`.`); process.exit(1); }
-  const lock = readLock(ROOT);
+  const lock = readLock(WS_ROOT);
   const entry = lock.plugins?.[id];
   const source = classifySource(m, ROOT, entry);
   if (!confirm) {
@@ -328,7 +338,7 @@ function cmdEnable(args) {
     return;
   }
   const tree = hashPluginTree(m.dir);
-  writeLockEntry(ROOT, id, {
+  writeLockEntry(WS_ROOT, id, {
     source: source === 'bundled' ? 'bundled' : 'local',
     repo: entry?.repo || null, sha: entry?.sha || null,
     version: m.version || '0.0.0', integrity: tree.integrity, files: tree.files,
@@ -343,17 +353,17 @@ function cmdTrust(args) {
   const m = findManifest(id);
   if (!m) { console.error(`Unknown plugin "${id}".`); process.exit(1); }
   const tree = hashPluginTree(m.dir);
-  const entry = readLock(ROOT).plugins?.[id] || {};
-  writeLockEntry(ROOT, id, { ...entry, source: classifySource(m, ROOT, entry) === 'bundled' ? 'bundled' : 'local', version: m.version || '0.0.0', integrity: tree.integrity, files: tree.files, consent: { ...consentSurface(m), acceptedAt: new Date().toISOString() } });
+  const entry = readLock(WS_ROOT).plugins?.[id] || {};
+  writeLockEntry(WS_ROOT, id, { ...entry, source: classifySource(m, ROOT, entry) === 'bundled' ? 'bundled' : 'local', version: m.version || '0.0.0', integrity: tree.integrity, files: tree.files, consent: { ...consentSurface(m), acceptedAt: new Date().toISOString() } });
   console.log(`✓ Re-pinned ${id} to its current files — it will load again.`);
 }
 
 function cmdRemove(args) {
   const id = args[0];
   if (!id) { console.error('Usage: node plugins.mjs remove <id>'); process.exit(1); }
-  const dir = path.join(ROOT, 'plugins.local', id);
+  const dir = path.join(WS_ROOT, 'plugins.local', id);
   if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
-  removeLockEntry(ROOT, id);
+  removeLockEntry(WS_ROOT, id);
   try { setEnabled(id, false); } catch {}
   console.log(`✓ Removed ${id} (plugins.local + lock + disabled).`);
 }
@@ -362,7 +372,7 @@ function cmdNew(args) {
   const name = args[0];
   if (!name) { console.error('Usage: node plugins.mjs new <name>'); process.exit(1); }
   let dest;
-  try { dest = scaffoldNew(ROOT, name); } catch (e) { console.error(`✗ ${e.message}`); process.exit(1); }
+  try { dest = scaffoldNew(WS_ROOT, name); } catch (e) { console.error(`✗ ${e.message}`); process.exit(1); }
   console.log(`✓ Scaffolded plugins.local/${name}/`);
   console.log('  Next: edit manifest.json + index.mjs, then either');
   console.log(`    A) develop locally:  node plugins.mjs enable ${name}`);
@@ -390,10 +400,10 @@ async function cmdAdd(args) {
 
   console.log(`Cloning ${url} @ ${String(useSha).slice(0, 10)} …`);
   let installed;
-  try { installed = installFromRepo(ROOT, { url, sha: useSha }); }
+  try { installed = installFromRepo(WS_ROOT, { url, sha: useSha }); }
   catch (e) { console.error(`✗ ${e.message}`); process.exit(1); }
 
-  writeLockEntry(ROOT, installed.id, {
+  writeLockEntry(WS_ROOT, installed.id, {
     source: 'local', repo: installed.repo, sha: installed.sha,
     version: installed.manifest.version || '0.0.0', integrity: installed.integrity, files: installed.files,
     consent: consentSurface(installed.manifest),

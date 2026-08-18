@@ -15,11 +15,16 @@ import { tmpdir } from 'os';
 import { fileURLToPath, pathToFileURL } from 'url';
 import yaml from 'js-yaml';
 import { flagValue, hasFlag } from '../lib/cli-flags.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
 // This script now lives in core/, one directory below the repo root; ROOT is
 // the actual repo root that providers/ and plugins/ live under (see
-// #workspace-multitenancy Task 1).
+// #workspace-multitenancy Task 1). WS_ROOT is the current workspace, needed
+// for plugin CONFIG resolution (plugins.local/, plugins.lock) below --
+// distinct from ROOT's System Layer role, same split as core/plugins.mjs
+// (#workspace-multitenancy final-review Critical 3).
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const WS_ROOT = workspaceRoot();
 const PROVIDERS_DIR = join(ROOT, 'providers');
 const DEFAULT_PORTALS_PATH = process.env.CAREER_OPS_PORTALS || 'portals.yml';
 
@@ -107,7 +112,7 @@ async function loadProviderIds() {
   // inactive-provider stub). Keep validation aligned with that contract.
   try {
     const { discoverPlugins, pluginRoots, resolveSuccessorIds } = await import('../plugins/_engine.mjs');
-    const manifests = discoverPlugins(pluginRoots(ROOT), resolveSuccessorIds(ROOT));
+    const manifests = discoverPlugins(pluginRoots(ROOT, WS_ROOT), resolveSuccessorIds(ROOT, WS_ROOT));
     for (const manifest of manifests) {
       if (manifest.hooks.includes('provider')) ids.add(manifest.id);
     }
