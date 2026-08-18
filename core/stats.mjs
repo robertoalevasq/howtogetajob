@@ -32,13 +32,13 @@ import { isMainModule } from './is-main.mjs';
 // the operator's real tracker/scan history whether invoked from the repo
 // root (pre-multitenancy, cwd === repo root) or from inside a provisioned
 // workspaces/{slug}/ (#workspace-multitenancy Task 15).
-const ROOT = workspaceRoot();
-const APPS_FILE = join(ROOT, 'data', 'applications.md');
-const SCAN_HISTORY_FILE = join(ROOT, 'data', 'scan-history.tsv');
-const FOLLOWUPS_FILE = join(ROOT, 'data', 'follow-ups.md');
-const SCAN_RUNS_FILE = join(ROOT, 'data', 'scan-runs.tsv');
-const PORTALS_FILE = join(ROOT, 'portals.yml');
-const PORTAL_HEALTH_FILE = join(ROOT, 'data', 'portal-health.tsv');
+const WS_ROOT = workspaceRoot();
+const APPS_FILE = join(WS_ROOT, 'data', 'applications.md');
+const SCAN_HISTORY_FILE = join(WS_ROOT, 'data', 'scan-history.tsv');
+const FOLLOWUPS_FILE = join(WS_ROOT, 'data', 'follow-ups.md');
+const SCAN_RUNS_FILE = join(WS_ROOT, 'data', 'scan-runs.tsv');
+const PORTALS_FILE = join(WS_ROOT, 'portals.yml');
+const PORTAL_HEALTH_FILE = join(WS_ROOT, 'data', 'portal-health.tsv');
 
 const CANONICAL_STATUSES = ['Evaluated', 'Applied', 'Responded', 'Interview', 'Offer', 'Hired', 'Rejected', 'Discarded', 'SKIP'];
 
