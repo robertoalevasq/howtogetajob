@@ -61,7 +61,7 @@ export const UPDATE_PATH_CHECKOUT_BUDGET_MS = parsePositiveInt(process.env.CAREE
 export const REEXEC_BUFFER_TIMEOUT_MS = parsePositiveInt(process.env.CAREER_OPS_REEXEC_BUFFER_TIMEOUT_MS, 60000);
 
 // System layer paths — ONLY these files get updated
-const SYSTEM_PATHS = [
+export const SYSTEM_PATHS = [
   // .gitattributes governs how every other path below is written to disk, and
   // `apply` checks paths out one at a time in this order: if it landed later,
   // everything before it would be written under the old core.autocrlf setting
