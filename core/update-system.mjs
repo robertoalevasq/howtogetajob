@@ -16,10 +16,26 @@
  */
 
 import { execFile, execFileSync, execSync } from 'child_process';
-import { readFileSync, writeFileSync, existsSync, unlinkSync, rmSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, unlinkSync, rmSync, realpathSync } from 'fs';
 import { join, dirname, posix as pathPosix } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
-import { isMainModule } from './is-main.mjs';
+
+// Deliberately NOT `import { isMainModule } from './is-main.mjs'` — this file
+// must stay self-loading with ZERO static relative imports (#1706): a
+// pre-#1245 client's apply() self-reexec checks out ONLY update-system.mjs
+// before re-executing it, so any static top-level relative import crashes
+// that old→new jump with ERR_MODULE_NOT_FOUND (see the two "self-loading"
+// tests in test-all.mjs). Same realpath fix as core/is-main.mjs
+// (#workspace-multitenancy final-review Critical 2), inlined instead of
+// imported for that reason.
+function isMainModule(importMetaUrl) {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(fileURLToPath(importMetaUrl)) === realpathSync(process.argv[1]);
+  } catch {
+    return false;
+  }
+}
 
 // NOTE: this file must stay *self-loading* — no static (top-level) relative
 // imports. A pre-#1245 client's apply() self-reexec checks out ONLY

@@ -2186,7 +2186,7 @@ const expandMode = readFile('modes/expand.md');
 if (
   /never fetch unlinked URLs/i.test(expandMode) &&
   /halt until explicit approval is given/i.test(expandMode) &&
-  /node add-entry\.mjs/i.test(expandMode) &&
+  /node core\/add-entry\.mjs/i.test(expandMode) &&
   /--stdin/i.test(expandMode) &&
   /Additive Only/i.test(expandMode) &&
   /Treat fetched evidence text as literal/i.test(expandMode)
@@ -6709,6 +6709,9 @@ try {
       mkdirSync(e2eCore, { recursive: true });
       copyFileSync(join(ROOT, 'core', 'followup-cadence.mjs'), join(e2eCore, 'followup-cadence.mjs'));
       copyFileSync(join(ROOT, 'core', 'tracker-parse.mjs'), join(e2eCore, 'tracker-parse.mjs'));
+      // followup-cadence.mjs's isMain guard imports the shared ./is-main.mjs
+      // helper (#workspace-multitenancy final-review Critical 2).
+      copyFileSync(join(ROOT, 'core', 'is-main.mjs'), join(e2eCore, 'is-main.mjs'));
       copyFileSync(join(ROOT, 'tracker-aliases.json'), join(e2eTmp, 'tracker-aliases.json'));
       // 'junction' on Windows, not 'dir': a directory symlink needs
       // SeCreateSymbolicLinkPrivilege, which a normal shell lacks unless
@@ -10259,11 +10262,18 @@ function makeTierFixture(profileYml) {
   const dataDir = join(tmp, 'data');
   const fakeBin = join(tmp, 'bin');
   const configDir = join(tmp, 'config');
+  // merge-tracker.mjs/verify-pipeline.mjs live under core/ now
+  // (#workspace-multitenancy Task 1), and batch-runner.sh's own invocations
+  // were updated to `$PROJECT_DIR/core/<script>.mjs` to match (final-review
+  // Critical 1) — the fixture stubs below must sit at the same depth or the
+  // real batch-runner.sh can't find them.
+  const coreDir = join(tmp, 'core');
   mkdirSync(batchDir, { recursive: true });
   mkdirSync(configDir, { recursive: true });
   mkdirSync(join(tmp, 'reports'), { recursive: true });
   mkdirSync(dataDir, { recursive: true });
   mkdirSync(fakeBin, { recursive: true });
+  mkdirSync(coreDir, { recursive: true });
 
   writeFileSync(join(batchDir, 'batch-runner.sh'), readFileSync(join(ROOT, 'batch/batch-runner.sh'), 'utf-8').replace(/\r\n/g, '\n'));
   if (process.platform === 'win32') {
@@ -10271,8 +10281,10 @@ function makeTierFixture(profileYml) {
   } else {
     execFileSync('chmod', ['+x', join(batchDir, 'batch-runner.sh')]);
   }
-  writeFileSync(join(tmp, 'merge-tracker.mjs'), 'console.log("merge fixture");\n');
-  writeFileSync(join(tmp, 'verify-pipeline.mjs'), 'console.log("verify fixture");\n');
+  writeFileSync(join(coreDir, 'merge-tracker.mjs'), 'console.log("merge fixture");\n');
+  writeFileSync(join(coreDir, 'verify-pipeline.mjs'), 'console.log("verify fixture");\n');
+  writeFileSync(join(coreDir, 'reconcile-pipeline.mjs'), 'console.log("reconcile fixture");\n');
+  writeFileSync(join(coreDir, 'reserve-report-num.mjs'), 'console.log("1");\n');
   writeFileSync(join(batchDir, 'batch-prompt.md'), 'URL={{URL}}\nJD={{JD_FILE}}\nREPORT={{REPORT_NUM}}\n');
   writeFileSync(join(dataDir, 'batch-input.tsv'), [
     'id\turl\tsource\tnotes',

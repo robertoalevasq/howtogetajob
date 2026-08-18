@@ -34,6 +34,10 @@ copyFileSync(join(ROOT, 'core', 'generate-pdf.mjs'), script);
 // theming, #1837); copy it into the sandbox too or the isolated script fails
 // to load with ERR_MODULE_NOT_FOUND before it can parse any --max-pages arg.
 copyFileSync(join(ROOT, 'core', 'theme-style.mjs'), join(scriptDir, 'theme-style.mjs'));
+// Same reason: generate-pdf.mjs's isMain guard now imports the shared
+// ./is-main.mjs helper (#workspace-multitenancy final-review Critical 2 —
+// realpath-based isMainModule() so a junctioned invocation still runs).
+copyFileSync(join(ROOT, 'core', 'is-main.mjs'), join(scriptDir, 'is-main.mjs'));
 mkdirSync(playwrightStub, { recursive: true });
 writeFileSync(join(playwrightStub, 'package.json'), JSON.stringify({
   name: 'playwright',

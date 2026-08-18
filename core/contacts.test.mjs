@@ -338,6 +338,9 @@ const tmpScript = join(tmpRoot, 'core', 'contacts.mjs');
 try {
   mkdirSync(join(tmpRoot, 'core'), { recursive: true });
   copyFileSync(scriptPath, tmpScript);
+  // contacts.mjs's isMain guard imports the shared ./is-main.mjs helper
+  // (#workspace-multitenancy final-review Critical 2).
+  copyFileSync(join(dirname(scriptPath), 'is-main.mjs'), join(tmpRoot, 'core', 'is-main.mjs'));
   mkdirSync(join(tmpRoot, 'data'), { recursive: true });
   writeFileSync(join(tmpRoot, 'data/contacts.tsv'), [
     '# name\tcompany\ttype\ttitle\tphone\temail\tlinkedin\ttracker\tnotes',
@@ -445,6 +448,7 @@ const emptyRoot = realpathSync(mkdtempSync(join(tmpdir(), 'contacts-empty-')));
 try {
   mkdirSync(join(emptyRoot, 'core'), { recursive: true });
   copyFileSync(scriptPath, join(emptyRoot, 'core', 'contacts.mjs'));
+  copyFileSync(join(dirname(scriptPath), 'is-main.mjs'), join(emptyRoot, 'core', 'is-main.mjs'));
   const emptyJson = JSON.parse(execFileSync('node', [join(emptyRoot, 'core', 'contacts.mjs')], { encoding: 'utf-8', timeout: 10000 }));
   eq('missing store: JSON total = 0', emptyJson.total, 0);
   eq('missing store: contacts = []', emptyJson.contacts, []);
