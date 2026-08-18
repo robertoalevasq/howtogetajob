@@ -150,7 +150,7 @@ export const SYSTEM_PATHS = [
   'CLAUDE.md',
   'CODEX.md',
   'OPENCODE.md',
-  'AGENTS.md',
+  'core/AGENTS.md',
   'GEMINI.md',
   'KIMI.md',
   'lib/cli-flags.mjs',

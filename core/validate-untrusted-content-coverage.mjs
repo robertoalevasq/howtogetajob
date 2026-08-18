@@ -99,7 +99,7 @@ if (process.argv.includes('--self-test')) {
   process.exit(0);
 }
 
-const agentsPath = join(ROOT, 'AGENTS.md');
+const agentsPath = join(ROOT, 'core', 'AGENTS.md');
 if (!existsSync(agentsPath)) {
   console.error('FAIL: AGENTS.md not found');
   process.exit(1);

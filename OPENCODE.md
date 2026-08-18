@@ -1,4 +1,4 @@
-@AGENTS.md
+@core/AGENTS.md
 
 <!-- OpenCode config — imports AGENTS.md -->
 

@@ -1657,7 +1657,7 @@ try {
 console.log('\n7d. Output language contract');
 
 const profileExample = readTextLF('config/profile.example.yml');
-const outputLanguageAgentsDoc = readTextLF('AGENTS.md');
+const outputLanguageAgentsDoc = readTextLF('core/AGENTS.md');
 const outputLanguageClaudeDoc = readTextLF('CLAUDE.md');
 const careerOpsSkill = readTextLF('.agents/skills/career-ops/SKILL.md');
 const batchPrompt = readTextLF('batch/batch-prompt.md');
@@ -2627,9 +2627,9 @@ if (
 }
 
 const claudeMdDoc = readFile('CLAUDE.md');
-const agentsMdDoc = readFile('AGENTS.md');
+const agentsMdDoc = readFile('core/AGENTS.md');
 if (
-  /^@(?:\.\/)?AGENTS\.md/m.test(claudeMdDoc) &&
+  /^@(?:\.\/)?core\/AGENTS\.md/m.test(claudeMdDoc) &&
   agentsMdDoc.includes('`offer-prep`')
 ) {
   pass('AGENTS.md documents offer-prep and CLAUDE.md imports it');
@@ -4510,7 +4510,7 @@ try {
 
 console.log('\n11. AGENTS.md integrity');
 
-const agents = readFile('AGENTS.md');
+const agents = readFile('core/AGENTS.md');
 const requiredSections = [
   'Data Contract', 'Update Check', 'Ethical Use',
   'Offer Verification', 'Canonical States', 'TSV Format',
@@ -4554,7 +4554,7 @@ if (!fileExists('GEMINI.md')) {
 }
 
 const codexWrapper = fileExists('CODEX.md') ? readFile('CODEX.md') : '';
-if (/^@(?:\.\/)?AGENTS\.md/m.test(codexWrapper)) {
+if (/^@(?:\.\/)?core\/AGENTS\.md/m.test(codexWrapper)) {
   pass('CODEX.md imports AGENTS.md as a thin wrapper');
 } else {
   fail('CODEX.md is not a thin AGENTS.md wrapper');
@@ -4575,13 +4575,13 @@ if (
 const claudeWrapperLines = readFile('CLAUDE.md').trim().split(/\r?\n/);
 const claudeWrapperBody = claudeWrapperLines.slice(1).filter(line => line.trim());
 if (
-  claudeWrapperLines[0] === '@AGENTS.md' &&
+  claudeWrapperLines[0] === '@core/AGENTS.md' &&
   claudeWrapperBody.length <= 1 &&
   claudeWrapperBody.every(line => { const t = line.trim(); return t.startsWith('<!--') && t.endsWith('-->'); })
 ) {
   pass('CLAUDE.md is a thin AGENTS.md wrapper (#1088)');
 } else {
-  fail('CLAUDE.md must contain only @AGENTS.md plus an optional Claude-only placeholder comment (#1088)');
+  fail('CLAUDE.md must contain only @core/AGENTS.md plus an optional Claude-only placeholder comment (#1088)');
 }
 
 const criticalRoutingContracts = [
@@ -4688,7 +4688,7 @@ if (
   fail('docs/SETUP.md is missing Codex invocation guidance');
 }
 
-const agentsDoc = readFile('AGENTS.md');
+const agentsDoc = readFile('core/AGENTS.md');
 if (
   /CODEX\.md/.test(agentsDoc) &&
   /codex exec/.test(agentsDoc) &&
@@ -9884,13 +9884,13 @@ try {
   rmSync(autoCopy, { recursive: true, force: true });
 
   const claudeDoc = readFile('CLAUDE.md');
-  const agentsDoc = readFile('AGENTS.md');
+  const agentsDoc = readFile('core/AGENTS.md');
   const claudeWrapperLines = claudeDoc.trim().split(/\r?\n/).filter(Boolean);
   if (
     /node\s+doctor\.mjs\s+--json/.test(agentsDoc) &&
     /"warnings"\s*:\s*\[\.\.\.\]/.test(agentsDoc) &&
     /"autoCopied"\s*:\s*\[\.\.\.\]/.test(agentsDoc) &&
-    claudeWrapperLines[0] === '@AGENTS.md' &&
+    claudeWrapperLines[0] === '@core/AGENTS.md' &&
     claudeWrapperLines.length <= 8 &&
     !/Does\s+`cv\.md`\s+exist\?/i.test(claudeDoc)
   ) {
@@ -11094,7 +11094,7 @@ try {
 
   // AGENTS.md MUST route custom rules to the file AND seed it on onboarding.
   // CLAUDE.md inherits this via its @AGENTS.md wrapper.
-  const agentsMd = readFileSync(join(ROOT, 'AGENTS.md'), 'utf-8');
+  const agentsMd = readFileSync(join(ROOT, 'core', 'AGENTS.md'), 'utf-8');
   const claudeMd = readFileSync(join(ROOT, 'CLAUDE.md'), 'utf-8');
   const sourceBoundaryStart = agentsMd.indexOf('## Source-of-Truth Boundary');
   const sourceBoundaryEnd = agentsMd.indexOf('Anything not in this list', sourceBoundaryStart);
@@ -11105,7 +11105,7 @@ try {
     sourceBoundary.includes('_custom.md') &&
     sourceBoundary.includes('procedural/style rules only') &&
     sourceBoundary.includes('never introduces factual claims') &&
-    claudeMd.trim().startsWith('@AGENTS.md')
+    claudeMd.trim().startsWith('@core/AGENTS.md')
   ) {
     pass('AGENTS.md routes procedural custom rules without making them factual sources + CLAUDE.md inherits via wrapper');
   } else {
@@ -12665,9 +12665,9 @@ for (const skillPath of ['.claude/skills/career-ops/SKILL.md', '.agents/skills/c
 
 try {
   const claudeMdDoc = readFile('CLAUDE.md');
-  const agentsMdDoc = readFile('AGENTS.md');
+  const agentsMdDoc = readFile('core/AGENTS.md');
   const titlesRow = '| Wants to broaden the search with adjacent job titles suggested from the CV | `titles` |';
-  if (/^@(?:\.\/)?AGENTS\.md/m.test(claudeMdDoc)) {
+  if (/^@(?:\.\/)?core\/AGENTS\.md/m.test(claudeMdDoc)) {
     pass('CLAUDE.md imports AGENTS.md for titles documentation');
   } else {
     fail('CLAUDE.md does not import AGENTS.md for titles documentation');
@@ -13567,7 +13567,7 @@ try {
     fail('docs/SCRIPTS.md missing the exit-code semantics for check-table-freshness');
   }
 
-  const agentsDoc = readFile('AGENTS.md');
+  const agentsDoc = readFile('core/AGENTS.md');
   if (agentsDoc.includes('`check-table-freshness.mjs`')) {
     pass('AGENTS.md Main Files table lists check-table-freshness.mjs');
   } else {

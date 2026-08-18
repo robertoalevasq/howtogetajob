@@ -17,7 +17,7 @@ console.log('\n🔒 user-layer files are git-ignored');
 
 // Pull the declared user-layer paths straight out of AGENTS.md so the test tracks
 // the document rather than a hand-copied duplicate of it.
-const agents = readFileSync(join(ROOT, 'AGENTS.md'), 'utf-8');
+const agents = readFileSync(join(ROOT, 'core', 'AGENTS.md'), 'utf-8');
 const line = agents.split(/\r?\n/).find(l => l.includes('**User Layer'));
 
 if (!line) {

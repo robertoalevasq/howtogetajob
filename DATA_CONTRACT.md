@@ -114,7 +114,7 @@ These files contain system logic, scripts, templates, and instructions that impr
 | `CODEX.md` | Agent instructions (Codex) |
 | `KIMI.md` | Agent instructions (Kimi CLI) |
 | `GEMINI.md` | Legacy no-op context guard (prevents Antigravity duplicate imports) |
-| `AGENTS.md` | Canonical agent instructions (imported by CLI-specific wrappers) |
+| `core/AGENTS.md` | Canonical agent instructions (imported by CLI-specific wrappers) |
 | `*.mjs` | Utility scripts |
 | `providers/` | Job-source provider modules for the zero-token scanner |
 | `plugins/` | Bundled plugins + the plugin engine (opt-in external integrations) |

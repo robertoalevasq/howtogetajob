@@ -17,7 +17,7 @@
 
 # Agent behavior & the multi-CLI contract (prompt layer — CI-blind)
 /CLAUDE.md             @santifer
-/AGENTS.md             @santifer
+/core/AGENTS.md        @santifer
 /CODEX.md              @santifer
 /OPENCODE.md           @santifer
 /GEMINI.md             @santifer
