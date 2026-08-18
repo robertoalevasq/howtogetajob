@@ -25,6 +25,7 @@ import yaml from 'js-yaml';
 import { resolveColumns, parseTrackerRow } from './tracker-parse.mjs';
 import { normalizeStatus, analyzeFromContent } from './followup-cadence.mjs';
 import { workspaceRoot } from './workspace-root.mjs';
+import { isMainModule } from './is-main.mjs';
 
 // User-layer sources (data/, portals.yml) resolve through workspaceRoot() —
 // the current workspace, not this script's own directory — so this reads
@@ -530,7 +531,7 @@ function printSummary(stats) {
   console.log('');
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   const stats = computeAllStats();
   if (process.argv.includes('--summary')) printSummary(stats);
   else console.log(JSON.stringify(stats, null, 2));

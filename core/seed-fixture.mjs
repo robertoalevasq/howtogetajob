@@ -15,6 +15,7 @@ import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, exist
 import { tmpdir } from 'os';
 import { join, dirname, relative, sep } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
+import { isMainModule } from './is-main.mjs';
 
 // This script now lives in core/, one directory below the repo root; ROOT is
 // the actual repo root that test-fixtures/ lives under (see
@@ -108,7 +109,7 @@ function selfTest() {
   process.exit(failed ? 1 : 0);
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   const args = process.argv.slice(2);
   if (args[0] === '--self-test') selfTest();
   else if (args[0] && !args[0].startsWith('--')) {

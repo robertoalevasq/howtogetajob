@@ -15,6 +15,7 @@
 
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { isMainModule } from './is-main.mjs';
 
 /**
  * Classifies a job title into exactly one seniority tier.
@@ -102,8 +103,7 @@ export function classifyTier(title) {
 export default classifyTier;
 
 // CLI and inline test mode
-const isDirect = process.argv[1] &&
-  (path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url)));
+const isDirect = isMainModule(import.meta.url);
 
 if (isDirect) {
   const args = process.argv.slice(2);

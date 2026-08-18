@@ -31,6 +31,7 @@ import { readFileSync, existsSync, readdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import yaml from 'js-yaml';
+import { isMainModule } from './is-main.mjs';
 
 // This script now lives in core/, one directory below the repo root; CAREER_OPS
 // is the actual repo root that data/, reports/, and config/ live under (see
@@ -692,6 +693,6 @@ function main() {
   }
 }
 
-if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+if (isMainModule(import.meta.url)) {
   main();
 }

@@ -32,6 +32,7 @@ import yaml from 'js-yaml';
 
 import { fetchJson as defaultFetchJson, makeHttpCtx } from '../providers/_http.mjs';
 import { loadProviders, resolveProvider } from '../providers/_registry.mjs';
+import { isMainModule } from './is-main.mjs';
 
 const DEFAULT_PORTALS_PATH = process.env.CAREER_OPS_PORTALS || 'portals.yml';
 
@@ -563,7 +564,7 @@ async function main() {
 
 // Only run main() when invoked directly (`node verify-portals.mjs`), not when
 // imported by tests. `|| ''` guards `node -e` invocations with no script arg.
-if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
+if (isMainModule(import.meta.url)) {
   main().catch((err) => {
     console.error(`verify-portals failed: ${err.message}`);
     process.exit(1);

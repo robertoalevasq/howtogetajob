@@ -18,6 +18,7 @@ import { existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { pathToFileURL } from 'url';
 import { applyPatches } from '../lib/latex-content.mjs';
+import { isMainModule } from './is-main.mjs';
 
 async function main() {
   const args = process.argv.slice(2).filter(a => a !== '--help');
@@ -81,6 +82,6 @@ async function main() {
   console.log(JSON.stringify(report, null, 2));
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
+if (isMainModule(import.meta.url)) {
   main();
 }

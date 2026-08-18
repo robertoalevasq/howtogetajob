@@ -30,6 +30,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { resolveColumns, parseTrackerRow } from './tracker-parse.mjs';
 import { resolvePdfIndexPath } from './tracker-utils.mjs';
 import { roleFuzzyMatch } from './role-matcher.mjs';
+import { isMainModule } from './is-main.mjs';
 
 // This script now lives in core/, one directory below the repo root; ROOT is
 // the actual repo root that data/ lives under (see
@@ -179,6 +180,6 @@ function main() {
   console.error(`\n${matches.length} match(es)`); // stderr so stdout stays pipeable
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
+if (isMainModule(import.meta.url)) {
   main();
 }

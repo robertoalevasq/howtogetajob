@@ -26,6 +26,7 @@ import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { acquireTrackerLock, writeFileAtomic } from './tracker-utils.mjs';
 import { workspaceRoot } from './workspace-root.mjs';
+import { isMainModule } from './is-main.mjs';
 
 // Overridable for test isolation (same convention as discord-ticker.mjs /
 // CAREER_OPS_REPORTS_DIR elsewhere in this repo). Falls back to the current
@@ -209,7 +210,7 @@ async function main() {
   }
 }
 
-const isMain = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
+const isMain = isMainModule(import.meta.url);
 if (isMain) {
   main().catch((err) => {
     // Even the CLI wrapper never throws for a status problem — but a truly

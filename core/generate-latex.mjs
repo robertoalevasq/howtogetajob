@@ -18,6 +18,7 @@ import { resolve, basename, dirname, join } from 'path';
 import { execFileSync } from 'child_process';
 import { existsSync, mkdirSync } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
+import { isMainModule } from './is-main.mjs';
 
 const MIN_SECTIONS = 4;
 
@@ -249,6 +250,6 @@ async function main() {
   process.exit(report.compiled ? 0 : (report.valid ? 1 : 1));
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
+if (isMainModule(import.meta.url)) {
   main();
 }

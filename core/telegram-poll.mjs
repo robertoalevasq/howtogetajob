@@ -18,6 +18,7 @@ import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { runHook } from '../plugins/_engine.mjs';
 import { telegramOffsetPath } from './hub-paths.mjs';
+import { isMainModule } from './is-main.mjs';
 
 // This script now lives in core/, one directory below the repo root; ROOT is
 // the actual repo root that data/ and plugins/ live under (see
@@ -99,5 +100,5 @@ async function main() {
   process.exit(1);
 }
 
-const isMain = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
+const isMain = isMainModule(import.meta.url);
 if (isMain) main();

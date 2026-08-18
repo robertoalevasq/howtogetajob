@@ -44,6 +44,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, realpathSync, lstat
 import { join, dirname, resolve, relative, isAbsolute, basename, sep } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { createHash } from 'crypto';
+import { isMainModule } from './is-main.mjs';
 
 const CAREER_OPS = dirname(fileURLToPath(import.meta.url));
 // This script now lives in core/, one directory below the repo root; ROOT is
@@ -468,6 +469,6 @@ function main() {
   }
 }
 
-if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+if (isMainModule(import.meta.url)) {
   main();
 }

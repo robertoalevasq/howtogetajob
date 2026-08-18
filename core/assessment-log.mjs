@@ -29,6 +29,7 @@
 import { readFileSync, existsSync, appendFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
+import { isMainModule } from './is-main.mjs';
 
 const CAREER_OPS = dirname(fileURLToPath(import.meta.url));
 const LOG_PATH = join(CAREER_OPS, '..', 'data/assessments.tsv');
@@ -287,6 +288,6 @@ function main() {
   }
 }
 
-if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+if (isMainModule(import.meta.url)) {
   main();
 }

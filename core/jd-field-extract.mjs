@@ -25,6 +25,7 @@
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { isMainModule as checkIsMainModule } from './is-main.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 
@@ -301,7 +302,7 @@ export async function extractJdFields(jdObject) {
 /**
  * CLI entrypoint for testing: node jd-field-extract.mjs <url> <title> <text>
  */
-const isMainModule = process.argv[1] && process.argv[1].endsWith('jd-field-extract.mjs');
+const isMainModule = checkIsMainModule(import.meta.url);
 if (isMainModule) {
   const [, , url, title, text] = process.argv;
   if (!url) {

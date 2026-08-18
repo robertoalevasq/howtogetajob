@@ -41,6 +41,7 @@ import { fileURLToPath } from 'url';
 import { runHook } from '../plugins/_engine.mjs';
 import { acquireTrackerLock, writeFileAtomic } from './tracker-utils.mjs';
 import { workspaceRoot } from './workspace-root.mjs';
+import { isMainModule } from './is-main.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 // This script lives in core/, one directory below the repo root
@@ -276,7 +277,7 @@ async function main() {
   }
 }
 
-const isMain = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
+const isMain = isMainModule(import.meta.url);
 if (isMain) {
   main().catch((err) => {
     console.error(`❌ discord-ticker: ${err.message}`);

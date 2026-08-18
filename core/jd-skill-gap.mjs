@@ -29,6 +29,7 @@
 import { readFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { canonicalize, extractSkills } from './skill-extract.mjs';
+import { isMainModule } from './is-main.mjs';
 
 // ── Config ──────────────────────────────────────────────────────────
 
@@ -658,7 +659,7 @@ Maintained the internal Fabrikam-SDK build.
 
 // ── Main ─────────────────────────────────────────────────────────────
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
 if (selfTestMode) {
   runSelfTest();
 } else {

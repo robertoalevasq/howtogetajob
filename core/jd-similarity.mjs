@@ -11,6 +11,7 @@
 
 import { readFileSync } from 'fs';
 import { pathToFileURL } from 'url';
+import { isMainModule } from './is-main.mjs';
 
 const STOP_WORDS = new Set([
   'and', 'the', 'for', 'with', 'from', 'that', 'this', 'have', 'will', 'you',
@@ -78,7 +79,7 @@ export function recommendCvReuse(newJd, previousText, options = {}) {
   return { decision: 'regenerate', score, reason: 'low-similarity' };
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   const [newJdPath, previousPath] = process.argv.slice(2);
   if (!newJdPath || !previousPath) {
     console.error('Usage: node jd-similarity.mjs <new-jd.txt> <previous-jd-or-cv.txt>');

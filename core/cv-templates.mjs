@@ -8,6 +8,7 @@ import { readdirSync, readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import yaml from 'js-yaml';
+import { isMainModule } from './is-main.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // This script now lives in core/, one directory below the repo root; ROOT is
@@ -164,7 +165,7 @@ export function resolveTemplate(kind, name, opts = {}) {
 }
 
 // ---- CLI ----
-const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const isMain = isMainModule(import.meta.url);
 if (isMain) {
   const argv = process.argv.slice(2);
   const cmd = argv[0];

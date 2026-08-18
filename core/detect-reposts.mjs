@@ -29,6 +29,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { roleFuzzyMatch, roleTokens, BASELINE_TOKENS } from './role-matcher.mjs';
 import { normalizeCompanyName } from './invite-match.mjs';
 import { flagValue } from '../lib/cli-flags.mjs';
+import { isMainModule } from './is-main.mjs';
 
 const CAREER_OPS = dirname(fileURLToPath(import.meta.url));
 const SCAN_HISTORY_PATH = join(CAREER_OPS, '..', 'data/scan-history.tsv');
@@ -489,7 +490,7 @@ function runSelfTest() {
 }
 
 // --- Run (CLI only; guarded so the module is safely importable for tests) ---
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   if (args.includes('--help') || args.includes('-h')) {
     console.log(USAGE);
     process.exit(0);

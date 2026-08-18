@@ -15,6 +15,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { isAbsolute, join, dirname, basename } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
+import { isMainModule } from './is-main.mjs';
 
 // This script now lives in core/, one directory below the repo root; ROOT is
 // the actual repo root that cv.md, article-digest.md, and config/ live under
@@ -611,6 +612,6 @@ export function runCli(args = process.argv.slice(2)) {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   process.exitCode = runCli();
 }

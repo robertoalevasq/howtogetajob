@@ -29,6 +29,7 @@ import { loadRegistry, findInRegistry, classifySource, sourceBadge, successorFor
 import { readLock, writeLockEntry, removeLockEntry, hashPluginTree, consentSurface } from '../plugins/_lock.mjs';
 import { installFromRepo, scaffoldNew, parseRepoArg } from './plugin-install.mjs';
 import { appendToPipeline } from './scan.mjs';
+import { isMainModule } from './is-main.mjs';
 
 // This script now lives in core/, one directory below the repo root; ROOT is
 // the actual repo root that plugins/, config/, and data/ live under — every
@@ -422,6 +423,6 @@ async function main() {
   }
 }
 
-if (import.meta.url === (await import('url')).pathToFileURL(process.argv[1] || '').href) {
+if (isMainModule(import.meta.url)) {
   main().catch(err => { console.error('Fatal:', err.message); process.exit(1); });
 }

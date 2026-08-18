@@ -56,6 +56,7 @@ import {
   daysBetween,
   normalizeStatus,
 } from './followup-cadence.mjs';
+import { isMainModule } from './is-main.mjs';
 
 const CAREER_OPS = dirname(fileURLToPath(import.meta.url));
 // This script now lives in core/, one directory below the repo root; ROOT is
@@ -829,7 +830,7 @@ async function runSelfTest() {
 }
 
 // --- Run (CLI only; guarded so the module is safely importable for tests) ---
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   const { summaryMode, selfTestMode, company, silenceWindowArg, includeStale, scanHistoryOverride, followupsOverride } =
     parseArgs(process.argv);
 

@@ -29,6 +29,7 @@ import { resolve, dirname, extname } from 'path';
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
+import { isMainModule } from './is-main.mjs';
 
 const MIME_TYPES = {
   '.png': 'image/png',
@@ -253,7 +254,7 @@ async function main() {
   }
 }
 
-const isMain = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
+const isMain = isMainModule(import.meta.url);
 if (isMain) {
   main();
 }

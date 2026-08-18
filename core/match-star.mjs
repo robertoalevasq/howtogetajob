@@ -16,6 +16,7 @@
 
 import { readFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
+import { isMainModule } from './is-main.mjs';
 
 // ── Config ──────────────────────────────────────────────────────────
 
@@ -190,7 +191,7 @@ export { parseStories, tokenize, score, STOPWORDS };
 
 // ── Main ─────────────────────────────────────────────────────────────
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
 if (!existsSync(STORY_BANK_PATH)) {
   console.error(`Error: ${STORY_BANK_PATH} not found.`);
   console.error('Run /career-ops interview-prep on a role first to populate your story bank.');

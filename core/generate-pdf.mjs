@@ -33,6 +33,7 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { randomUUID } from 'node:crypto';
 import { readStyleTokens, injectThemeStyle } from './theme-style.mjs';
+import { isMainModule } from './is-main.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // This script now lives in core/, one directory below the repo root; ROOT is
@@ -696,7 +697,7 @@ export async function renderHtmlToPdf(html, outputPath, opts = {}) {
   }
 }
 
-const isMain = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
+const isMain = isMainModule(import.meta.url);
 if (isMain) {
   generatePDF().catch((err) => {
     console.error('❌ PDF generation failed:', err.message);

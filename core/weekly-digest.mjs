@@ -41,6 +41,7 @@ import { readFileSync, existsSync, readdirSync, mkdtempSync, writeFileSync, rmSy
 import { join, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import yaml from 'js-yaml';
+import { isMainModule } from './is-main.mjs';
 
 // This script now lives in core/, one directory below the repo root;
 // CAREER_OPS is the actual repo root that interview-prep/ lives under (see
@@ -653,7 +654,7 @@ async function runSelfTest() {
 
 // ── CLI ──────────────────────────────────────────────────────────────
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   const args = process.argv.slice(2);
   if (args.includes('--self-test')) {
     await runSelfTest();

@@ -19,6 +19,7 @@ import { fileURLToPath, pathToFileURL } from "url";
 import { parseArgs } from "util";
 import { assertFacts } from "./verify-cv-facts.mjs";
 import { resolveTemplate } from "./cv-templates.mjs";
+import { isMainModule } from './is-main.mjs';
 
 const OUTPUT_ROOT = resolve("output");
 
@@ -301,5 +302,5 @@ Usage:
   }
 }
 
-const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const isMain = isMainModule(import.meta.url);
 if (isMain) main();

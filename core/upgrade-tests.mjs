@@ -23,6 +23,7 @@ import { tmpdir } from 'os';
 import { join, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { seedFixture, loadExpectations } from './seed-fixture.mjs';
+import { isMainModule } from './is-main.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const CANONICAL = 'https://github.com/santifer/career-ops.git';
@@ -237,7 +238,7 @@ function canary() {
   process.exit(1);
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   const mode = process.argv[2];
   if (mode === '--pr-gate') prGate();
   else if (mode === '--canary') canary();

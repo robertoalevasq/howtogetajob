@@ -15,6 +15,7 @@
 import { existsSync, mkdirSync, symlinkSync, copyFileSync, writeFileSync, lstatSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isMainModule } from './is-main.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url))); // core/'s parent = repo root
 
@@ -173,7 +174,7 @@ async function main() {
   console.log(`workspace ready: ${wsDir}`);
 }
 
-const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+const isMain = isMainModule(import.meta.url);
 if (isMain) {
   main().catch((err) => {
     console.error(`❌ provision-workspace: ${err.message}`);

@@ -41,6 +41,7 @@ import greenhouse from '../providers/greenhouse.mjs';
 import ashby from '../providers/ashby.mjs';
 import lever from '../providers/lever.mjs';
 import workday from '../providers/workday.mjs';
+import { isMainModule } from './is-main.mjs';
 
 const CAREER_OPS = dirname(fileURLToPath(import.meta.url));
 const PORTALS_PATH = process.env.CAREER_OPS_PORTALS || join(CAREER_OPS, '..', 'portals.yml');
@@ -882,7 +883,7 @@ async function main() {
 }
 
 // --- Run (CLI only; guarded so the module is safely importable for tests) ---
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   main().catch((err) => {
     console.error(`discover-ats: ${err?.stack || err?.message || err}`);
     process.exit(1);

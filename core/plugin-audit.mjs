@@ -13,6 +13,7 @@
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { isMainModule } from './is-main.mjs';
 
 // Built from fragments so the literal API/firewall tokens never appear verbatim
 // (keeps this file clean against any future repo-wide grep).
@@ -86,7 +87,7 @@ export function auditPlugin(dir) {
 }
 
 // CLI: node plugin-audit.mjs <dir>
-if (import.meta.url === (await import('node:url')).pathToFileURL(process.argv[1] || '').href) {
+if (isMainModule(import.meta.url)) {
   const dir = process.argv[2];
   if (!dir) { console.error('Usage: node plugin-audit.mjs <plugin-dir>'); process.exit(2); }
   let result;
