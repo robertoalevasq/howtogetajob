@@ -115,7 +115,7 @@ If a field matches, warn the candidate BEFORE generating or filling an answer fo
 - **Phrasing discipline:** describe the form field and what the jurisdiction's law prohibits — never assert that the employer is breaking the law or committing a violation; exemptions and scope are not verifiable from the form.
 - This step adds a warning before the answer is drafted; it changes nothing about the existing prepare-don't-submit flow, the Step 6 `needs_candidate_confirmation` contract, or the Step 5b knock-out handling.
 
-**Applying to several roles in one sitting?** This preflight verifies the single form in front of you. Before a multi-role session — especially against scanner entries marked `**Verification:** unconfirmed (batch mode)` — run the `pipeline` mode **Liveness sweep** first (`node check-liveness.mjs --file <urls>`). It drops the dead postings from `data/pipeline.md` in one batch so you never open a tab on an expired role. To clear a whole backlog of already-evaluated, ready-to-apply rows at once (Greenhouse/Lever/Workday only, one review-before-submit gate per application), use `apply-batch` mode instead of invoking `apply` per role.
+**Applying to several roles in one sitting?** This preflight verifies the single form in front of you. Before a multi-role session — especially against scanner entries marked `**Verification:** unconfirmed (batch mode)` — run the `pipeline` mode **Liveness sweep** first (`node core/check-liveness.mjs --file <urls>`). It drops the dead postings from `data/pipeline.md` in one batch so you never open a tab on an expired role. To clear a whole backlog of already-evaluated, ready-to-apply rows at once (Greenhouse/Lever/Workday only, one review-before-submit gate per application), use `apply-batch` mode instead of invoking `apply` per role.
 
 ## Step 5e — Source-freshness check
 
@@ -313,14 +313,14 @@ Write the section at the end of the report, or replace only the existing `## App
 Use `application-answers.mjs` when possible to format/upsert the section:
 
 ```bash
-node application-answers.mjs --report reports/NNN-company-role-date.md --input answers.json --state filled
+node core/application-answers.mjs --report reports/NNN-company-role-date.md --input answers.json --state filled
 ```
 
 ## Step 9 — Post-apply (optional)
 
 If the candidate confirms that they submitted the application:
-1. Update status to Applied via the canonical CLI: `node set-status.mjs <report#> Applied` (never hand-edit the table). If the candidate submitted on a different day than today, add `--on YYYY-MM-DD` with the actual submission date — the status-log ledger should record when it happened, not when it was typed in.
-2. Seed the follow-up schedule: run `node followup-seed.mjs {num} --json` (where `{num}` is the tracker row number). If the candidate applied on a different day than today, pass `--date YYYY-MM-DD` with the actual submission date. It's idempotent, so re-running is safe. (`--on` and `--date` are the same concept — the real submission date — each under its own script's flag name; pass the same value to both.)
+1. Update status to Applied via the canonical CLI: `node core/set-status.mjs <report#> Applied` (never hand-edit the table). If the candidate submitted on a different day than today, add `--on YYYY-MM-DD` with the actual submission date — the status-log ledger should record when it happened, not when it was typed in.
+2. Seed the follow-up schedule: run `node core/followup-seed.mjs {num} --json` (where `{num}` is the tracker row number). If the candidate applied on a different day than today, pass `--date YYYY-MM-DD` with the actual submission date. It's idempotent, so re-running is safe. (`--on` and `--date` are the same concept — the real submission date — each under its own script's flag name; pass the same value to both.)
 3. Refresh the report's `## Application Answers` section with the final field values and `**State:** submitted`
 4. Suggest next step: run the `contacto` mode (`/career-ops contacto` where available) for LinkedIn outreach
 

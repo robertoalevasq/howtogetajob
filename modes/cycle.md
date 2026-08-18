@@ -67,11 +67,11 @@ pipeline backlog) instead.
 
 Two cheap, zero-token checks before spending any time on Step 1:
 
-1. **`node validate-portals.mjs`** — structural validation of `portals.yml`
+1. **`node core/validate-portals.mjs`** — structural validation of `portals.yml`
    (schema/shape, no network calls). If it fails, stop here and report the
    specific errors — scanning against a broken config wastes the whole run
    on results from whatever partially-parsed config survived.
-2. **`node reconcile-pipeline.mjs`** — syncs any URLs already evaluated via
+2. **`node core/reconcile-pipeline.mjs`** — syncs any URLs already evaluated via
    `/career-ops batch` (which writes to `batch/batch-state.tsv` but never
    back to `data/pipeline.md`) into `data/pipeline.md`'s "Processed" section.
    Skip this without it and a URL you already batch-evaluated between `cycle`
@@ -88,7 +88,7 @@ did:
 - **`data/cache/cycle-status.json`, via `cycle-status.mjs`** — the fine-grained, always-on record.
   Updated at *every* checkpoint below with no throttling (it's a local file write behind a short
   lock, effectively free — no network, no rate limit exposure). Check it anytime from the terminal
-  with `node cycle-status.mjs` (human-readable) or `node cycle-status.mjs --json`. `update()` never
+  with `node core/cycle-status.mjs` (human-readable) or `node core/cycle-status.mjs --json`. `update()` never
   throws and is never fatal to the run — a write that can't acquire its lock is logged to
   `data/cycle-status.log` and skipped; guardrail 5 above covers why this must never block Steps 1–4.
 - **Discord, via `discord-ticker.mjs`** — the coarse-grained, phone-checkable signal. One message,
@@ -101,13 +101,13 @@ persists the message id to disk (not agent-turn memory), falling back to a fresh
 the old one fails after retries — see the script's own header comment for why (a 2026-08-04 run
 went permanently silent on a single malformed embed under the old hand-built convention).
 
-1. **Right after Step 0 passes**, start both fresh: `node cycle-status.mjs reset` and
-   `node discord-ticker.mjs reset` (clears any stale state from a previous interrupted run).
+1. **Right after Step 0 passes**, start both fresh: `node core/cycle-status.mjs reset` and
+   `node core/discord-ticker.mjs reset` (clears any stale state from a previous interrupted run).
 2. Update `cycle-status.mjs` at *every* checkpoint listed below — write a small JSON patch to a
    scratch file (`{"step": {"id": "...", "label": "..."}, "counters": {...}}`, only the fields that
-   changed) and run `node cycle-status.mjs update --file <patch-path>`.
+   changed) and run `node core/cycle-status.mjs update --file <patch-path>`.
 3. Tick `discord-ticker.mjs` only at the **Discord-throttled** checkpoints marked below — write the
-   embed JSON to a scratch file and run `node discord-ticker.mjs tick --embed-file <scratch-path>`.
+   embed JSON to a scratch file and run `node core/discord-ticker.mjs tick --embed-file <scratch-path>`.
 4. On the run's last checkpoint: `cycle-status.mjs` gets `step.id: "done"`; `discord-ticker.mjs`
    gets one final tick with a short completion marker — title `"✅ career-ops cycle — complete"`,
    description `"Full report below."`, color `"#57F287"` (green; the detailed report still goes out
@@ -167,8 +167,8 @@ completion yourself — the user should never need a second terminal:
 
 1. Check whether `data/cache/ats-full-checkpoint.json` exists.
    - Exists (an earlier sweep was interrupted) → run
-     `node scan-ats-full.mjs --resume`
-   - Absent → run `node scan-ats-full.mjs` (fresh sweep, default `--since 3`
+     `node core/scan-ats-full.mjs --resume`
+   - Absent → run `node core/scan-ats-full.mjs` (fresh sweep, default `--since 3`
      window unless the user asked for a wider one)
 2. Launch it as a background shell process (not a blocking foreground call)
    so you can keep narrating progress instead of going silent for hours.
@@ -186,7 +186,7 @@ completion yourself — the user should never need a second terminal:
 Capture both passes' output summaries (offers found / filtered / duplicates
 / new added) to show in the final report.
 
-After both passes complete, run `node detect-reposts.mjs --summary` — it
+After both passes complete, run `node core/detect-reposts.mjs --summary` — it
 flags roles re-listed 2+ times in the last 90 days from `data/scan-history.tsv`
 (a churn/ghost-posting signal a single scan can't see on its own, since it
 only ever looks at "is this URL new," not "have I seen this same role
@@ -251,8 +251,8 @@ time, not just when it "looks big":
   subagent's own prompt must inline the full two-command chain, not just point
   to "run modes/latex.md". Give it the explicit commands:
   1. Build the tailored JSON payload from this report + cv.md, write to `/tmp/cv-{candidate}-{company}.json`
-  2. `node build-cv-latex.mjs /tmp/cv-{candidate}-{company}.json output/{num}-{company}-{YYYY-MM-DD}.tex`
-  3. `node generate-latex.mjs output/{num}-{company}-{YYYY-MM-DD}.tex output/{num}-{company}-{YYYY-MM-DD}.pdf`
+  2. `node core/build-cv-latex.mjs /tmp/cv-{candidate}-{company}.json output/{num}-{company}-{YYYY-MM-DD}.tex`
+  3. `node core/generate-latex.mjs output/{num}-{company}-{YYYY-MM-DD}.tex output/{num}-{company}-{YYYY-MM-DD}.pdf`
   
   This prevents the subagent from losing the thread and improvising a fallback.
 
@@ -322,10 +322,10 @@ stays that way depends on `_custom.md`:
 - **`_custom.md` states a deferred-merge preference** (e.g. "do NOT run
   `merge-tracker.mjs` until explicitly told to") → leave the TSVs unmerged.
   Report the count waiting in the Step 4 summary and remind the user to run
-  `node merge-tracker.mjs` when ready. This is not a partial failure — it's
+  `node core/merge-tracker.mjs` when ready. This is not a partial failure — it's
   the requested behavior.
 - **No such preference is recorded** (default) → run `node
-  merge-tracker.mjs` now, so `data/applications.md` reflects this run
+  core/merge-tracker.mjs` now, so `data/applications.md` reflects this run
   immediately and the deliverable (Step 5) is describing the current, real
   tracker state rather than something the user still has to go merge by hand.
 
@@ -335,20 +335,20 @@ Two more zero-token checks, cleanup rather than pre-flight, run after the
 merge decision and before summarizing. If Step 3.5 merged, these now cover
 this run's own new rows too — that ordering is deliberate.
 
-1. **`node sync-pdf-flags.mjs`** — reconciles the tracker's PDF column
+1. **`node core/sync-pdf-flags.mjs`** — reconciles the tracker's PDF column
    against `data/pdf-index.tsv` (the canonical PDF↔report manifest). Step 2's
    wave-batched parallel subagents and Step 3's safety net both write PDFs
    and tracker rows independently; a race between "PDF file written" and
    "tracker cell updated" can leave a stale ❌ next to a PDF that actually
    exists. This self-heals it rather than leaving the user to notice and
    wonder why a PDF that clearly exists shows as missing.
-2. **`node verify-pipeline.mjs`** — the standard pipeline health check
+2. **`node core/verify-pipeline.mjs`** — the standard pipeline health check
    (broken report↔tracker links, stale report-number reservations, etc.).
    This is normally a manual command; running it automatically here catches
    an integrity problem from a `cycle`-scale run (many parallel writers) the
    same day instead of it surfacing as confusion days later. Fold any issues
    it reports into the Step 4 summary — don't silently swallow them.
-3. **`node reserve-report-num.mjs --gc`** — releases any report-number
+3. **`node core/reserve-report-num.mjs --gc`** — releases any report-number
    reservation sentinels left behind by a crashed or abandoned worker (the
    same class of leak that produced 104 stray `{num}-RESERVED.md` files in
    `reports/` on 2026-08-04, cleaned up by hand after the fact). Cheap,
@@ -372,7 +372,7 @@ Reposts flagged: N (churn/ghost-posting signal — see notes below)
 Pipeline:  N URLs processed → N pre-filtered (no fetch — metadata pre-filter), N reports written,
            N discarded (pre-screen, after fetch), N inaccessible
 Tracker:   N TSV rows written → merged into data/applications.md
-           [or: N TSV rows written, unmerged per _custom.md — run `node merge-tracker.mjs` when ready]
+           [or: N TSV rows written, unmerged per _custom.md — run `node core/merge-tracker.mjs` when ready]
 PDFs:      N generated inline (Step 2) + N generated by the safety net (Step 3) = N total
 Integrity: N PDF flags reconciled, N stale reservation(s) released, N issue(s) from
            verify-pipeline.mjs [or "clean"]
@@ -441,7 +441,7 @@ roll-up, not a re-print.
 ### Fallback (if `_custom.md` is absent or silent)
 
 **Discord:**
-1. If Discord plugin is not configured (`node plugins.mjs list`) or `DISCORD_WEBHOOK_URL` is missing from `.env`, skip Discord delivery and log it in the final report.
+1. If Discord plugin is not configured (`node core/plugins.mjs list`) or `DISCORD_WEBHOOK_URL` is missing from `.env`, skip Discord delivery and log it in the final report.
 2. Collect PDF paths from Step 2 (inline) + Step 3 (safety net) for entries scoring `>= auto_pdf_score_threshold`.
 3. Send a plain-text message per `_custom.md`'s Discord Notifications Phase 1 (for every match ≥3.5, send tier marker, company, role, score, URL, one-line reason; split if message exceeds ~2000 chars).
 4. Attach all PDFs in chunks of ≤10 files per message, labeled `"Resumes 1/N"`, `"Resumes 2/N"`, etc.

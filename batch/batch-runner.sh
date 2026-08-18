@@ -459,14 +459,14 @@ reserve_report_num_unlocked() {
   # sentinel files in reserve-report-num.mjs) instead of the old bash-native
   # max(existing report files, batch-state.tsv numbers)+1 scan. The bash-native
   # version had zero visibility into reservations made by any OTHER process
-  # calling `node reserve-report-num.mjs` directly -- e.g. an interactively
+  # calling `node core/reserve-report-num.mjs` directly -- e.g. an interactively
   # dispatched Agent evaluating one offer with a browser tool while a batch
   # run is in flight. Both could independently compute the same "next" number
   # and collide on disk. Found 2026-07-30: two separate collisions (report
   # 049, report 051) in one batch run for exactly this reason -- routing every
   # caller through the same node script means they all share one real lock.
   local report_num=""
-  report_num=$(node "$PROJECT_DIR/reserve-report-num.mjs" 2>/dev/null | tr -d '[:space:]')
+  report_num=$(node "$PROJECT_DIR/core/reserve-report-num.mjs" 2>/dev/null | tr -d '[:space:]')
   if [[ -n "$report_num" ]]; then
     update_state_unlocked "$id" "$url" "processing" "$started" "-" "$report_num" "-" "-" "$retries"
   fi
@@ -480,7 +480,7 @@ reserve_report_num_unlocked() {
 release_report_num() {
   local report_num="$1"
   [[ -n "$report_num" && "$report_num" != "-" ]] || return 0
-  node "$PROJECT_DIR/reserve-report-num.mjs" --release "$report_num" >/dev/null 2>&1 || true
+  node "$PROJECT_DIR/core/reserve-report-num.mjs" --release "$report_num" >/dev/null 2>&1 || true
 }
 
 reserve_report_num() {
@@ -757,13 +757,13 @@ process_offer() {
 merge_tracker() {
   echo ""
   echo "=== Merging tracker additions ==="
-  node "$PROJECT_DIR/merge-tracker.mjs"
+  node "$PROJECT_DIR/core/merge-tracker.mjs"
   echo ""
   echo "=== Reconciling pipeline.md ==="
-  node "$PROJECT_DIR/reconcile-pipeline.mjs" || echo "⚠️  Pipeline reconcile had issues (see above)"
+  node "$PROJECT_DIR/core/reconcile-pipeline.mjs" || echo "⚠️  Pipeline reconcile had issues (see above)"
   echo ""
   echo "=== Verifying pipeline integrity ==="
-  node "$PROJECT_DIR/verify-pipeline.mjs" || echo "⚠️  Verification found issues (see above)"
+  node "$PROJECT_DIR/core/verify-pipeline.mjs" || echo "⚠️  Verification found issues (see above)"
 }
 
 # Print summary
@@ -910,10 +910,10 @@ watch_status() {
   print_status_table
 
   # Chain verify-pipeline.mjs
-  if [[ -f "$PROJECT_DIR/verify-pipeline.mjs" ]]; then
+  if [[ -f "$PROJECT_DIR/core/verify-pipeline.mjs" ]]; then
     echo ""
     echo "=== Running pipeline verification ==="
-    node "$PROJECT_DIR/verify-pipeline.mjs" || echo "⚠️  Verification found issues"
+    node "$PROJECT_DIR/core/verify-pipeline.mjs" || echo "⚠️  Verification found issues"
   fi
 }
 

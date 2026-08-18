@@ -5,7 +5,7 @@
 `telegram-monitor.mjs` is a **minimal Claude entry point** for Telegram polling that eliminates token waste on empty results.
 
 **How it works:**
-1. **Polls Telegram headlessly** via `node telegram-poll.mjs poll` (zero tokens, pure Node.js)
+1. **Polls Telegram headlessly** via `node core/telegram-poll.mjs poll` (zero tokens, pure Node.js)
 2. **Exits silently if no messages** (zero Claude context loaded)
 3. **Invokes Claude routing** only when messages exist (Steps 2-6 of `modes/telegram.md`)
 
@@ -42,7 +42,7 @@ The task will now run every 5 minutes in the background.
 ```
 [Task Scheduler] every 5 min
          ↓
-    node telegram-monitor.mjs
+    node core/telegram-monitor.mjs
          ↓
     telegram-poll.mjs (headless, zero tokens)
          ↓
@@ -56,14 +56,14 @@ The task will now run every 5 minutes in the background.
 
 **No messages (0 tokens spent):**
 ```bash
-$ node telegram-monitor.mjs
+$ node core/telegram-monitor.mjs
 $ echo $?
 0  # Exit silently
 ```
 
 **Messages arrive (Claude routing invoked):**
 ```bash
-$ node telegram-monitor.mjs
+$ node core/telegram-monitor.mjs
 [Claude would route 1 message(s) via modes/telegram.md Steps 2-6]
 {"status": "routing", "message_count": 1}
 ```
@@ -72,13 +72,13 @@ $ node telegram-monitor.mjs
 
 ```bash
 # Poll once (exits silently if empty)
-node telegram-monitor.mjs
+node core/telegram-monitor.mjs
 
 # Reset polling offset (same as telegram-poll.mjs reset)
-node telegram-monitor.mjs --reset
+node core/telegram-monitor.mjs --reset
 
 # Manual poll via telegram-poll.mjs (also exits silently if empty)
-node telegram-poll.mjs poll
+node core/telegram-poll.mjs poll
 ```
 
 ## Monitoring
@@ -135,7 +135,7 @@ Invoked every 5 minutes via `telegram-monitor.mjs`:
 ### Task runs but messages not routed
 - Verify `.env` has `TELEGRAM_BOT_TOKEN` set
 - Verify `config/plugins.yml` has `telegram.enabled: true` and `telegram.chat_id` set
-- Run `node telegram-poll.mjs poll` manually to test — should return `{"messages": []}`
+- Run `node core/telegram-poll.mjs poll` manually to test — should return `{"messages": []}`
 
 ### "Node not found" error
 - Ensure Node.js is installed and `node` is in PATH
@@ -150,7 +150,7 @@ Replace the batch file with a cron job:
 crontab -e
 
 # Add this line (runs every 5 minutes):
-*/5 * * * * cd /path/to/career-ops && node telegram-monitor.mjs
+*/5 * * * * cd /path/to/career-ops && node core/telegram-monitor.mjs
 ```
 
 Then save and exit. Cron will handle scheduling automatically.
@@ -165,7 +165,7 @@ After=network.target
 [Service]
 Type=oneshot
 WorkingDirectory=/path/to/career-ops
-ExecStart=/usr/bin/node telegram-monitor.mjs
+ExecStart=/usr/bin/node core/telegram-monitor.mjs
 
 # Create /etc/systemd/system/telegram-monitor.timer
 [Unit]

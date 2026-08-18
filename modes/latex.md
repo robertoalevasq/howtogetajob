@@ -15,8 +15,8 @@ Export a tailored, ATS-optimized CV as a `.tex` file and compile it to PDF via `
 9. Reorder experience bullets by JD relevance
 10. Inject keywords naturally into existing achievements
 11. Build a JSON payload (see schema below) and write to `/tmp/cv-{candidate}-{company}.json`
-12. Run: `node build-cv-latex.mjs /tmp/cv-{candidate}-{company}.json output/cv-{candidate}-{company}-{YYYY-MM-DD}.tex`
-13. Run: `node generate-latex.mjs output/cv-{candidate}-{company}-{YYYY-MM-DD}.tex output/cv-{candidate}-{company}-{YYYY-MM-DD}.pdf`
+12. Run: `node core/build-cv-latex.mjs /tmp/cv-{candidate}-{company}.json output/cv-{candidate}-{company}-{YYYY-MM-DD}.tex`
+13. Run: `node core/generate-latex.mjs output/cv-{candidate}-{company}-{YYYY-MM-DD}.tex output/cv-{candidate}-{company}-{YYYY-MM-DD}.pdf`
     *(Replace `{candidate}`, `{company}`, `{YYYY-MM-DD}` with actual values.)*
 14. Report: .tex path, .pdf path, file sizes, section count, keyword coverage %
 
@@ -34,8 +34,8 @@ When running as a non-interactive `cycle` Step-3 safety-net subagent against an 
    - Build a competency grid (6-8 keywords) from Block B's North Star section, never inventing skills.
 3. **Write the payload to JSON** at `/tmp/cv-{candidate}-{company}.json` (fresh every time; never hardcode content as script literals).
 4. **Compile to PDF:** exactly as Steps 12-13 above:
-   - `node build-cv-latex.mjs /tmp/cv-{candidate}-{company}.json output/{num}-{company}-{YYYY-MM-DD}.tex`
-   - `node generate-latex.mjs output/{num}-{company}-{YYYY-MM-DD}.tex output/{num}-{company}-{YYYY-MM-DD}.pdf`
+   - `node core/build-cv-latex.mjs /tmp/cv-{candidate}-{company}.json output/{num}-{company}-{YYYY-MM-DD}.tex`
+   - `node core/generate-latex.mjs output/{num}-{company}-{YYYY-MM-DD}.tex output/{num}-{company}-{YYYY-MM-DD}.pdf`
 
 This ensures each report's PDF is truly tailored to its own evaluated role, not a hardcoded generic template.
 
