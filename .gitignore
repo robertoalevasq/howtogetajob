@@ -23,6 +23,10 @@ reports/*.md
 !reports/.gitkeep
 output/*
 !output/.gitkeep
+# Historical/session archive snapshots — user-layer working data, same
+# treatment as reports/output/data above, never system-layer content.
+archive/*
+!archive/.gitkeep
 data/batch-logs/*
 !data/batch-logs/.gitkeep
 data/batch-state.tsv
@@ -120,6 +124,14 @@ package-lock.json
 
 # Playwright MCP server run artifacts (ephemeral, machine-local)
 .playwright-mcp/
+
+# Scratch JSON payloads for CV builders (repo-relative, replaces hardcoded
+# /tmp/ paths that had no reliable meaning on Windows — see modes/latex.md
+# and modes/pdf.md's non-interactive invocation sections)
+.tmp/
+
+# LaTeX build cache (transient, generate-latex.mjs writes here)
+.temp-latex/
 
 # Planning (local scratchpad)
 plan/
