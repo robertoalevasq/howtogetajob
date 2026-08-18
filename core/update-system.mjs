@@ -164,6 +164,7 @@ export const SYSTEM_PATHS = [
   'modes/zh/',
   'modes/zh/interview/',
   'modes/zh-TW/',
+  'AGENTS.md',
   'CLAUDE.md',
   'CODEX.md',
   'OPENCODE.md',
@@ -265,6 +266,8 @@ export const SYSTEM_PATHS = [
   'templates/plugins.example.yml',
   'opencode.example.json',
   'test-fixtures/',
+  'telegram-daemon-wrapper.bat',
+  'telegram-setup-scheduler.bat',
 ];
 
 const BOOTSTRAP_PATHS = [
