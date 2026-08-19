@@ -519,7 +519,19 @@ async function importHook(manifest, kind) {
  * so a caller that hasn't gone through workspaceRoot() still behaves exactly
  * as before (identical directory either way outside a workspace checkout).
  * @param {string} kind
- * @param {{ root: string, workspaceRoot?: string, dryRun?: boolean }} opts
+ * @param {{ root: string, workspaceRoot?: string, dryRun?: boolean, only?: string, forceEnabled?: boolean }} opts
+ * @param {string} [opts.only]   Load ONLY the plugin with this exact id; every other
+ *   discovered manifest exposing `kind` is filtered out before the enabled check.
+ * @param {boolean} [opts.forceEnabled]   Skip the config/plugins.yml enabled-gate —
+ *   but ONLY for the single manifest whose id equals `only`. Without `only`, or for
+ *   any manifest that isn't it, this does nothing: it is never a blanket bypass.
+ *   Exists for callers that are legitimately hub-global or explicitly targeted and
+ *   therefore have no per-workspace config/plugins.yml to consult (core/plugins.mjs's
+ *   `--chat-id` flag, core/telegram-poll.mjs's hub-global poll,
+ *   core/telegram-monitor.mjs's sendCannedReply). Note this skips pluginStatus()
+ *   wholesale, so the requiredEnv presence check goes with it — a force-enabled
+ *   hook must detect its own missing key and fail gracefully (both telegram hooks
+ *   do). The lockGate() integrity/consent check is NOT bypassed and still runs.
  * @returns {Promise<Array<{ id: string, manifest: PluginManifestNormalized, hook: any, ctx: PluginContext }>>}
  */
 // Phrases that suggest a skill is trying to hijack the agent rather than
@@ -662,7 +674,13 @@ export async function loadDotenvOnce() {
  * the wrong directory and every plugin reads as disabled.
  * @param {string} kind
  * @param {*} payload   For provider this is unused; for ingest none; search a query; export a snapshot; notify a payload.
- * @param {{ root: string, workspaceRoot?: string, dryRun?: boolean, timeoutMs?: number }} opts
+ * @param {{ root: string, workspaceRoot?: string, dryRun?: boolean, timeoutMs?: number, only?: string, forceEnabled?: boolean }} opts
+ * @param {string} [opts.only]   Run the hook for ONLY the plugin with this exact id.
+ *   Passed straight through to loadPlugins().
+ * @param {boolean} [opts.forceEnabled]   Bypass the config/plugins.yml enabled-gate
+ *   for the single plugin named by `only` — and only for it. Passed straight through
+ *   to loadPlugins(); see its @param for the full scoping rules and why this is never
+ *   a blanket bypass. Without `only`, it has no effect at all.
  * @returns {Promise<Array<{ id: string, ok: boolean, result?: any, error?: string }>>}
  */
 export async function runHook(kind, payload, { root, workspaceRoot = root, dryRun = false, timeoutMs = DEFAULT_HOOK_TIMEOUT_MS, only, forceEnabled }) {

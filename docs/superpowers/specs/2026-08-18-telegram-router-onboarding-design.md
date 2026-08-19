@@ -257,6 +257,23 @@ separation, per the earlier decision.
 
 ## Migration
 
-None. This is additive — no existing data changes shape. The one behavior
-change to existing code is the `ingest()` allowlist removal and the
+Almost none — no existing data changes shape, and the only behavior changes to
+existing code are the `ingest()` allowlist removal and the
 `invokeClaudeRoutingOnce` cwd parameterization described above.
+
+**One manual step is required, though** (corrected 2026-08-19 during final
+review; the section previously read "None"). An existing single-tenant
+operator already has their `chat_id` in `config/plugins.yml`, but the router
+reads bindings exclusively from `workspaces/{slug}/workspace.json` — a
+freshly-provisioned workspace has `"chat_id": null`, so the operator's own
+messages would fall through to the access-code gate. Bind once, per workspace:
+
+```bash
+node core/provision-workspace.mjs --bind-chat <slug> <chatId>
+```
+
+Note this is deliberately one chat per workspace. A `config/plugins.yml` with
+several entries under `chat_ids` (a multi-recipient *notify* fan-out) has no
+equivalent under the router's inbound model: only the single bound `chat_id`
+routes in. Any additional chat that should be able to *drive* a workspace
+needs its own workspace, or it stays notify-only.
