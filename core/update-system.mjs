@@ -209,7 +209,7 @@ export const SYSTEM_PATHS = [
   '.grok/skills/',
   '.kimi/skills/',
   'docs/',
-  'writing-samples/README.md',
+  'templates/writing-samples/README.md',
   'VERSION',
   'DATA_CONTRACT.md',
   'MANIFESTO.md',
@@ -322,6 +322,11 @@ const USER_PATHS = [
   'opencode.json',
   '.claude/settings.json',
   '.claude/hooks/',
+  // Per-user workspace directories (multi-tenancy). Prefix match covers every
+  // tracked scaffold file under any workspace (.gitkeep placeholders, seeded
+  // real files like voice-dna.md/writing-samples/README.md) without needing
+  // per-slug or per-file enumeration as new workspaces get provisioned.
+  'workspaces/',
 ];
 
 function parseVersionFile(raw) {

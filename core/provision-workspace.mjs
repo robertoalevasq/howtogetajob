@@ -48,6 +48,7 @@ const SEEDED_FILES = [
   { target: '_brief.md', template: 'modes/_brief.template.md' },
   { target: 'interview-prep/sessions/.gitkeep', template: 'templates/interview-prep-sessions/.gitkeep' },
   { target: 'interview-prep/sessions/README.md', template: 'templates/interview-prep-sessions/README.md' },
+  { target: 'writing-samples/README.md', template: 'templates/writing-samples/README.md' },
 ];
 
 const PIPELINE_SKELETON = `# Pipeline — Pending URLs
