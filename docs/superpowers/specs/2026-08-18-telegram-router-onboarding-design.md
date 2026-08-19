@@ -113,14 +113,20 @@ groups by `chatId` first, then for each:
 
 1. **Bound** (`chatId` found in some `workspaces/*/workspace.json`) → resolve
    that workspace's absolute path. This chat's messages go to the existing
-   `modes/telegram.md` routing prompt, invoked with `cwd` **and**
-   `CAREER_OPS_WORKSPACE` both set to that path (see "Fixing the cwd gap"
-   below — env var alone is not sufficient).
+   `modes/telegram.md` routing prompt, invoked with `cwd` set to that path
+   (implemented via the `cwd` parameter alone — no `CAREER_OPS_WORKSPACE`
+   env var is set for this dispatch; `workspaceRoot()`'s own `process.cwd()`
+   fallback already resolves correctly once `cwd` is right, so the env var
+   turned out to be unnecessary).
 2. **Unbound, `data/onboarding/{chatId}.json` exists** → mid-onboarding.
    Invoke the onboarding prompt (below) with the accumulated state and the
-   new message. `cwd` is `workspaces/{slug}` if the state's `slug` is
-   already set (workspace already scaffolded), otherwise the repo root (no
-   workspace-specific file access happens before a slug exists).
+   new message. **`cwd` is always the repo root, never `workspaces/{slug}`**
+   — even once a slug is scaffolded (revised during the final review: the
+   onboarding conversation's own bare-relative tool calls, e.g. deleting
+   `data/onboarding/{chatId}.json`, must resolve against the repo root
+   regardless of how far along the conversation is; every workspace-specific
+   file write already uses a full `workspaces/{slug}/...` path, so nothing
+   in the conversation actually depends on a workspace-relative `cwd`).
 3. **Unbound, no onboarding state, message text (trimmed of surrounding
    whitespace, matched case-sensitively) equals a pending, unexpired code in
    `access-codes.json`** → check the lockout (below) first — if this chat
