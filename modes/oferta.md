@@ -26,6 +26,30 @@ If `data/blacklist.md` exists, check the posting's company against it before Blo
 2. Wait for an explicit answer — never silently refuse, never silently proceed. The candidate's call always wins (same HITL spirit as the score < 4.0 rule): an explicit yes runs the full A-G evaluation as normal (note the override in the report notes); anything else stops here with no evaluation, report, or CV.
 3. No match, or no `data/blacklist.md` → proceed. A blacklist entry never changes any score anywhere — it is a gate, not a signal.
 
+**`[HEADLESS]` invocation:** falls into the same "anything else" branch as an explicit no — stop here, no evaluation/report/CV, log it, continue to the next URL. Never wait for an answer that can't arrive.
+
+## Salary floor gate (#2087)
+
+Extract advertised salary range from the JD. Compare against `config/profile.yml` → `compensation.floor` ($60,000 default).
+
+1. If max salary < floor ($60K):
+   - **Stop before Block A** and surface the constraint:
+     > "Advertised salary {range} is below your floor ($60K). Do you still want me to evaluate this posting, or skip it?"
+   - Wait for explicit answer. If yes, run full A-G evaluation and **cap score at 2.5/5** (note the gate override in report notes). If no or no answer, stop here with no evaluation, report, or CV.
+   - **`[HEADLESS]` invocation:** falls into "no answer" — stop here, no evaluation/report/CV, log it, continue.
+2. If advertised salary meets or exceeds floor, or no salary is posted, proceed.
+
+## Experience requirement gate (#2087)
+
+Extract required years of experience from the JD. Compare against the candidate's actual experience (from `cv.md` and `config/profile.yml`).
+
+1. If required years > candidate's actual years in that domain:
+   - **Stop before Block A** and surface the constraint:
+     > "Role requires {X}+ years {domain}; you have {Y} years. Do you still want me to evaluate this posting, or skip it?"
+   - Wait for explicit answer. If yes, run full A-G evaluation and **cap score at 2.5/5** (note the gate override in report notes). If no or no answer, stop here with no evaluation, report, or CV.
+   - **`[HEADLESS]` invocation:** falls into "no answer" — stop here, no evaluation/report/CV, log it, continue.
+2. If candidate meets or exceeds the requirement, or requirement is not stated, proceed.
+
 ## Bounded Research Budget
 
 Company, compensation, and hiring-signal research must be a single-pass lookup, not an open-ended investigation. This mode is an evaluation workflow, not deep company research.
@@ -528,6 +552,7 @@ Save full evaluation in `reports/{###}-{company-slug}-{YYYY-MM-DD}.md`.
 
 **Date:** {YYYY-MM-DD}
 **URL:**
+**ATS Platform:** {Workday | Greenhouse | Lever | Ashby | iCIMS | Other} — inferred from the URL's domain (`myworkdayjobs.com`/`myworkdaysite.com` → Workday, `greenhouse.io` → Greenhouse, `lever.co` → Lever, `ashbyhq.com` → Ashby, `icims.com` → iCIMS; anything else → Other). Added 2026-08-13 for future platform-aware tailoring; a simple domain lookup, no new dependency or research required.
 **Via:** {agency/recruiter firm, or — for direct applications}
 **Archetype:** {detected}
 **Score:** {X/5}
@@ -580,7 +605,7 @@ Save full evaluation in `reports/{###}-{company-slug}-{YYYY-MM-DD}.md`.
 **ALWAYS** record in `data/applications.md`:
 - Next sequential number
 - Current date
-- Company — the END employer. If the JD is agency-mediated ("our client", agency domain, no employer named), ASK the user which agency it came through, use `?` as Company, and put a distinguishing descriptor in Notes (e.g. `fintech, Leeds`). Never write "Confidential" — the `?` marker is locale-invariant and can't collide with a real firm.
+- Company — the END employer. If the JD is agency-mediated ("our client", agency domain, no employer named), ASK the user which agency it came through, use `?` as Company, and put a distinguishing descriptor in Notes (e.g. `fintech, Leeds`). Never write "Confidential" — the `?` marker is locale-invariant and can't collide with a real firm. **`[HEADLESS]` invocation:** never wait here — write the row now with `?` as Company and the descriptor in Notes, omit the Via tag rather than guessing at an agency name.
 - Via (when the tracker has the column) — the agency/recruiter firm, `—` for direct. In the tracker-addition TSV, append it as a tagged extra field: `via={Agency}` (see the TSV format spec).
 - Role
 - Score: match average (1-5) — Read `_custom.md` → Scoring Rules, if it exists, and apply its override here. Default (if absent or silent): average of block scores.

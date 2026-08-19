@@ -9,6 +9,8 @@ Interactive mode for when the candidate is filling out an application form in Ch
 - **Best with Playwright in visible mode**: In visible mode, the candidate sees the browser and the agent can interact with the page.
 - **Without Playwright**: the candidate shares a screenshot or pastes the questions manually.
 
+**`[HEADLESS]` invocation, outside `modes/telegram.md`'s wrapper:** this mode's every "stop and wait for the candidate" checkpoint below is a genuine hard-stop gate, not a stall to route around — applying/submitting never proceeds without explicit human approval, full stop, regardless of invocation mode (see AGENTS.md's Off-Limits). `modes/telegram.md` already handles this safely for its own callers by converting each of these checkpoints into a Telegram message + a pending confirmation. If this mode is invoked headlessly by anything else (a bare scheduled/headless call with no Telegram or live-chat context to answer), refuse immediately: report that `apply` requires interactive or Telegram-mediated approval and cannot proceed unattended, and stop — do not guess an answer to any checkpoint below.
+
 ## Workflow
 
 ```text

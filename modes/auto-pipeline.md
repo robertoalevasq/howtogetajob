@@ -15,7 +15,7 @@ If the input is a **URL** (not pasted JD text), follow this strategy to extract 
 2. **WebFetch (fallback):** For static pages (ZipRecruiter, WeLoveProduct, company career pages).
 3. **WebSearch (last resort):** Search for the role title + company in secondary portals that index the JD in static HTML.
 
-**If no method works:** Ask the candidate to paste the JD manually or share a screenshot.
+**If no method works:** Ask the candidate to paste the JD manually or share a screenshot. **`[HEADLESS]` invocation** (see AGENTS.md → "Headless Invocation Signal" — no live chat to ask): skip this and treat the URL as inaccessible — mark it `- [!]` in `data/pipeline.md` with the failure reason, log it, and continue to the next URL. Never stall waiting for a paste that can't arrive.
 
 **If the input is JD text** (not a URL): use directly, without needing to fetch.
 
@@ -37,11 +37,13 @@ If `data/blacklist.md` exists, check the posting's company against it before run
 
 On a hit, **stop before Step 1** and surface the candidate's own recorded decision: tell them which entry matched and quote their recorded reason ("{Company} is on your blacklist (since {Since}): *{Reason}*. Do you still want me to evaluate it?"). Wait for an explicit answer — never silently refuse, never silently proceed. The candidate's call always wins (same HITL spirit as the score < 4.0 rule): an explicit yes continues to Step 1 as normal; anything else stops the pipeline here, and if the entry came from `data/pipeline.md`, mark it `- [x] ~~Company | Role~~ — blacklisted`. A blacklist entry never changes any score.
 
+**`[HEADLESS]` invocation:** never wait here — a blacklist entry means do-not-apply, so the safe autonomous default is to skip, not to guess "yes." Stop the pipeline for this entry exactly as an explicit "no" would, mark it blacklisted, log it, and continue to the next URL.
+
 ## Step 1 — A-G Evaluation
 
 Execute the same as the `oferta` mode (read `modes/oferta.md` for all A-F blocks + Block G Posting Legitimacy). Read `_custom.md` → Evaluation Rules, if it exists, and apply its override here. Default (if absent or silent): standard A-G evaluation.
 
-**Agency-mediated postings (#1596):** if the JD smells like a recruiter/agency listing ("our client", agency domain, no employer named), ask the user which agency it came through BEFORE writing the tracker row. Record the end employer as `?` (never "Confidential"), the agency in the Via field / `via=` TSV tag, and a distinguishing descriptor in Notes — see `modes/oferta.md` and `modes/tracker.md` for the full convention and reveal workflow.
+**Agency-mediated postings (#1596):** if the JD smells like a recruiter/agency listing ("our client", agency domain, no employer named), ask the user which agency it came through BEFORE writing the tracker row. Record the end employer as `?` (never "Confidential"), the agency in the Via field / `via=` TSV tag, and a distinguishing descriptor in Notes — see `modes/oferta.md` and `modes/tracker.md` for the full convention and reveal workflow. **`[HEADLESS]` invocation:** never wait here — if the agency name isn't determinable from the JD/URL itself, write the tracker row anyway using the already-documented fallback: `?` as company, the descriptor in Notes, and omit the Via tag rather than guessing at an agency name. This is the same convention AGENTS.md already documents for "unknown end employer," just applied without a human to ask.
 
 The evaluation inherits `oferta`'s bounded research budget. Company, compensation, and hiring-signal lookup must not invoke `deep-research`, must not spawn subagents, and must stop at the shared query cap instead of escalating into open-ended research.
 

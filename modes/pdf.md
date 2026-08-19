@@ -12,7 +12,7 @@ When a CV is reused or lightly tailored for an existing application, initialize 
 Run `npm run jd:similarity -- {bundle-root}/jd/current.md {bundle-root}/jd/previous.md` when both comparison sources exist. Record the visible decision (`reuse`, `reuse-with-edits`, or `regenerate`), score, source CV/JD paths, and changed sections in `decision/reuse.json`. Strongly discourage applications scoring below 4.0/5 and proceed only when the user explicitly overrides that recommendation. Reuse only after a visible `reuse` result or an explicit user override; never silently reuse when a source is missing. The PDF manifest supports these nested paths and continues to link them to the report. Flat `output/` paths remain valid for one-off PDFs.
 
 1. Read `cv.md` as the source of truth
-2. Ask the user for the JD if it is not in context (text or URL)
+2. Ask the user for the JD if it is not in context (text or URL). **Non-interactive invocation** (the `[HEADLESS]` marker is present — see AGENTS.md → "Headless Invocation Signal" — or this is a `cycle` Step 3 safety net): skip this and source the JD from the target report file instead (`reports/{num}-{slug}-{date}.md`) — its Blocks A/B/C already quote JD requirements, keywords, and the role title verbatim, exactly as `modes/latex.md`'s "Non-interactive invocation" section does for the LaTeX path.
 3. Extract 15-20 keywords from the JD
 4. Run the zero-LLM skill-gap check before drafting anything: write the JD to a scratch file (e.g. `jds/{slug}.md`) if it isn't already one, then `node core/jd-skill-gap.mjs jds/{slug}.md --summary`. This classifies the JD's explicit requirements against `cv.md` into three buckets — never surface `result.gap` items as if the candidate has them:
    - `existing` — already a named skill in cv.md's Skills section, safe to lead with
@@ -39,8 +39,8 @@ Run `npm run jd:similarity -- {bundle-root}/jd/current.md {bundle-root}/jd/previ
 14. Inject keywords naturally into existing achievements (NEVER invent)
 15. Apply the six-second clarity gate from `modes/heuristics/recruiter-side.md`: top third must make target role, strongest fit, and proof obvious
 16. Read `name` from `config/profile.yml` → normalize to kebab-case lowercase (e.g. "John Doe" → "john-doe") → `{candidate}`
-17. Build the render payload (see the **JSON Input Schema** below) from the tailored content — emit compact structured JSON, **not** full HTML markup — and write it to `/tmp/cv-{candidate}-{company}.json`
-18. Run `node core/build-cv-html.mjs /tmp/cv-{candidate}-{company}.json {html-path} {template}`, where `{html-path}` is the active bundle's `cv/tailored/vNNN/cv.html` or `output/cv-{candidate}-{company}.html` for a one-off CV, and `{template}` is the path printed by **Selecting the template** below (omit it to use the base template). The script owns every tag, CSS class, and HTML escaping. Keep the HTML outside temporary storage because the dashboard's `D` hotkey regenerates from it.
+17. Build the render payload (see the **JSON Input Schema** below) from the tailored content — emit compact structured JSON, **not** full HTML markup — and write it to `.tmp/cv-{candidate}-{company}.json`
+18. Run `node core/build-cv-html.mjs .tmp/cv-{candidate}-{company}.json {html-path} {template}`, where `{html-path}` is the active bundle's `cv/tailored/vNNN/cv.html` or `output/cv-{candidate}-{company}.html` for a one-off CV, and `{template}` is the path printed by **Selecting the template** below (omit it to use the base template). The script owns every tag, CSS class, and HTML escaping. Keep the HTML outside temporary storage because the dashboard's `D` hotkey regenerates from it.
 19. Run the fact gate against the generated HTML: `node core/verify-cv-facts.mjs {html-path}`
     - This is a hard gate before PDF rendering.
     - If it fails, stop and fix the generated HTML by removing invented metrics or adding verified evidence to `cv.md`, `article-digest.md`, or `config/cv-facts.json`.
@@ -51,11 +51,14 @@ Run `npm run jd:similarity -- {bundle-root}/jd/current.md {bundle-root}/jd/previ
     The fact gate proves nothing was invented; it cannot tell you whether these are the *right* bullets for the role. The audit researches the likely reviewer, dispatches a separate subagent role-playing them, and returns a bullet-by-bullet keep/cut/rewrite verdict plus a blunt "would I advance this to a screen?" call. It adds a subagent dispatch plus web research on top of the tailoring, which is why it is opted into rather than run on every PDF.
 
     The audit recommends; the user decides. If they take any rewrite, return to Step 17, rebuild the payload and the HTML, and re-run the fact gate before rendering. The audit is persisted only once that decision is known, and records which rewrites were applied — so the `## HM Audit` section never describes a CV the rendered PDF no longer matches. Do not re-run the audit against the rebuilt CV: a second dispatch doubles the cost for a verdict the user has already acted on.
+
+    **Non-interactive invocation** (the `[HEADLESS]` marker is present, or this is a `cycle` Step 3 safety net): still run the audit if it's enabled (flag or `_custom.md` house rule), but never wait on a rewrite decision — apply no rewrites automatically, render the PDF as tailored, and persist the audit's verdict in the `## HM Audit` section for later human review.
 21. Execute: `node core/generate-pdf.mjs {html-path} {pdf-path} --format={letter|a4} --report={report number}`, where `{pdf-path}` is the active bundle's `cv/tailored/vNNN/cv.pdf` or `output/cv-{candidate}-{company}-{YYYY-MM-DD}.pdf` for a one-off CV. `{report number}` is the NNN from the report filename/link (e.g. `008` for `reports/008-acme-….md`), not the tracker `#` column. Pass it whenever the application has (or will have) a report; it records the PDF↔report linkage in `data/pdf-index.tsv` so the dashboard can open and regenerate the exact nested or flat HTML/PDF pair. Omit it only for one-off CVs with no tracker entry.
     - The rendered PDF has a two-page warning threshold by default. `--max-pages=N` accepts a positive integer; pass `--max-pages=1` when the user or market prefers a one-page CV.
     - If the rendered PDF exceeds its threshold, generation warns loudly with the actual and allowed page counts plus trimming guidance, then reports and indexes the unchanged PDF so existing longer-CV flows keep working.
     - Pass `--strict-pages` only when the user or market requires a hard limit. Strict overflow leaves the draft available for inspection but does not report or index it as successful; trim lower-priority content and rerun.
-22. Report: PDF path, number of pages, keyword coverage %, and any skill gaps from Step 4 still unaddressed
+22. **Verify JD-keyword coverage — measured, not estimated (2026-08-13):** `node core/verify-jd-coverage.mjs {jd-scratch-path} .tmp/cv-{candidate}-{company}.json --summary` (reuse the same JD scratch file Step 4's `jd-skill-gap.mjs` check already wrote — don't re-save it). Use the real percentage this prints, not a guess. If it flags `regressions` (a skill `cv.md` supports that didn't survive tailoring), consider adding one verbatim mention in a competency or bullet — never stack/repeat beyond that one occurrence (see the anti-keyword-stacking rule above).
+23. Report: PDF path, number of pages, keyword coverage % (from step 22, not self-estimated), and any skill gaps from Step 4 still unaddressed
 
 ## ATS Rules (clean parsing)
 
@@ -232,7 +235,7 @@ URLs so the saved HTML remains portable. To inspect the result before PDF
 generation, run:
 
 ```bash
-node core/build-cv-html.mjs --preview /tmp/cv-{candidate}-{company}.json {template}
+node core/build-cv-html.mjs --preview .tmp/cv-{candidate}-{company}.json {template}
 ```
 
 The preview is written to `output/cv-preview.html`. A missing, unreadable, empty,
@@ -245,6 +248,8 @@ If `config/profile.yml` has `cv.canva_resume_design_id` set, offer the user a ch
 - **"Canva CV (visual, design-preserving)"** — new flow below
 
 If the user has no `cv.canva_resume_design_id`, skip this prompt and use the HTML/PDF flow.
+
+**Non-interactive invocation** (the `[HEADLESS]` marker is present, or this is a `cycle` Step 3 safety net): skip this offer entirely and use the HTML/PDF flow regardless of `cv.canva_resume_design_id` — Canva's manual layout review (Step 3 below's find-and-replace + human visual check) has no autonomous equivalent.
 
 ### Canva workflow
 
