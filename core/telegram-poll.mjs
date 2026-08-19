@@ -18,7 +18,6 @@ import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { runHook } from '../plugins/_engine.mjs';
 import { telegramOffsetPath } from './hub-paths.mjs';
-import { workspaceRoot } from './workspace-root.mjs';
 import { isMainModule } from './is-main.mjs';
 
 // This script now lives in core/, one directory below the repo root; ROOT is
@@ -63,13 +62,19 @@ function offsetPath() {
 }
 
 async function poll() {
-  // The telegram plugin's config (chat_id/chat_ids) lives under a specific
-  // workspace's config/plugins.yml since the #workspace-multitenancy
-  // migration — root alone (the repo root, for plugin discovery) has no
-  // config/plugins.yml of its own anymore. workspaceRoot() resolves it the
-  // same way every other workspace-scoped script does: CAREER_OPS_WORKSPACE
-  // if set (telegram-monitor.mjs sets this once via resolveHubWorkspace()
-  // before spawning this script), otherwise process.cwd().
+  // Polling is HUB-GLOBAL, not workspace-scoped: there is exactly one
+  // Telegram poller for the whole system (Telegram rejects concurrent
+  // getUpdates on the same bot token — see hub-paths.mjs), and since the
+  // router landed, every inbound message is classified by chatId AFTER the
+  // poll (core/telegram-router.mjs), not by whichever workspace happened to
+  // be the cwd. So both roots are the repo root here, and `forceEnabled`
+  // bypasses the per-workspace enabled-gate for the telegram manifest ONLY
+  // (it is scoped by `only`, never a blanket bypass — see loadPlugins). That
+  // gate would otherwise read a config/plugins.yml that no longer exists at
+  // the repo root at all: plugin config is per-workspace since the
+  // #workspace-multitenancy migration, so gating a hub-global poll on it
+  // made the daemon receive zero messages, silently. ingest() needs nothing
+  // from config/plugins.yml — only TELEGRAM_BOT_TOKEN, which it checks itself.
   //
   // runHook's own timeout must outlive ingest()'s ctx.fetch call, which
   // itself must outlive Telegram's own long-poll timeout — three nested
@@ -77,7 +82,14 @@ async function poll() {
   // long-poll caller (telegram-monitor.mjs --daemon) only has to set it once.
   // Matches runHook's own 15s default exactly when long-polling is off.
   const longPollSeconds = Math.max(0, Math.min(50, Number(process.env.CAREER_OPS_TELEGRAM_LONGPOLL_SECONDS) || 0));
-  const results = await runHook('ingest', undefined, { root: ROOT, workspaceRoot: workspaceRoot(), dryRun: false, only: 'telegram', timeoutMs: (longPollSeconds + 15) * 1000 });
+  const results = await runHook('ingest', undefined, {
+    root: ROOT,
+    workspaceRoot: ROOT,
+    dryRun: false,
+    only: 'telegram',
+    forceEnabled: true,
+    timeoutMs: (longPollSeconds + 15) * 1000,
+  });
   const telegramResult = results.find(r => r.id === 'telegram');
   if (!telegramResult) {
     console.log(JSON.stringify({ messages: [], error: 'telegram plugin not enabled — see config/plugins.yml and .env' }));
