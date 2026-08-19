@@ -268,6 +268,8 @@ export const SYSTEM_PATHS = [
   'test-fixtures/',
   'telegram-daemon-wrapper.bat',
   'telegram-setup-scheduler.bat',
+  'telegram-daemon-scheduler.bat',
+  'scripts/parsers/jobspy-scan.py',
 ];
 
 const BOOTSTRAP_PATHS = [
