@@ -113,6 +113,7 @@ export const SYSTEM_PATHS = [
   'modes/auto-pipeline.md',
   'modes/cycle.md',
   'modes/telegram.md',
+  'modes/telegram-onboarding.md',
   'modes/contacto.md',
   'modes/deep.md',
   'modes/ofertas.md',

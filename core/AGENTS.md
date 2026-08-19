@@ -301,6 +301,7 @@ Two separate axes:
 | Fills out application form | `apply` |
 | Wants to clear a backlog of evaluated, ready-to-apply roles in one sitting (Greenhouse/Lever/Workday, one review-before-submit gate per application) | `apply-batch` |
 | Wants to run a full search cycle and/or apply to results over Telegram — reply to approve field-mapping + submit, no interactive session needed | `telegram` |
+| A new person redeems an access code over Telegram | `telegram-onboarding` — conversational setup (name, CV, profile basics, optional Discord webhook) that provisions and binds their own workspace; invoked automatically by `core/telegram-router.mjs`, never run directly |
 | Searches for new offers | `scan` |
 | Wants to resolve a company list to scannable ATS boards, zero-token | `discover` |
 | Processes pending URLs | `pipeline` |
