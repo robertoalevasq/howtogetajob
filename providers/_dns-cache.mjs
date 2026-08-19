@@ -94,7 +94,18 @@ const DEFAULT_NEGATIVE_TTL_MS = 30_000;
 // Pacing defaults. The ceiling counts *lookups*; Node ≥20's autoSelectFamily
 // turns each one into an A and an AAAA query, so 400 lookups/min is ~800
 // upstream queries/min — comfortably under a stock Pi-hole's 1000/min, with
-// headroom left for the rest of the machine (#2229).
+// headroom left for the rest of the machine (#2229). This is the real
+// wall-clock ceiling for scan-ats-full.mjs's Workday/iCIMS sources (each
+// mints a distinct per-tenant hostname, so every company pays a real paced
+// lookup) — at 400/min that's a ~25-30min floor for a 10k-company source
+// alone, independent of CONCURRENCY. Kept conservative here rather than
+// raised globally (2026-08-12: considered raising to 700-800, rejected —
+// that's ~1400-1600 queries/min, which would blow past the Pi-hole ceiling
+// this default is explicitly calibrated against). If your resolver isn't
+// Pi-hole-class (a normal ISP resolver or a cloud DNS like 1.1.1.1/8.8.8.8
+// tolerates far more), raise CAREER_OPS_DNS_LOOKUPS_PER_MIN yourself — e.g.
+// 1200-2000 — for a real speedup; RESOLVER_FAILURE_LIMIT in
+// scan-ats-full.mjs will still catch a genuine outage if you overshoot.
 const DEFAULT_LOOKUPS_PER_MIN = 400;
 // One sweep worker per token, so a cold start of CONCURRENCY=20 workers
 // (scan-ats-full.mjs) is admitted at once and pacing only bites afterwards.
