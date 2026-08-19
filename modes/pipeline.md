@@ -69,12 +69,19 @@ Read `spend_tier` from `config/profile.yml` (see `modes/_shared.md` -- Spend Tie
    d. **Pre-screen gate**: apply the gate above (using the extracted JD). If the JD is an obvious mismatch, log the discard to `data/discard.log` (per the **Discard log** rule above — three fields, no job ID in interactive mode), mark it `- [x] #-- | {url} | skipped (pre-screen mismatch: {reason})` in "Processed", and continue to the next URL. No `REPORT_NUM` is claimed for discarded postings.
    e. Claim the next sequential `REPORT_NUM` atomically by running `node core/reserve-report-num.mjs` (and release the sentinel using `node core/reserve-report-num.mjs --release <num>` after the report is written)
    f. **Execute full auto-pipeline**: Evaluation A-F → Report .md → PDF (if score >= `auto_pdf_score_threshold`) → Tracker. Read `_custom.md` → Pipeline Rules, if it exists, and apply its override here. Default (if absent or silent): standard pipeline execution.
+   
+      **PDF format branch (Step 2.f, inline before evaluation starts):** Read `config/profile.yml`. Check `cv.output_format`:
+      - If `"latex"`, use the full pipeline from `modes/latex.md` for any PDF that qualifies
+      - Otherwise (default), use the full pipeline from `modes/pdf.md`
+      
+      This decision is made once per URL and stays constant for that evaluation's PDF output.
+   
    g. **Move from "Pending" to "Processed"**: `- [x] #NNN | URL | Company | Role | Score/5 | PDF ✅/❌`
 
-   **About the PDF gate (configurable):** Read `config/profile.yml` → `auto_pdf_score_threshold`. If the key does not exist, default to `3.0` (this mode's original gate). If the evaluation score is less than the threshold, skip PDF generation: write the report normally, show in the header `**PDF:** not generated — run /career-ops pdf {company-slug} to create on demand`, and mark PDF ❌ in the tracker. If the score is ≥ threshold, generate the PDF as usual.
+   **About the PDF gate (configurable):** Read `config/profile.yml` → `auto_pdf_score_threshold`. If the key does not exist, default to `3.0` (this mode's original gate). If the evaluation score is less than the threshold, skip PDF generation: write the report normally, show in the header `**PDF:** not generated — run /career-ops pdf {company-slug} to create on demand`, and mark PDF ❌ in the tracker. If the score is ≥ threshold, generate the PDF in the format configured by `cv.output_format` (above).
 
    **Tuning it:** Generating a tailored PDF costs ~30–60s per entry (Playwright launch + HTML render) and produces files that often go unused — most roles score in the 2.x/3.x range and never reach the application stage. Raise `auto_pdf_score_threshold` (e.g. `4.0`) to write only the report for marginal offers and produce the PDF on demand via `/career-ops pdf {slug}`; set `0` to generate one for every offer. Both modes (Path A `/career-ops pipeline` and Path B `batch/batch-runner.sh`) read the same key, so behavior is identical regardless of which path processes an offer.
-3. **If there are 3+ pending URLs**, launch agents in parallel (Agent tool with `run_in_background`) to maximize speed — at most one agent per pending URL. Each is a **single-pass worker**: it evaluates its one URL and must **not** spawn further subagents or invoke other skills; its company/comp research stays inline and bounded (see `modes/_shared.md` → Subagent delegation). This keeps a pipeline run from fanning out into a recursive agent swarm. **Resolve `spend_tier` once and pass it as the `model` parameter on every `Agent(...)` call** rather than leaving each subagent to read `config/profile.yml` and self-select — the orchestrator already knows the tier before spawning, so pinning it there is the more reliable enforcement point.
+3. **Process pending URLs inline, sequentially — no subagent fan-out.** Per `_custom.md`'s "No-subagent inline processing for bulk pipeline evaluation" House Rule, evaluate one URL at a time directly in this turn, with no `Agent(...)` calls. AGENTS.md and mode files are already loaded once per session, so looping inline avoids re-paying the per-URL context-load cost a subagent dispatch would incur, and it keeps this mode's behavior identical whether invoked interactively or headlessly (a headless/Telegram-triggered run has no permission path for an unreviewed `Agent` call). **Resolve `spend_tier` once**, at the start of this loop, per `modes/_shared.md`'s Spend Tier table, and use it for every evaluation.
 4. **At the end**, show summary table:
 
 ```
@@ -144,7 +151,7 @@ them as hints when triaging; none changes how you process the URL.
 3. **WebSearch (last resort):** Search in secondary portals that index the JD.
 
 **Special cases:**
-- **LinkedIn**: May require login → mark `[!]` and ask the user to paste the text
+- **LinkedIn**: May require login → do not block on this URL. Collect it into a numbered list alongside any other LinkedIn URLs found this run, present the list once (`_custom.md`'s "pipeline" Custom Workflow, LinkedIn special handling, has the exact wording), and continue processing every other pending URL in the same pass — never pause the whole run waiting on a paste.
 - **PDF**: If the URL points to a PDF, read it directly with the Read tool
 - **`local:` prefix**: Read the local file. Example: `local:jds/linkedin-pm-ai.md` → read `jds/linkedin-pm-ai.md`
 
@@ -160,4 +167,4 @@ Before processing any URL, verify sync:
 ```bash
 node core/cv-sync-check.mjs
 ```
-If there is a desynchronization, warn the user before continuing.
+If there is a desynchronization, log the warning to the run's summary output and continue — never pause the run to wait on it.
