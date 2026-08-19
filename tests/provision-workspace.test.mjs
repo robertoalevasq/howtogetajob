@@ -185,3 +185,18 @@ test('bindWorkspaceChat throws for a nonexistent slug', () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('bindWorkspaceChat throws on an invalid slug without touching disk', () => {
+  // modes/telegram-onboarding.md Step 6 binds using state.slug, written during
+  // an LLM-driven conversation over untrusted input — the slug must be
+  // validated before any path is built from it (mirrors the same guard on
+  // provisionWorkspace above).
+  const root = mkdtempSync(join(tmpdir(), 'career-ops-root-'));
+  try {
+    assert.throws(() => bindWorkspaceChat('../escape', '111', { reposRoot: root }), /invalid workspace slug/);
+    assert.throws(() => bindWorkspaceChat('a/b', '111', { reposRoot: root }), /invalid workspace slug/);
+    assert.equal(existsSync(join(root, 'workspaces')), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

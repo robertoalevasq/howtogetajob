@@ -186,6 +186,14 @@ export function resolveAvailableSlug(name, opts = {}) {
  * @param {{ reposRoot?: string }} [opts]
  */
 export function bindWorkspaceChat(slug, chatId, opts = {}) {
+  // Same guard provisionWorkspace() opens with, and for a sharper reason
+  // here: modes/telegram-onboarding.md Step 6 binds using `state.slug`, a
+  // value written into a JSON file during an LLM-driven conversation whose
+  // input is untrusted external content. Validate before ANY path is built
+  // from it, so a traversal-shaped slug can never reach join() at all.
+  if (!SLUG_RE.test(slug)) {
+    throw new Error(`invalid workspace slug "${slug}" — must match ${SLUG_RE}`);
+  }
   const repoRoot = opts.reposRoot || ROOT;
   const workspacesDir = join(repoRoot, 'workspaces');
   const metaPath = join(workspacesDir, slug, 'workspace.json');
