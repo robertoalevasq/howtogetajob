@@ -15,6 +15,7 @@ import {
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { accessCodeAttemptsPath, onboardingStatePath } from './hub-paths.mjs';
+import { redeemAccessCode } from './access-code.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url))); // core/'s parent = repo root
 export const LOCKOUT_THRESHOLD = 5;
@@ -117,4 +118,66 @@ export function recordWrongAttempt(chatId, opts = {}) {
   attempts[key] = entry;
   saveAttempts(path, attempts);
   return { justLockedOut };
+}
+
+/**
+ * Classify and route one poll's messages. Side effects (canned replies
+ * sent via opts.sendReply, onboarding state written, codes claimed, wrong-
+ * attempt counters updated) happen here; the return value lists only the
+ * chat groups that need an LLM invocation.
+ *
+ * @param {Array<{chatId: string|number, text: string, [key: string]: any}>} messages
+ * @param {{ repoRoot?: string, sendReply?: (chatId: string, text: string) => Promise<void> }} [opts]
+ * @returns {Promise<Array<{ chatId: string, cwd: string, kind: 'routing'|'onboarding', messages: any[], state: object|null }>>}
+ */
+export async function routeMessages(messages, opts = {}) {
+  const repoRoot = opts.repoRoot || ROOT;
+  const boundMap = buildBoundChatMap(opts);
+
+  const byChat = new Map();
+  for (const m of messages) {
+    const key = String(m.chatId);
+    if (!byChat.has(key)) byChat.set(key, []);
+    byChat.get(key).push(m);
+  }
+
+  const dispatches = [];
+  for (const [chatId, chatMessages] of byChat) {
+    const workspaceDir = boundMap.get(chatId);
+    if (workspaceDir) {
+      dispatches.push({ chatId, cwd: workspaceDir, kind: 'routing', messages: chatMessages, state: null });
+      continue;
+    }
+
+    const state = readOnboardingState(chatId, opts);
+    if (state) {
+      const cwd = state.slug ? join(repoRoot, 'workspaces', state.slug) : repoRoot;
+      dispatches.push({ chatId, cwd, kind: 'onboarding', messages: chatMessages, state });
+      continue;
+    }
+
+    // Unbound, no onboarding state: every message in this chat's batch is
+    // either a code-redemption attempt or noise. Process in order —
+    // realistically always exactly one message reaches this branch per poll.
+    for (const m of chatMessages) {
+      if (isLockedOut(chatId, opts)) continue; // drop silently: no reply, no counter change
+
+      const redeemed = await redeemAccessCode((m.text || '').trim(), chatId, opts);
+      if (redeemed) {
+        const now = new Date().toISOString();
+        const newState = {
+          chatId, redeemedCode: redeemed.code, slug: null, answers: {},
+          currentStep: 'name', startedAt: now, lastMessageAt: now,
+        };
+        writeOnboardingState(chatId, newState, opts);
+        dispatches.push({ chatId, cwd: repoRoot, kind: 'onboarding', messages: [m], state: newState });
+      } else {
+        recordWrongAttempt(chatId, opts);
+        if (opts.sendReply) {
+          await opts.sendReply(chatId, 'Please enter your access code to continue.');
+        }
+      }
+    }
+  }
+  return dispatches;
 }
