@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync, existsSync, lstatSync, readFileSync } from 'node:f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { provisionWorkspace, SLUG_RE, JUNCTION_DIRS, repairAllWorkspaces } from '../core/provision-workspace.mjs';
+import { slugify, resolveAvailableSlug, bindWorkspaceChat } from '../core/provision-workspace.mjs';
 
 test('rejects invalid slugs', () => {
   assert.equal(SLUG_RE.test('../etc'), false);
@@ -83,6 +84,103 @@ test('repairAllWorkspaces adds a junction for a directory introduced after initi
       JUNCTION_DIRS.length = 0;
       JUNCTION_DIRS.push(...originalDirs);
     }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('slugify lowercases, strips accents/punctuation, and collapses to hyphens', () => {
+  assert.equal(slugify('Alice Chen'), 'alice-chen');
+  assert.equal(slugify('José García'), 'jose-garcia');
+  assert.equal(slugify("O'Brien!!!"), 'o-brien');
+});
+
+test('slugify falls back to "candidate" for an empty/unusable name', () => {
+  assert.equal(slugify(''), 'candidate');
+  assert.equal(slugify('!!!'), 'candidate');
+});
+
+test('resolveAvailableSlug returns the base slug when unused', () => {
+  const root = mkdtempSync(join(tmpdir(), 'career-ops-root-'));
+  try {
+    assert.equal(resolveAvailableSlug('Alice Chen', { reposRoot: root }), 'alice-chen');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('resolveAvailableSlug dedupes with a numeric suffix on collision', () => {
+  const root = mkdtempSync(join(tmpdir(), 'career-ops-root-'));
+  try {
+    provisionWorkspace('alice-chen', { reposRoot: root });
+    assert.equal(resolveAvailableSlug('Alice Chen', { reposRoot: root }), 'alice-chen-2');
+    provisionWorkspace('alice-chen-2', { reposRoot: root });
+    assert.equal(resolveAvailableSlug('Alice Chen', { reposRoot: root }), 'alice-chen-3');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('resolveAvailableSlug pads a 1-character slugified name to satisfy SLUG_RE', () => {
+  const root = mkdtempSync(join(tmpdir(), 'career-ops-root-'));
+  try {
+    const slug = resolveAvailableSlug('X', { reposRoot: root });
+    assert.ok(SLUG_RE.test(slug), `expected "${slug}" to satisfy SLUG_RE`);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('bindWorkspaceChat sets chat_id on an unbound workspace', () => {
+  const root = mkdtempSync(join(tmpdir(), 'career-ops-root-'));
+  try {
+    provisionWorkspace('alice', { reposRoot: root });
+    bindWorkspaceChat('alice', '111', { reposRoot: root });
+    const meta = JSON.parse(readFileSync(join(root, 'workspaces', 'alice', 'workspace.json'), 'utf-8'));
+    assert.equal(meta.chat_id, '111');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('bindWorkspaceChat is idempotent when re-binding the same slug to the same chat', () => {
+  const root = mkdtempSync(join(tmpdir(), 'career-ops-root-'));
+  try {
+    provisionWorkspace('alice', { reposRoot: root });
+    bindWorkspaceChat('alice', '111', { reposRoot: root });
+    assert.doesNotThrow(() => bindWorkspaceChat('alice', '111', { reposRoot: root }));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('bindWorkspaceChat throws when the workspace is already bound to a different chat', () => {
+  const root = mkdtempSync(join(tmpdir(), 'career-ops-root-'));
+  try {
+    provisionWorkspace('alice', { reposRoot: root });
+    bindWorkspaceChat('alice', '111', { reposRoot: root });
+    assert.throws(() => bindWorkspaceChat('alice', '222', { reposRoot: root }), /already bound/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('bindWorkspaceChat throws when the chat is already bound to a different workspace', () => {
+  const root = mkdtempSync(join(tmpdir(), 'career-ops-root-'));
+  try {
+    provisionWorkspace('alice', { reposRoot: root });
+    provisionWorkspace('bob', { reposRoot: root });
+    bindWorkspaceChat('alice', '111', { reposRoot: root });
+    assert.throws(() => bindWorkspaceChat('bob', '111', { reposRoot: root }), /already bound to a different workspace/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('bindWorkspaceChat throws for a nonexistent slug', () => {
+  const root = mkdtempSync(join(tmpdir(), 'career-ops-root-'));
+  try {
+    assert.throws(() => bindWorkspaceChat('ghost', '111', { reposRoot: root }), /does not exist/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

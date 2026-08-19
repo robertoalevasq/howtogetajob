@@ -12,7 +12,7 @@
 // `node core/scan.mjs`, Claude reading `modes/oferta.md` via a bare relative
 // Read call, etc).
 
-import { existsSync, mkdirSync, symlinkSync, copyFileSync, writeFileSync, lstatSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, symlinkSync, copyFileSync, writeFileSync, readFileSync, lstatSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isMainModule } from './is-main.mjs';
@@ -136,6 +136,90 @@ export function provisionWorkspace(slug, opts = {}) {
   return wsDir;
 }
 
+/** Convert a display name into a lowercase slug candidate (no dedup check). */
+export function slugify(name) {
+  const base = String(name || '')
+    .toLowerCase()
+    .normalize('NFKD').replace(/[̀-ͯ]/g, '') // strip accents
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 32);
+  return base || 'candidate';
+}
+
+/**
+ * Slugify `name`, then dedupe against existing workspaces/ (appending
+ * -2, -3, ... on collision). Always returns a slug satisfying SLUG_RE.
+ *
+ * @param {string} name
+ * @param {{ reposRoot?: string }} [opts]
+ */
+export function resolveAvailableSlug(name, opts = {}) {
+  const repoRoot = opts.reposRoot || ROOT;
+  const workspacesDir = join(repoRoot, 'workspaces');
+  let base = slugify(name);
+  if (base.length < 2) base = `${base}0`; // SLUG_RE requires 2+ chars
+  const existing = new Set(
+    existsSync(workspacesDir)
+      ? readdirSync(workspacesDir, { withFileTypes: true }).filter(e => e.isDirectory()).map(e => e.name)
+      : [],
+  );
+  if (!existing.has(base)) return base;
+  let n = 2;
+  let candidate;
+  do {
+    const suffix = `-${n}`;
+    candidate = `${base.slice(0, 32 - suffix.length)}${suffix}`;
+    n++;
+  } while (existing.has(candidate));
+  return candidate;
+}
+
+/**
+ * Set workspaces/{slug}/workspace.json's chat_id — the ONLY sanctioned way
+ * to bind a chat to a workspace, per the router/onboarding design. Enforces
+ * one-workspace-per-chat and one-chat-per-workspace. Idempotent when
+ * re-binding the same slug to the same chat it's already bound to.
+ *
+ * @param {string} slug
+ * @param {string|number} chatId
+ * @param {{ reposRoot?: string }} [opts]
+ */
+export function bindWorkspaceChat(slug, chatId, opts = {}) {
+  const repoRoot = opts.reposRoot || ROOT;
+  const workspacesDir = join(repoRoot, 'workspaces');
+  const metaPath = join(workspacesDir, slug, 'workspace.json');
+  if (!existsSync(metaPath)) {
+    throw new Error(`workspace "${slug}" does not exist — provision it first`);
+  }
+  const meta = JSON.parse(readFileSync(metaPath, 'utf-8'));
+  const chatIdStr = String(chatId);
+  if (meta.chat_id && meta.chat_id !== chatIdStr) {
+    throw new Error(`workspace "${slug}" is already bound to a different chat`);
+  }
+
+  const siblingSlugs = readdirSync(workspacesDir, { withFileTypes: true })
+    .filter(e => e.isDirectory() && e.name !== slug)
+    .map(e => e.name);
+  for (const sibling of siblingSlugs) {
+    const siblingMetaPath = join(workspacesDir, sibling, 'workspace.json');
+    if (!existsSync(siblingMetaPath)) continue;
+    let siblingMeta;
+    try {
+      siblingMeta = JSON.parse(readFileSync(siblingMetaPath, 'utf-8'));
+    } catch {
+      continue; // unreadable/corrupt sibling — not this function's job to repair
+    }
+    if (siblingMeta.chat_id === chatIdStr) {
+      throw new Error(`chat is already bound to a different workspace ("${sibling}")`);
+    }
+  }
+
+  meta.chat_id = chatIdStr;
+  writeFileSync(metaPath, JSON.stringify(meta, null, 2));
+  return meta;
+}
+
 /**
  * Re-run provisionWorkspace(slug, { repair: true }) for every existing
  * workspaces/{slug}/ directory, so a newly-added JUNCTION_DIRS entry gets
@@ -164,6 +248,26 @@ async function main() {
   if (first === '--repair-all') {
     const repaired = repairAllWorkspaces({});
     console.log(`repaired ${repaired.length} workspace(s): ${repaired.join(', ')}`);
+    return;
+  }
+  if (first === '--from-name') {
+    const name = rest.join(' ');
+    if (!name.trim()) { console.error('Usage: node provision-workspace.mjs --from-name "<display name>"'); process.exit(1); }
+    const slug = resolveAvailableSlug(name);
+    provisionWorkspace(slug, { displayName: name });
+    console.log(slug);
+    return;
+  }
+  if (first === '--bind-chat') {
+    const [slug, chatId] = rest;
+    if (!slug || !chatId) { console.error('Usage: node provision-workspace.mjs --bind-chat <slug> <chatId>'); process.exit(1); }
+    try {
+      bindWorkspaceChat(slug, chatId);
+      console.log(`bound: ${slug} <- chat ${chatId}`);
+    } catch (err) {
+      console.error(`❌ ${err.message}`);
+      process.exit(1);
+    }
     return;
   }
   if (!first) {
