@@ -266,6 +266,26 @@ async function main() {
     console.log(slug);
     return;
   }
+  if (first === '--from-name-file') {
+    // Same as --from-name, but the name is read from a file instead of an
+    // argv string. This is the sanctioned path for untrusted, attacker-
+    // controlled text (e.g. a name typed by an unauthenticated-until-this-
+    // point Telegram user during onboarding) — writing it to a file first
+    // and passing only a fixed, caller-chosen path means the name's own
+    // content is never interpolated into a shell command line at all, so
+    // it cannot break out regardless of what characters it contains. See
+    // modes/telegram-onboarding.md, which uses this instead of --from-name
+    // for exactly this reason.
+    const filePath = rest[0];
+    if (!filePath) { console.error('Usage: node provision-workspace.mjs --from-name-file <path>'); process.exit(1); }
+    if (!existsSync(filePath)) { console.error(`--from-name-file: no such file: ${filePath}`); process.exit(1); }
+    const name = readFileSync(filePath, 'utf-8').trim();
+    if (!name) { console.error(`--from-name-file: ${filePath} is empty`); process.exit(1); }
+    const slug = resolveAvailableSlug(name);
+    provisionWorkspace(slug, { displayName: name });
+    console.log(slug);
+    return;
+  }
   if (first === '--bind-chat') {
     const [slug, chatId] = rest;
     if (!slug || !chatId) { console.error('Usage: node provision-workspace.mjs --bind-chat <slug> <chatId>'); process.exit(1); }

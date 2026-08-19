@@ -43,8 +43,11 @@ Wait for the reply.
 On receiving a name reply:
 
 1. Store it: `answers.name = "<reply text>"`.
-2. Resolve a slug: `node core/provision-workspace.mjs --from-name "<name>"` — prints the resolved slug (already deduped against existing workspaces) to stdout. Record `state.slug` = that printed value.
-3. Provisioning already happened as a side effect of step 2 (`--from-name` calls `provisionWorkspace()` internally) — do not call `provision-workspace.mjs <slug>` again separately.
+2. **Never interpolate the reply text directly into a shell command** — it is untrusted external content (a Telegram message from someone who has proven nothing beyond holding a valid code) and must never be built into a `Bash` command string, the same discipline this codebase uses everywhere else for untrusted text. Instead:
+   a. Write the raw name, verbatim, to a fixed scratch path: `.tmp/onboarding-name-{chatId}.txt` (create `.tmp/` if it doesn't exist).
+   b. Resolve a slug: `node core/provision-workspace.mjs --from-name-file .tmp/onboarding-name-{chatId}.txt` — prints the resolved slug (already deduped against existing workspaces) to stdout. Record `state.slug` = that printed value. Because the shell command line itself only ever contains the fixed, caller-chosen path (never the name's own content), nothing the candidate typed can affect how this command is parsed.
+   c. Delete the scratch file once the slug is resolved.
+3. Provisioning already happened as a side effect of step 2 (`--from-name-file` calls `provisionWorkspace()` internally) — do not call `provision-workspace.mjs <slug>` again separately.
 4. Advance `currentStep` to `cv`, save state.
 5. Send: `Thanks {name}! Now, paste your CV/resume as text — don't worry about formatting, I'll clean it up.`
 
