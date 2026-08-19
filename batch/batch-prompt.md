@@ -102,7 +102,12 @@ Batch runs process large backlogs unattended, so every offer must be judged for 
 
 1. Read `modes/_profile.md` and `config/profile.yml` for the candidate's archetypes, clearance posture, location policy, and experience floor.
 2. Judge the loaded JD against those in a quick pass — do not skip reading the real JD text first.
-3. **Obvious hard-stop mismatch** (missing required clearance, wrong professional domain, experience floor off by 3+ years, hard geo/onsite conflict, or another disqualifier your profile marks as a hard stop) → take the **short-report path**:
+   
+   **Clearance gate specifically:** Search the JD for keywords: "Secret", "Top Secret", "TS/SCI", "SCI", "TS", "security clearance", "active clearance", "DoD clearance", "clearance required". If any clearance is mentioned, read `config/profile.yml` → `clearance.status` and `clearance.accepts_sponsorship`:
+   - If candidate's `clearance.status` is "None" AND `clearance.accepts_sponsorship` is false → this is a HARD STOP
+   - If candidate's `clearance.status` is "None" AND `clearance.accepts_sponsorship` is true → soft gate (not a hard stop; proceed to full evaluation, note the requirement in Block A)
+
+3. **Obvious hard-stop mismatch** (missing required clearance when not accepting sponsorship, wrong professional domain, experience floor off by 3+ years, hard geo/onsite conflict, or another disqualifier your profile marks as a hard stop) → take the **short-report path**:
    - Write the same report header as Step 3 below (Date, Archetype, Score, Legitimacy, Work Auth, URL, PDF, Batch ID).
    - Follow it with a 10-20 line `## Quick Assessment` section naming the one or two disqualifying JD requirements verbatim (quote the JD).
    - Follow it with the `## Machine Summary` YAML block from Step 3 — fill `hard_stops`, `final_decision` (`Skip`), and `discard_reasons` accurately; other fields may be terse but must not be fabricated.
@@ -432,6 +437,12 @@ Only generate the PDF when the score from Step 2 is greater than or equal to the
 
 If score is greater than or equal to the threshold:
 
+**PDF format branch (Step 4, decide format before building content):** Read `config/profile.yml`. Check `cv.output_format`:
+- If `"latex"`, follow the **LaTeX path below**
+- Otherwise (default), follow the **HTML path below**
+
+### HTML Path (default)
+
 1. Read `cv.md`, `article-digest.md`, and `templates/cv-template.html`.
 2. Extract 15-20 JD keywords.
 3. Use `language.output` for CV prose.
@@ -442,8 +453,9 @@ If score is greater than or equal to the threshold:
 8. Reorder experience bullets by relevance.
 9. Build a 6-8 item competency grid.
 10. Inject keywords ethically into existing achievements; never invent skills or metrics. Replace the original wording with the JD term — never add it alongside a phrase that already says the same thing (e.g. "HR compliance verifications via HR compliance and regulatory verification" repeats one concept three ways). Read each finished bullet back; if a word or concept appears twice, cut the weaker instance. See `modes/pdf.md`'s Keyword injection strategy section for the full failure examples.
-11. Write HTML to `output/cv-candidate-{company-slug}.html`.
-12. Run:
+11. Build a JSON payload (see `modes/pdf.md`'s JSON Input Schema) and write it to a temp file.
+12. Run: `node build-cv-html.mjs <input.json> output/cv-candidate-{company-slug}.html [template]`
+13. Run:
 
 ```bash
 node generate-pdf.mjs \
@@ -452,6 +464,15 @@ node generate-pdf.mjs \
   --format={letter|a4} \
   --report={{REPORT_NUM}}
 ```
+
+On success, use `pdf_emoji` = `✅` and set `"pdf"` to the output path in the final JSON.
+
+### LaTeX Path
+
+1–10. Same content generation as HTML path above (keywords, summary, projects, bullets, competencies).
+11. Build a JSON payload (see `modes/latex.md`'s JSON Input Schema) and write it to a temp file.
+12. Run: `node build-cv-latex.mjs <input.json> output/cv-candidate-{company-slug}-{{DATE}}.tex`
+13. Run: `node generate-latex.mjs output/cv-candidate-{company-slug}-{{DATE}}.tex output/cv-candidate-{company-slug}-{{DATE}}.pdf --report={{REPORT_NUM}}`
 
 On success, use `pdf_emoji` = `✅` and set `"pdf"` to the output path in the final JSON.
 
