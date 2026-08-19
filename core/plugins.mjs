@@ -201,6 +201,12 @@ async function cmdRun(args) {
   }
   if (!manifest.hooks.includes(hook)) { console.error(`Plugin "${id}" does not expose a "${hook}" hook (has: ${manifest.hooks.join(', ')}).`); process.exit(1); }
 
+  // dotenv must load BEFORE the missingEnv gate check below reads
+  // process.env — otherwise a genuinely-present .env var reads as "missing"
+  // simply because nothing has loaded the file into process.env yet, and
+  // the gate rejects a correctly-configured plugin with a misleading error.
+  await loadDotenvOnce();
+
   // Two-gate check with an actionable message before doing any work.
   // Skipped entirely when --chat-id is given: that flag means the caller is
   // deliberately targeting one specific chat regardless of any workspace's
@@ -213,8 +219,6 @@ async function cmdRun(args) {
     if (!status.configured) { console.error(`Plugin "${id}" is not enabled. Set plugins.${id}.enabled: true in config/plugins.yml.`); process.exit(1); }
     if (status.missingEnv.length) { console.error(`Plugin "${id}" is missing ${status.missingEnv.join(', ')} in .env. See .env.example.`); process.exit(1); }
   }
-
-  await loadDotenvOnce();
 
   if (hook === 'ingest' || hook === 'search') {
     const payload = hook === 'search' ? positional.slice(hookArgStart).join(' ') : undefined;
