@@ -105,8 +105,8 @@ function resolveClaudeCommand() {
 }
 
 /**
- * Emergency notification bypassing Claude entirely — used when
- * invokeClaudeRouting() itself can't run, so whatever broke the `claude`
+ * Emergency notification bypassing Claude entirely — used when dispatchOne()'s
+ * own `claude` invocation can't run, so whatever broke the `claude`
  * invocation path can't also break this alert. Fire-and-forget: this is a
  * best-effort signal sent while things are already broken, not something
  * worth blocking the daemon loop on. Added 2026-08-13 after two real
@@ -159,7 +159,22 @@ function pollTelegram(longPollSeconds = 0) {
   });
 }
 
-/** Single attempt at spawning Claude — see invokeClaudeRouting() for retry/alert handling. */
+/**
+ * Surface a poll that came back with no messages but WITH an error field.
+ * telegram-poll.mjs reports this class of failure in-band (a plugin that
+ * failed to load, an ingest hook that threw) with exit code 0 and a
+ * well-formed JSON body, so every consumer that only reads `.messages`
+ * treats "broken" and "quiet" as the same thing. That is exactly how the
+ * hub-global-poll regression stayed invisible for a whole branch; log it.
+ * @param {{ messages?: any[], error?: string }} result
+ */
+function logPollError(result) {
+  if ((result.messages || []).length === 0 && result.error) {
+    console.error(`[telegram-monitor] poll returned no messages: ${result.error}`);
+  }
+}
+
+/** Single attempt at spawning Claude — see dispatchOne() for retry/alert handling. */
 function invokeClaudeRoutingOnce(prompt, cwd) {
   return new Promise((resolvePromise, reject) => {
     const { cmd, shell } = resolveClaudeCommand();
@@ -186,23 +201,9 @@ function invokeClaudeRoutingOnce(prompt, cwd) {
 }
 
 /**
- * Invoke Claude to handle routing and classification via modes/telegram.md
- * This is where LLM tokens are spent — only called when messages exist.
- *
- * Telegram message text is untrusted external content (AGENTS.md → "Untrusted
- * External Content") — it can contain anything, including shell metacharacters.
- * The prompt is passed to `claude` as a single argv element via spawn() with
- * shell:false (the default resolution — see resolveClaudeCommand()), never
- * built as an interpolated shell string, so message content cannot break out
- * into a shell command regardless of what characters it contains.
- *
- * On a spawn-level failure (the process never started), retry once
- * immediately — a spawn error is usually a deterministic environment issue
- * so a bare retry alone often won't help, but it's cheap insurance against a
- * transient one. On a runtime failure (Claude ran, exited non-zero) there's
- * no retry — re-running the exact same routing call would likely just
- * repeat whatever went wrong. Either way, if the message still didn't get
- * routed, send an emergency notification before giving up (2026-08-13).
+ * Build the `claude -p` prompt text that drives modes/telegram.md Steps 2-6
+ * for one bound chat's batch of messages. Pure string construction — spawning,
+ * retries and failure alerting all live in dispatchOne().
  */
 export function buildRoutingPrompt(messages) {
   return `[HEADLESS] This is a non-interactive, unattended invocation — no human is present to answer a question this turn, and there is no future turn to come back to: this is a single, one-shot invocation that ends when this response ends. Apply every documented non-interactive/headless default in AGENTS.md and the mode files. Never pause to ask a question and wait for a reply (this includes AGENTS.md's Update Check, which must never surface its update prompt here). Never background a step and defer finishing it to "later" or "the next time I check" — if you start something that isn't done yet (a scan, a cycle sub-step, anything), wait for it synchronously, right now, in this same turn, before ending your response. Where a mode file documents an autonomous default for this situation, take it. Where none is documented, make the safest conservative choice, log it clearly in the run's own summary output, and continue — do not stop and wait.
@@ -250,48 +251,52 @@ Return a brief summary of actions taken.`;
  * Send a canned (non-LLM) reply to an arbitrary chatId — used as
  * routeMessages()'s sendReply for the wrong-code/lockout path, where no
  * workspace exists to resolve config/plugins.yml from.
+ *
+ * `forceEnabled` is required for exactly that reason: this runs at the repo
+ * root, which has no config/plugins.yml of its own (plugin config is
+ * per-workspace since #workspace-multitenancy), so the normal enabled-gate
+ * would skip the telegram manifest and runHook would return [] — silently
+ * dropping every wrong-code reply, without even throwing into the catch
+ * below. Scoped by `only: 'telegram'`, so it is never a blanket bypass (see
+ * loadPlugins in plugins/_engine.mjs).
+ *
+ * @param {string|number} chatId
+ * @param {string} text
+ * @param {typeof runHook} [hook] - overridable for tests.
  */
-async function sendCannedReply(chatId, text) {
+export async function sendCannedReply(chatId, text, hook = runHook) {
   try {
-    await runHook(
+    await hook(
       'notify',
       { message: text, chatId },
-      { root: REPO_ROOT, workspaceRoot: REPO_ROOT, dryRun: false, only: 'telegram', timeoutMs: 15000 },
+      { root: REPO_ROOT, workspaceRoot: REPO_ROOT, dryRun: false, only: 'telegram', forceEnabled: true, timeoutMs: 15000 },
     );
   } catch (err) {
     console.error(`[telegram-monitor] Could not send canned reply to ${chatId}: ${err.message}`);
   }
 }
 
-async function invokeClaudeRouting(messages, cwd) {
-  const prompt = buildRoutingPrompt(messages);
-
-  try {
-    await invokeClaudeRoutingOnce(prompt, cwd);
-  } catch (err) {
-    if (err.spawnFailed) {
-      console.error(`[telegram-monitor] Spawn failed (${err.message}) — retrying once...`);
-      try {
-        await invokeClaudeRoutingOnce(prompt, cwd);
-        return; // retry succeeded
-      } catch (retryErr) {
-        console.error(`[telegram-monitor] Retry also failed (${retryErr.message}) — sending emergency notification.`);
-        notifyRoutingFailure(retryErr.message, messages);
-        throw retryErr;
-      }
-    }
-    // Runtime failure — Claude ran, exited non-zero. No retry.
-    console.error(`[telegram-monitor] Routing failed (${err.message}) — sending emergency notification.`);
-    notifyRoutingFailure(err.message, messages);
-    throw err;
-  }
-}
-
 /**
  * Guarded single-shot Claude invocation for one routed dispatch: builds the
- * right prompt for its kind, invokes with its resolved cwd, retries once on
- * a spawn-level failure, and alerts on final failure — same policy
- * invokeClaudeRouting() applied to the old flat single-batch call.
+ * right prompt for its kind (routing vs. onboarding), invokes it with that
+ * dispatch's own resolved cwd, retries once on a spawn-level failure, and
+ * alerts on final failure. This is where LLM tokens are spent — only reached
+ * once real messages have arrived and been classified.
+ *
+ * Telegram message text is untrusted external content (AGENTS.md → "Untrusted
+ * External Content") — it can contain anything, including shell metacharacters.
+ * The prompt is passed to `claude` as a single argv element via spawn() with
+ * shell:false (the default resolution — see resolveClaudeCommand()), never
+ * built as an interpolated shell string, so message content cannot break out
+ * into a shell command regardless of what characters it contains.
+ *
+ * On a spawn-level failure (the process never started), retry once
+ * immediately — a spawn error is usually a deterministic environment issue
+ * so a bare retry alone often won't help, but it's cheap insurance against a
+ * transient one. On a runtime failure (Claude ran, exited non-zero) there's
+ * no retry — re-running the exact same call would likely just repeat whatever
+ * went wrong. Either way, if the message still didn't get routed, send an
+ * emergency notification before giving up (2026-08-13).
  *
  * @param {{chatId: string, cwd: string, kind: 'routing'|'onboarding', messages: any[], state: object|null}} dispatch
  * @param {(prompt: string, cwd: string) => Promise<void>} [invoke] - overridable for tests.
@@ -321,15 +326,49 @@ export async function dispatchOne(dispatch, invoke = invokeClaudeRoutingOnce) {
   }
 }
 
+/**
+ * Fan one poll's dispatches out to Claude, honoring the routing-vs-onboarding
+ * concurrency split documented on daemonLoop() below:
+ *   - `routing` (bound chats): fired and NOT awaited, first, so a hours-long
+ *     `cycle` for one chat never blocks another chat's messages.
+ *   - `onboarding`: awaited, strictly one at a time — a sequential state
+ *     machine over one mutable file with no cycle-lock and no confirmation
+ *     gate to protect it (see daemonLoop's block comment).
+ * Resolves once every onboarding dispatch has finished; routing dispatches
+ * may still be in flight. Never rejects — a failing dispatch is logged (and
+ * has already alerted the user from inside dispatchOne).
+ *
+ * @param {Array<{chatId: string, cwd: string, kind: 'routing'|'onboarding', messages: any[], state: object|null}>} dispatches
+ * @param {(dispatch: any) => Promise<void>} [dispatch] - overridable for tests.
+ */
+export async function fanOutDispatches(dispatches, dispatch = dispatchOne) {
+  const log = (label, d, err) =>
+    console.error(`[${new Date().toISOString()}] [telegram-monitor daemon] ${label} call failed for chat ${d.chatId} (already reported to the user): ${err.message}`);
+
+  for (const d of dispatches) {
+    if (d.kind === 'onboarding') continue;
+    dispatch(d).catch(err => log('Routing', d, err));
+  }
+  for (const d of dispatches) {
+    if (d.kind !== 'onboarding') continue;
+    try {
+      await dispatch(d);
+    } catch (err) {
+      log('Onboarding', d, err);
+    }
+  }
+}
+
 const DAEMON_LONGPOLL_SECONDS = 25;
 
 /**
  * Persistent long-poll loop — never returns under normal operation.
  *
- * Non-blocking dispatch (changed 2026-08-15): the loop never awaits
- * invokeClaudeRouting() — it fires each batch of messages and immediately
- * goes back to polling, so a `cycle` run in flight (potentially hours)
- * doesn't stop the daemon from seeing and answering the next message, e.g.
+ * Non-blocking dispatch for BOUND chats (changed 2026-08-15): the loop never
+ * awaits a `routing` dispatch — it fires each bound chat's batch of messages
+ * and immediately goes back to polling, so a `cycle` run in flight
+ * (potentially hours) doesn't stop the daemon from seeing and answering the
+ * next message, e.g.
  * `/status` sent while a run is active. Concurrent claude -p invocations
  * are safe to fire because the real guards against duplicate/conflicting
  * work live elsewhere, not in this loop's blocking: cycle-lock.mjs is the
@@ -343,10 +382,21 @@ const DAEMON_LONGPOLL_SECONDS = 25;
  * Recent Actions log can race and drop one line — cosmetic (it's a log, not
  * tracker state), not worth a locking layer for a single-user tool.
  *
- * (Previously this loop awaited invokeClaudeRouting(), single-flighting all
- * commands the same way the scheduled/non-daemon mode below still does —
+ * (Previously this loop awaited a single flat routing call, single-flighting
+ * all commands the same way the scheduled/non-daemon mode below still does —
  * that mode has no long-running loop to unblock, so it keeps the simpler
  * await.)
+ *
+ * ONBOARDING dispatches are the deliberate exception (2026-08-19): they are
+ * awaited, one at a time. Everything the paragraph above relies on to make
+ * concurrency safe is a property of BOUND chats — cycle-lock.mjs, the
+ * human-confirmation gate — and onboarding has neither. It is a sequential
+ * state machine over one mutable file (data/onboarding/{chatId}.json): two
+ * concurrent `claude -p` onboarding runs for the same chat (trivially
+ * reachable — two messages arriving across two ~25s polls) would both read
+ * the same currentStep and both write it back, silently skipping or repeating
+ * a step. Serializing them is the only guard available; the cost is bounded,
+ * since an onboarding turn is one short question-and-answer, never a `cycle`.
  *
  * A single-instance lock (pipeline-lock.mjs's generic mkdir-based lock,
  * reused against data/telegram-daemon.lock) prevents two daemons — or a
@@ -379,16 +429,12 @@ async function daemonLoop() {
     try {
       const result = await pollTelegram(DAEMON_LONGPOLL_SECONDS);
       const messages = result.messages || [];
+      logPollError(result);
       if (messages.length > 0) {
         const dispatches = await routeMessages(messages, { repoRoot: REPO_ROOT, sendReply: sendCannedReply });
-        for (const dispatch of dispatches) {
-          // Fire-and-forget, per chat group now instead of per whole poll —
-          // a long cycle run for one bound chat must never block routing
-          // (or onboarding) for a different chat's messages in the same poll.
-          dispatchOne(dispatch).catch(err => {
-            console.error(`[${new Date().toISOString()}] [telegram-monitor daemon] Routing call failed for chat ${dispatch.chatId} (already reported to the user): ${err.message}`);
-          });
-        }
+        // Routing fired non-blocking, onboarding awaited one at a time —
+        // see fanOutDispatches() and this function's block comment above.
+        await fanOutDispatches(dispatches);
       }
       // No sleep between iterations: the long-poll itself already paced
       // this call out over up to DAEMON_LONGPOLL_SECONDS.
@@ -424,6 +470,7 @@ async function main() {
   try {
     const result = await pollTelegram();
     const messages = result.messages || [];
+    logPollError(result);
 
     if (messages.length === 0) {
       // No messages: exit silently, zero tokens spent on Claude
