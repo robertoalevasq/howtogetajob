@@ -102,6 +102,6 @@ If a step's tool call fails (a write error, `provision-workspace.mjs` exiting no
 
 - Never uses `AskUserQuestion`.
 - Never sends a message without the explicit `--chat-id {chatId}` flag.
-- Never binds a chat (`workspace.json`'s `chat_id`) before every prior step has completed — binding is strictly the last action of Step 6.
+- Never binds a chat (`workspace.json`'s `chat_id`) until every prior onboarding question has actually been answered — the bind call itself is the first action of Step 6, precisely because a failure there (e.g. "already bound") should leave the onboarding state and pending completion message untouched, safe to retry, rather than happening after the state is already deleted and a false success message already sent.
 - Never invents CV content, skills, or achievements not present in what the candidate actually pasted — same non-fabrication discipline as every other content-generating mode in this system.
 - Never requires the Discord webhook — it is always skippable.
