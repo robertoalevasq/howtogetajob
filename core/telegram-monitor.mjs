@@ -36,6 +36,7 @@ import { resolve, dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { acquirePipelineLock } from './pipeline-lock.mjs';
 import { telegramDaemonLockPath, resolveHubWorkspace } from './hub-paths.mjs';
+import { isMainModule } from './is-main.mjs';
 
 // ROOT is this script's own directory (core/, after the #workspace-multitenancy
 // Task 1 move) — kept as the cwd for spawning sibling scripts below ('plugins.mjs',
@@ -157,11 +158,11 @@ function pollTelegram(longPollSeconds = 0) {
 }
 
 /** Single attempt at spawning Claude — see invokeClaudeRouting() for retry/alert handling. */
-function invokeClaudeRoutingOnce(prompt) {
+function invokeClaudeRoutingOnce(prompt, cwd) {
   return new Promise((resolvePromise, reject) => {
     const { cmd, shell } = resolveClaudeCommand();
     let settled = false;
-    const proc = spawn(cmd, ['-p', prompt], { cwd: REPO_ROOT, stdio: 'inherit', shell });
+    const proc = spawn(cmd, ['-p', prompt], { cwd, stdio: 'inherit', shell });
     proc.on('error', err => {
       if (settled) return;
       settled = true;
@@ -201,8 +202,8 @@ function invokeClaudeRoutingOnce(prompt) {
  * repeat whatever went wrong. Either way, if the message still didn't get
  * routed, send an emergency notification before giving up (2026-08-13).
  */
-async function invokeClaudeRouting(messages) {
-  const prompt = `[HEADLESS] This is a non-interactive, unattended invocation — no human is present to answer a question this turn, and there is no future turn to come back to: this is a single, one-shot invocation that ends when this response ends. Apply every documented non-interactive/headless default in AGENTS.md and the mode files. Never pause to ask a question and wait for a reply (this includes AGENTS.md's Update Check, which must never surface its update prompt here). Never background a step and defer finishing it to "later" or "the next time I check" — if you start something that isn't done yet (a scan, a cycle sub-step, anything), wait for it synchronously, right now, in this same turn, before ending your response. Where a mode file documents an autonomous default for this situation, take it. Where none is documented, make the safest conservative choice, log it clearly in the run's own summary output, and continue — do not stop and wait.
+export function buildRoutingPrompt(messages) {
+  return `[HEADLESS] This is a non-interactive, unattended invocation — no human is present to answer a question this turn, and there is no future turn to come back to: this is a single, one-shot invocation that ends when this response ends. Apply every documented non-interactive/headless default in AGENTS.md and the mode files. Never pause to ask a question and wait for a reply (this includes AGENTS.md's Update Check, which must never surface its update prompt here). Never background a step and defer finishing it to "later" or "the next time I check" — if you start something that isn't done yet (a scan, a cycle sub-step, anything), wait for it synchronously, right now, in this same turn, before ending your response. Where a mode file documents an autonomous default for this situation, take it. Where none is documented, make the safest conservative choice, log it clearly in the run's own summary output, and continue — do not stop and wait.
 
 You are executing modes/telegram.md Step 2-6 routing for Telegram messages received by the career-ops bot.
 
@@ -219,14 +220,18 @@ Follow modes/telegram.md exactly — read it in full before routing:
 Never use AskUserQuestion — every candidate decision travels through Telegram, per this mode's own rules.
 Do NOT make up or assume context beyond the messages above and the referenced state/report files.
 Return a brief summary of actions taken.`;
+}
+
+async function invokeClaudeRouting(messages, cwd) {
+  const prompt = buildRoutingPrompt(messages);
 
   try {
-    await invokeClaudeRoutingOnce(prompt);
+    await invokeClaudeRoutingOnce(prompt, cwd);
   } catch (err) {
     if (err.spawnFailed) {
       console.error(`[telegram-monitor] Spawn failed (${err.message}) — retrying once...`);
       try {
-        await invokeClaudeRoutingOnce(prompt);
+        await invokeClaudeRoutingOnce(prompt, cwd);
         return; // retry succeeded
       } catch (retryErr) {
         console.error(`[telegram-monitor] Retry also failed (${retryErr.message}) — sending emergency notification.`);
@@ -303,7 +308,7 @@ async function daemonLoop() {
         // Fire-and-forget: do NOT await. Blocking here is exactly what
         // made /status (and everything else) unreachable while a `cycle`
         // run was in flight — see the doc comment above this function.
-        invokeClaudeRouting(messages).catch(err => {
+        invokeClaudeRouting(messages, REPO_ROOT).catch(err => {
           // invokeClaudeRouting() already logs + sends an emergency
           // notification internally on final failure; this catch exists
           // only so an unawaited rejection can't crash the loop via an
@@ -370,11 +375,13 @@ async function main() {
     // to finish — a `search`/`run` trigger holds this process open for the
     // full cycle duration (potentially hours), matching modes/telegram.md
     // Step 3a's own documented behavior.
-    await invokeClaudeRouting(messages);
+    await invokeClaudeRouting(messages, REPO_ROOT);
   } catch (err) {
     console.error(`[telegram-monitor] Error: ${err.message}`);
     process.exit(1);
   }
 }
 
-main();
+if (isMainModule(import.meta.url)) {
+  main();
+}
