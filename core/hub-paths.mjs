@@ -68,3 +68,19 @@ export function resolveHubWorkspace(opts = {}) {
   }
   throw new Error(`Multiple workspaces exist (${slugs.join(', ')}) — set CAREER_OPS_TELEGRAM_WORKSPACE to the one the shared Telegram daemon should serve.`);
 }
+
+export function accessCodesPath(opts = {}) {
+  return join(opts.repoRoot || REPO_ROOT, 'data', 'access-codes.json');
+}
+
+export function accessCodeAttemptsPath(opts = {}) {
+  return join(opts.repoRoot || REPO_ROOT, 'data', 'access-code-attempts.json');
+}
+
+export function onboardingDir(opts = {}) {
+  return join(opts.repoRoot || REPO_ROOT, 'data', 'onboarding');
+}
+
+export function onboardingStatePath(chatId, opts = {}) {
+  return join(onboardingDir(opts), `${chatId}.json`);
+}
