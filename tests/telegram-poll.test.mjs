@@ -39,19 +39,39 @@ function runPoll() {
 
 test('telegram-poll poll() no longer reports the telegram plugin as not enabled', () => {
   const result = runPoll();
-  assert.equal(
+  assert.notEqual(
     result.error,
-    undefined,
-    `poll() reported an error instead of loading the plugin: ${result.error}`,
+    'telegram plugin not enabled — see config/plugins.yml and .env',
+    'poll() fell back to the engine-level "not enabled" error — the manifest was never loaded',
   );
   assert.ok(Array.isArray(result.messages), 'expected a messages array');
 });
 
 test('telegram-poll poll() reaches the plugin\'s own ingest hook (no repo-root config/plugins.yml needed)', () => {
-  // With the token blanked, ingest() returns { messages: [] } from its own
-  // guard. Getting that shape back — rather than the engine-level "not
-  // enabled" error object — is what proves the hub-global forceEnabled path
-  // actually loads the manifest.
+  // With the token blanked, ingest() returns { messages: [], error:
+  // 'TELEGRAM_BOT_TOKEN not set' } from its own guard. Getting that shape
+  // back — rather than the engine-level "not enabled" error — is what
+  // proves the hub-global forceEnabled path actually loaded the manifest
+  // and reached the plugin's own code, not just the engine's gate.
   const result = runPoll();
-  assert.deepEqual(result, { messages: [] });
+  assert.deepEqual(result, { messages: [], error: 'TELEGRAM_BOT_TOKEN not set' });
+});
+
+test('telegram-poll poll() sees a real TELEGRAM_BOT_TOKEN from the repo-root .env regardless of the spawned process\'s own cwd', () => {
+  // Reproduces the actual production failure this whole file guards
+  // against, but from the opposite direction: with the token NOT blanked
+  // (inherited from this test process's own env, which loadDotenvOnce()
+  // populates from the repo-root .env the same way the real daemon does),
+  // ingest() must get past its own missing-token guard entirely — proving
+  // the hub-global dotenv fix in plugins/_engine.mjs actually reaches a
+  // process spawned with cwd: core/, not just that the manifest loads.
+  const stdout = execFileSync(process.execPath, ['telegram-poll.mjs', 'poll'], {
+    cwd: CORE_DIR,
+    encoding: 'utf-8',
+    env: { ...process.env, CAREER_OPS_TELEGRAM_LONGPOLL_SECONDS: '0' },
+  });
+  const lines = stdout.trim().split(/\r?\n/).filter(l => l.trim());
+  const result = JSON.parse(lines[lines.length - 1]);
+  assert.notEqual(result.error, 'TELEGRAM_BOT_TOKEN not set', 'the poll subprocess never saw the token');
+  assert.ok(Array.isArray(result.messages), 'expected a messages array');
 });

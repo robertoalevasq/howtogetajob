@@ -26,7 +26,7 @@
 
 import { existsSync, readdirSync, readFileSync, realpathSync } from 'fs';
 import path from 'path';
-import { pathToFileURL } from 'url';
+import { pathToFileURL, fileURLToPath } from 'url';
 import { resolveAndValidate } from './_net.mjs';
 import { readLock, writeLockEntry, diffPlugin, hashPluginTree, consentSurface } from './_lock.mjs';
 import { loadRegistry } from './_registry.mjs';
@@ -642,6 +642,11 @@ export async function loadPlugins(kind, { root, workspaceRoot = root, dryRun = f
   return out;
 }
 
+// plugins/_engine.mjs's own parent = repo root (this file resolves through a
+// workspace junction to its real location, same as every other ROOT/REPO_ROOT
+// constant in this codebase).
+const ENGINE_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+
 /** Lazily load dotenv exactly once (mirrors gemini-eval.mjs). Idempotent. */
 let dotenvLoaded = false;
 export async function loadDotenvOnce() {
@@ -652,7 +657,21 @@ export async function loadDotenvOnce() {
     // quiet: suppresses dotenv's startup banner and rotating tip line (same
     // reason scan.mjs already sets this — it pollutes CLI output that
     // downstream callers, and headless runs, treat as clean).
-    config({ quiet: true });
+    //
+    // Two layers, hub-global first: TELEGRAM_BOT_TOKEN (and any other secret
+    // shared across every tenant) lives ONLY in the repo root's own .env —
+    // never per-workspace — so it must be visible regardless of which
+    // workspace's cwd this call happens to run from. Without this, a bound
+    // workspace's own `node core/plugins.mjs run telegram notify` could
+    // never see the bot token at all, since only the cwd-relative .env
+    // (which never carries this key) was ever loaded — every outbound
+    // Telegram send from a real workspace session failed silently at the
+    // gate. The cwd-relative .env (workspace-specific secrets, e.g.
+    // DISCORD_WEBHOOK_URL) loads second with override:true, so a workspace
+    // can override a hub-level default without same-named vars silently
+    // depending on load order.
+    config({ path: path.join(ENGINE_ROOT, '.env'), quiet: true });
+    config({ quiet: true, override: true });
   } catch {
     // dotenv optional — fall back to ambient process.env (CI, exported vars).
   }

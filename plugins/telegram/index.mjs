@@ -214,7 +214,7 @@ export default {
    */
   async ingest(ctx) {
     const token = ctx.env.TELEGRAM_BOT_TOKEN;
-    if (!token) { ctx.log('telegram: TELEGRAM_BOT_TOKEN not set'); return { messages: [] }; }
+    if (!token) { ctx.log('telegram: TELEGRAM_BOT_TOKEN not set'); return { messages: [], error: 'TELEGRAM_BOT_TOKEN not set' }; }
 
     const lastUpdateId = loadOffset();
     // timeout=0 (default): a single non-blocking poll — the original
