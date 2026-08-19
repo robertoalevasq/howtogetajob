@@ -609,12 +609,19 @@ export function lockGate(manifest, systemRoot, userRoot = systemRoot) {
   }
 }
 
-export async function loadPlugins(kind, { root, workspaceRoot = root, dryRun = false, only }) {
+export async function loadPlugins(kind, { root, workspaceRoot = root, dryRun = false, only, forceEnabled = false }) {
   const cfg = await loadPluginConfig(workspaceRoot);
   const manifests = discoverPlugins(pluginRoots(root, workspaceRoot), resolveSuccessorIds(root, workspaceRoot)).filter(m => m.hooks.includes(kind) && (!only || m.id === only));
   const out = [];
   for (const manifest of manifests) {
-    if (!pluginStatus(manifest, cfg).enabled) continue;
+    // forceEnabled bypasses the enabled-gate ONLY for the single manifest
+    // named by `only` — e.g. core/plugins.mjs's --chat-id CLI flag, which
+    // deliberately targets one specific chat regardless of that plugin's
+    // own config/plugins.yml state. Never a blanket bypass: every other
+    // matched manifest (when `only` isn't the sole filter) still goes
+    // through the normal enabled check.
+    const bypassGate = forceEnabled && only && manifest.id === only;
+    if (!bypassGate && !pluginStatus(manifest, cfg).enabled) continue;
     if (!lockGate(manifest, root, workspaceRoot).load) continue;
     const hook = await importHook(manifest, kind);
     if (!hook) continue;
@@ -658,9 +665,9 @@ export async function loadDotenvOnce() {
  * @param {{ root: string, workspaceRoot?: string, dryRun?: boolean, timeoutMs?: number }} opts
  * @returns {Promise<Array<{ id: string, ok: boolean, result?: any, error?: string }>>}
  */
-export async function runHook(kind, payload, { root, workspaceRoot = root, dryRun = false, timeoutMs = DEFAULT_HOOK_TIMEOUT_MS, only }) {
+export async function runHook(kind, payload, { root, workspaceRoot = root, dryRun = false, timeoutMs = DEFAULT_HOOK_TIMEOUT_MS, only, forceEnabled }) {
   await loadDotenvOnce();
-  const loaded = await loadPlugins(kind, { root, workspaceRoot, dryRun, only });
+  const loaded = await loadPlugins(kind, { root, workspaceRoot, dryRun, only, forceEnabled });
   const results = [];
   for (const { id, hook, ctx } of loaded) {
     const invoke = kind === 'search'

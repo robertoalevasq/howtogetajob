@@ -14,6 +14,13 @@
 // is driven directly via runHook('ingest', ...) from telegram-poll.mjs, NOT
 // via `node plugins.mjs run telegram ingest` — that CLI path assumes every
 // ingest hook returns job listings and would silently discard chat messages.
+//
+// This hook returns every message from every chat that has ever messaged
+// this bot — Telegram has no per-chat scoping at the API level. Access
+// control (bound-chat routing vs. the access-code onboarding gate) lives in
+// core/telegram-router.mjs, which has full knowledge of every bound/
+// in-progress chat this plugin cannot see. This module stays a generic
+// "fetch messages" integration with no career-ops-specific policy in it.
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, statSync } from 'fs';
 import { dirname, basename } from 'path';
@@ -102,9 +109,16 @@ export default {
     const token = ctx.env.TELEGRAM_BOT_TOKEN;
     if (!token) return { sent: false, error: 'TELEGRAM_BOT_TOKEN not set' };
 
-    // Support both chat_ids (array) and chat_id (single) for backwards compatibility
-    const chatIds = ctx.settings.chat_ids || (ctx.settings.chat_id ? [ctx.settings.chat_id] : null);
-    if (!chatIds || chatIds.length === 0) return { sent: false, error: 'telegram.chat_id or chat_ids not set in config/plugins.yml' };
+    // An explicit payload.chatId/chatIds overrides ctx.settings entirely —
+    // used by core/telegram-router.mjs and modes/telegram-onboarding.md to
+    // message a chat that isn't (yet) any workspace's configured chat_id.
+    // Every existing caller that doesn't pass this keeps the original
+    // ctx.settings-based resolution unchanged.
+    const chatIds = (payload && payload.chatIds)
+      || (payload && payload.chatId ? [payload.chatId] : null)
+      || ctx.settings.chat_ids
+      || (ctx.settings.chat_id ? [ctx.settings.chat_id] : null);
+    if (!chatIds || chatIds.length === 0) return { sent: false, error: 'telegram.chat_id or chat_ids not set in config/plugins.yml, and no payload.chatId/chatIds override given' };
 
     const message = (payload && payload.message) || '';
     // filePath (single, legacy) and filePaths (array) both accepted, same
@@ -221,19 +235,6 @@ export default {
     const data = await res.json();
     const updates = Array.isArray(data.result) ? data.result : [];
 
-    // Access control (added 2026-08-13): getUpdates returns every message
-    // from every chat that has ever messaged this bot — Telegram has no
-    // per-chat scoping at the API level. Without this check, anyone who
-    // finds the bot and starts a conversation could trigger real actions
-    // (a cycle run, an apply flow). Same chat_ids/chat_id config notify()
-    // already reads — a chat outside that set is logged and dropped here,
-    // never routed. Coerced to String() since Telegram's API returns
-    // msg.chat.id as a number but config/plugins.yml's chat_id is a string.
-    const allowedChatIds = new Set(
-      (ctx.settings.chat_ids || (ctx.settings.chat_id ? [ctx.settings.chat_id] : []))
-        .map(id => String(id)),
-    );
-
     const messages = updates
       .filter(u => u.message && typeof u.message.text === 'string')
       .map(u => {
@@ -255,24 +256,9 @@ export default {
           from: msg.from?.username || msg.from?.first_name || 'unknown',
           isCommand: isCommandMessage,  // new field for downstream routing
         };
-      })
-      .filter(m => {
-        // Fail closed, not open: an empty allowlist means chat_id/chat_ids
-        // isn't configured at all (config/plugins.yml), not "allow anyone" —
-        // the whole point of this filter is a fixed, deliberate identity,
-        // so an unset config should never silently widen to "everyone."
-        if (allowedChatIds.size === 0) {
-          ctx.log(`telegram: no chat_id/chat_ids configured — rejecting message from ${m.chatId} (${m.from}). Set telegram.chat_id in config/plugins.yml.`);
-          return false;
-        }
-        if (allowedChatIds.has(String(m.chatId))) return true;
-        ctx.log(`telegram: rejected message from unauthorized chat ${m.chatId} (${m.from}): ${m.text.slice(0, 80)}`);
-        return false;
       });
 
-    // Offset advances past every fetched update regardless of the allowlist
-    // filter above — an unauthorized chat's message must never be
-    // redelivered on the next poll just because it was rejected, not routed.
+    // Offset advances past every fetched update.
     if (updates.length > 0) {
       const maxUpdateId = Math.max(...updates.map(u => u.update_id));
       if (!ctx.dryRun) saveOffset(maxUpdateId);

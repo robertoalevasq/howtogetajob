@@ -148,6 +148,7 @@ async function cmdRun(args) {
   // inline flag, because embeds have real structure (fields is an array of
   // objects) that shell quoting can't carry reliably across PowerShell/Bash.
   let embedFile = null;
+  let chatIdOverride = null;
   const consumedIdx = new Set();
   args.forEach((a, i) => {
     if (a === '--file') {
@@ -168,6 +169,12 @@ async function cmdRun(args) {
       if (!val) { console.error('Usage: --embed-file <path> needs a value.'); process.exit(1); }
       consumedIdx.add(i + 1);
       embedFile = val;
+    } else if (a === '--chat-id') {
+      consumedIdx.add(i);
+      const val = args[i + 1];
+      if (!val) { console.error('Usage: --chat-id <id> needs a value.'); process.exit(1); }
+      consumedIdx.add(i + 1);
+      chatIdOverride = val;
     }
   });
   const positional = args.filter((a, i) => a !== '--dry-run' && !consumedIdx.has(i));
@@ -195,9 +202,17 @@ async function cmdRun(args) {
   if (!manifest.hooks.includes(hook)) { console.error(`Plugin "${id}" does not expose a "${hook}" hook (has: ${manifest.hooks.join(', ')}).`); process.exit(1); }
 
   // Two-gate check with an actionable message before doing any work.
+  // Skipped entirely when --chat-id is given: that flag means the caller is
+  // deliberately targeting one specific chat regardless of any workspace's
+  // own plugin config (core/telegram-router.mjs's canned replies, and every
+  // outbound message in modes/telegram-onboarding.md's conversation, run
+  // this way since no fully-configured workspace may exist yet). The
+  // underlying hook (notify()) still checks its own required env directly.
   const status = pluginStatus(manifest, cfg);
-  if (!status.configured) { console.error(`Plugin "${id}" is not enabled. Set plugins.${id}.enabled: true in config/plugins.yml.`); process.exit(1); }
-  if (status.missingEnv.length) { console.error(`Plugin "${id}" is missing ${status.missingEnv.join(', ')} in .env. See .env.example.`); process.exit(1); }
+  if (!chatIdOverride) {
+    if (!status.configured) { console.error(`Plugin "${id}" is not enabled. Set plugins.${id}.enabled: true in config/plugins.yml.`); process.exit(1); }
+    if (status.missingEnv.length) { console.error(`Plugin "${id}" is missing ${status.missingEnv.join(', ')} in .env. See .env.example.`); process.exit(1); }
+  }
 
   await loadDotenvOnce();
 
@@ -241,7 +256,11 @@ async function cmdRun(args) {
     if (embed) payload.embed = embed;
     if (filePaths.length) payload.filePaths = filePaths;
     if (editMessageId) payload.editMessageId = editMessageId;
-    const results = await runHook('notify', payload, { root: ROOT, workspaceRoot: WS_ROOT, dryRun });
+    if (chatIdOverride) payload.chatId = chatIdOverride;
+    const results = await runHook('notify', payload, {
+      root: ROOT, workspaceRoot: WS_ROOT, dryRun,
+      ...(chatIdOverride ? { only: id, forceEnabled: true } : {}),
+    });
     for (const r of results) {
       if (!r.ok) { console.log(`${r.id} notify: failed — ${r.error}`); continue; }
       const id = r.result && r.result.messageId;
