@@ -15,13 +15,28 @@
 
 ## Quick Setup (Windows Task Scheduler)
 
-### Automatic Setup
+### Automatic Setup (Recommended)
+
+**Option 1: Run the batch file (easiest)**
 ```bash
-# As Administrator in the career-ops directory:
-telegram-setup-scheduler.bat
+# IMPORTANT: Run as Administrator
+# 1. Open Command Prompt (cmd.exe)
+# 2. Right-click → "Run as Administrator"
+# 3. cd C:\Users\{username}\OneDrive\Documents\_vscode\career-ops
+# 4. telegram-setup-scheduler.bat
+
+# Or from PowerShell (run as Administrator):
+cd "c:\Users\thebo\OneDrive\Documents\_vscode\career-ops"
+& ".\telegram-setup-scheduler.bat"
 ```
 
-This creates a recurring task `CareerOps-Telegram-Poll` that runs every 5 minutes.
+**Option 2: Run the direct schtasks command (if batch fails)**
+```bash
+# From Command Prompt or PowerShell (run as Administrator):
+schtasks /create /tn "CareerOps-Telegram-Poll" /tr "node c:\Users\thebo\OneDrive\Documents\_vscode\career-ops\telegram-monitor.mjs" /sc minute /mo 5 /rl highest /f
+```
+
+Both create a recurring task `CareerOps-Telegram-Poll` that runs every 5 minutes.
 
 ### Manual Setup
 1. Open **Task Scheduler** (search "Task Scheduler" in Windows Start menu)
@@ -64,8 +79,9 @@ $ echo $?
 **Messages arrive (Claude routing invoked):**
 ```bash
 $ node core/telegram-monitor.mjs
-[Claude would route 1 message(s) via modes/telegram.md Steps 2-6]
-{"status": "routing", "message_count": 1}
+# spawns `claude -p "<routing prompt>"` and waits for it to finish — inherits
+# stdout/stderr, so Claude's own tool-call output streams through directly.
+# A cycle-trigger message holds this process open for the full run duration.
 ```
 
 ## CLI Commands
@@ -80,6 +96,27 @@ node core/telegram-monitor.mjs --reset
 # Manual poll via telegram-poll.mjs (also exits silently if empty)
 node core/telegram-poll.mjs poll
 ```
+
+## Manual Task Execution (Windows)
+
+If you need to run the Telegram monitor immediately without waiting for the scheduled 5-minute interval:
+
+```powershell
+# As Administrator, in PowerShell:
+schtasks /change /tn "CareerOps-Telegram-Poll" /enable
+schtasks /run /tn "CareerOps-Telegram-Poll"
+
+# To verify it ran, check the last run time:
+schtasks /query /tn "CareerOps-Telegram-Poll" /v
+```
+
+**Note:** You must run PowerShell/Command Prompt **as Administrator** for these commands to work. If you see "Access is denied", right-click PowerShell and select "Run as administrator."
+
+If the task doesn't exist yet, first run:
+```bash
+telegram-setup-scheduler.bat
+```
+(as Administrator in the career-ops directory)
 
 ## Monitoring
 

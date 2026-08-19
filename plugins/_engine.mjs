@@ -609,9 +609,9 @@ export function lockGate(manifest, systemRoot, userRoot = systemRoot) {
   }
 }
 
-export async function loadPlugins(kind, { root, workspaceRoot = root, dryRun = false }) {
+export async function loadPlugins(kind, { root, workspaceRoot = root, dryRun = false, only }) {
   const cfg = await loadPluginConfig(workspaceRoot);
-  const manifests = discoverPlugins(pluginRoots(root, workspaceRoot), resolveSuccessorIds(root, workspaceRoot)).filter(m => m.hooks.includes(kind));
+  const manifests = discoverPlugins(pluginRoots(root, workspaceRoot), resolveSuccessorIds(root, workspaceRoot)).filter(m => m.hooks.includes(kind) && (!only || m.id === only));
   const out = [];
   for (const manifest of manifests) {
     if (!pluginStatus(manifest, cfg).enabled) continue;
@@ -630,7 +630,10 @@ export async function loadDotenvOnce() {
   dotenvLoaded = true;
   try {
     const { config } = await import('dotenv');
-    config();
+    // quiet: suppresses dotenv's startup banner and rotating tip line (same
+    // reason scan.mjs already sets this — it pollutes CLI output that
+    // downstream callers, and headless runs, treat as clean).
+    config({ quiet: true });
   } catch {
     // dotenv optional — fall back to ambient process.env (CI, exported vars).
   }
@@ -655,9 +658,9 @@ export async function loadDotenvOnce() {
  * @param {{ root: string, workspaceRoot?: string, dryRun?: boolean, timeoutMs?: number }} opts
  * @returns {Promise<Array<{ id: string, ok: boolean, result?: any, error?: string }>>}
  */
-export async function runHook(kind, payload, { root, workspaceRoot = root, dryRun = false, timeoutMs = DEFAULT_HOOK_TIMEOUT_MS }) {
+export async function runHook(kind, payload, { root, workspaceRoot = root, dryRun = false, timeoutMs = DEFAULT_HOOK_TIMEOUT_MS, only }) {
   await loadDotenvOnce();
-  const loaded = await loadPlugins(kind, { root, workspaceRoot, dryRun });
+  const loaded = await loadPlugins(kind, { root, workspaceRoot, dryRun, only });
   const results = [];
   for (const { id, hook, ctx } of loaded) {
     const invoke = kind === 'search'

@@ -63,10 +63,17 @@ export default {
       ...(payload && Array.isArray(payload.filePaths) ? payload.filePaths : []),
     ];
 
+    // A file-only send (attachment, no caption) is legitimate and must not
+    // get a placeholder — only truly empty (no message, no embed, no files)
+    // is a caller mistake. plugins.mjs's CLI already rejects this case before
+    // it reaches here; this is defense-in-depth for direct runHook() callers
+    // (e.g. discord-ticker.mjs) that bypass that CLI validation.
+    if (!message && !embed && filePaths.length === 0) {
+      return { sent: false, error: 'notify called with no message, embed, or file — nothing to send' };
+    }
     const body = {};
     if (message) body.content = message;
     if (embed) body.embeds = [embed];
-    if (!message && !embed) body.content = '(career-ops notification)';
 
     if (ctx.dryRun) {
       ctx.log(`would ${editMessageId ? `edit message ${editMessageId}` : 'post'} to Discord${filePaths.length ? ` with ${filePaths.length} attachment(s)` : ''}${embed ? ' (embed)' : ''}: ${message || (embed && embed.title) || ''}`);
