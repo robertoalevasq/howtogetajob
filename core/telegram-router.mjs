@@ -151,8 +151,18 @@ export async function routeMessages(messages, opts = {}) {
 
     const state = readOnboardingState(chatId, opts);
     if (state) {
-      const cwd = state.slug ? join(repoRoot, 'workspaces', state.slug) : repoRoot;
-      dispatches.push({ chatId, cwd, kind: 'onboarding', messages: chatMessages, state });
+      // An onboarding conversation's cwd is ALWAYS the repo root, for its
+      // whole lifetime — never workspaces/{slug}/, even once state.slug is
+      // set. modes/telegram-onboarding.md writes every workspace file by its
+      // full `workspaces/{slug}/...` path, so it needs nothing from a
+      // workspace-relative cwd; meanwhile the two things it DOES touch
+      // relatively — data/onboarding/{chatId}.json and the seed templates —
+      // are hub-global (core/hub-paths.mjs resolves them off the real repo
+      // root regardless of cwd). Moving the cwd into the workspace once a
+      // slug existed made a bare-relative delete of the state file land in
+      // workspaces/{slug}/data/onboarding/ instead, so currentStep never
+      // advanced and onboarding looped on the same step forever.
+      dispatches.push({ chatId, cwd: repoRoot, kind: 'onboarding', messages: chatMessages, state });
       continue;
     }
 

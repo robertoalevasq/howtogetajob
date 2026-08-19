@@ -48,7 +48,7 @@ On receiving a name reply:
 4. Advance `currentStep` to `cv`, save state.
 5. Send: `Thanks {name}! Now, paste your CV/resume as text — don't worry about formatting, I'll clean it up.`
 
-From this point on, every file write below targets `workspaces/{slug}/...` by its full path (not a bare relative path — this mode's own session `cwd` is fixed at the repo root for its whole lifetime; only the *content* of files inside the new workspace changes, never the session's own working directory).
+From this point on, every file write below targets `workspaces/{slug}/...` by its full path (not a bare relative path — this mode's own session `cwd` is fixed at the **repo root** for its whole lifetime, including after `state.slug` exists; `core/telegram-router.mjs` dispatches every onboarding turn with `cwd = repoRoot` unconditionally, precisely so the hub-global `data/onboarding/{chatId}.json` and the repo-root seed templates stay reachable by their bare relative paths). Only the *content* of files inside the new workspace changes, never the session's own working directory.
 
 ## Step 3 — CV
 
@@ -64,7 +64,7 @@ On receiving the CV text reply:
 On receiving the roles/location/salary reply:
 
 1. Parse the three answers (best-effort natural-language extraction — if something's ambiguous, ask a single focused follow-up rather than guessing, then continue once answered).
-2. Copy `config/profile.example.yml` into `workspaces/{slug}/config/profile.yml` if it isn't already the seeded template (it already is, from `--from-name`'s provisioning step) — edit in the target roles, location, and salary range fields.
+2. Copy `config/profile.example.yml` (the repo-root template — a bare relative path is correct here, the session cwd *is* the repo root) into `workspaces/{slug}/config/profile.yml` if it isn't already the seeded template (it already is, from `--from-name`'s provisioning step) — edit in the target roles, location, and salary range fields.
 3. Send: `Last setup choice — how much do you want to spend on model usage per evaluation?\n💰 economy — cheapest/fastest, good for scanning lots of offers\n⚖️ standard — balanced (most people pick this)\n💎 premium — most capable, best for offers you really care about\n\nReply with one word.`
 4. Advance `currentStep` to `discord`, save state (the spend-tier reply is handled inline in Step 5, since it's the same logical question set — `currentStep` only needs to distinguish "waiting on roles/location/salary" from "waiting on discord/skip").
 
@@ -72,27 +72,27 @@ On receiving the roles/location/salary reply:
 
 On receiving the spend-tier reply:
 
-1. Set `config/profile.yml`'s `spend_tier` to the matched value (default `standard` if the reply doesn't clearly match one of the three).
+1. Set `workspaces/{slug}/config/profile.yml`'s `spend_tier` to the matched value (default `standard` if the reply doesn't clearly match one of the three).
 2. Send: `One more optional thing — want progress updates in Discord too? Paste a webhook URL, or reply "skip".`
 
 On receiving the Discord reply:
 
-1. If it's a URL: write it to `workspaces/{slug}/.env` as `DISCORD_WEBHOOK_URL=...` (create the file if it doesn't exist; never echo the URL back in a Telegram message). Set `config/plugins.yml`'s `discord.enabled: true`.
-2. If it's "skip" (or equivalent): leave `config/plugins.yml`'s `discord.enabled: false` (the seeded template default — no edit needed).
-3. Either way, also set `config/plugins.yml`'s `telegram.enabled: true`, `telegram.chat_id: "{chatId}"`, and `telegram.chat_ids: ["{chatId}"]` — this is what makes the *ordinary* post-onboarding `modes/telegram.md` flow able to message them normally via `ctx.settings`, once bound. (This does not itself bind the chat — see Step 6.)
+1. If it's a URL: write it to `workspaces/{slug}/.env` as `DISCORD_WEBHOOK_URL=...` (create the file if it doesn't exist; never echo the URL back in a Telegram message). Set `workspaces/{slug}/config/plugins.yml`'s `discord.enabled: true`.
+2. If it's "skip" (or equivalent): leave `workspaces/{slug}/config/plugins.yml`'s `discord.enabled: false` (the seeded template default — no edit needed).
+3. Either way, also set `workspaces/{slug}/config/plugins.yml`'s `telegram.enabled: true`, `telegram.chat_id: "{chatId}"`, and `telegram.chat_ids: ["{chatId}"]` — this is what makes the *ordinary* post-onboarding `modes/telegram.md` flow able to message them normally via `ctx.settings`, once bound. (This does not itself bind the chat — see Step 6.)
 4. Advance `currentStep` to `done`, save state.
 
 ## Step 6 — Bind and finish
 
 1. Run the bind: `node core/provision-workspace.mjs --bind-chat {slug} {chatId}`. This sets `workspaces/{slug}/workspace.json`'s `chat_id` — the one action that makes `core/telegram-router.mjs` recognize this chat as bound from the next poll onward. On failure (e.g. `already bound`), treat it like any other step failure — see "Error handling" below — never retry blindly.
-2. Delete the onboarding state: remove `data/onboarding/{chatId}.json`.
+2. Delete the onboarding state: remove `data/onboarding/{chatId}.json` — the hub-global one at the **repo root** (this session's cwd), never a copy under `workspaces/{slug}/`.
 3. Send the completion message, followed immediately by `modes/telegram.md` Step 3g's exact help text (read it from that file — never duplicate/paraphrase it here, since it drifts):
    > `✅ All set! You're ready to search. Here's what I can do:`
 4. Nothing further happens in this turn — the *next* message from this chat will be picked up by `core/telegram-router.mjs` as a bound chat and routed through `modes/telegram.md` normally.
 
 ## `/restart`
 
-Recognized at any point during onboarding (mirrors the edit-loop pattern in `modes/telegram.md`): delete `data/onboarding/{chatId}.json` and send `No problem — let's start over. What's your name?`, effectively re-running Step 1. Does **not** delete an already-provisioned-but-unbound `workspaces/{slug}/` directory from a prior attempt — that's inert clutter until the operator notices and cleans it up manually, same "flag, never auto-delete" treatment as everywhere else in this codebase's data-contract conventions. If the person completes onboarding again under a new name after a `/restart`, they get a second workspace directory (a harmless, if slightly confusing, side effect of restarting after already having provisioned once — not worth special-casing for a ~2-20 person circle).
+Recognized at any point during onboarding (mirrors the edit-loop pattern in `modes/telegram.md`): delete `data/onboarding/{chatId}.json` (again, the hub-global one at the repo root) and send `No problem — let's start over. What's your name?`, effectively re-running Step 1. Does **not** delete an already-provisioned-but-unbound `workspaces/{slug}/` directory from a prior attempt — that's inert clutter until the operator notices and cleans it up manually, same "flag, never auto-delete" treatment as everywhere else in this codebase's data-contract conventions. If the person completes onboarding again under a new name after a `/restart`, they get a second workspace directory (a harmless, if slightly confusing, side effect of restarting after already having provisioned once — not worth special-casing for a ~2-20 person circle).
 
 ## Error handling
 

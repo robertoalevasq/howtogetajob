@@ -189,13 +189,19 @@ test('routeMessages resumes mid-onboarding with cwd = repo root when no slug is 
   }
 });
 
-test('routeMessages resumes mid-onboarding with cwd = the workspace once a slug is set', async () => {
+test('routeMessages keeps cwd = repo root mid-onboarding even once a slug is set', async () => {
+  // Regression guard: this used to dispatch with cwd = workspaces/{slug}/,
+  // which broke modes/telegram-onboarding.md's bare-relative operations on
+  // the hub-global data/onboarding/{chatId}.json (they landed inside the
+  // workspace instead, so currentStep never advanced and onboarding looped).
   const repoRoot = fakeRepo();
   try {
     provisionWorkspace('alice', { reposRoot: repoRoot }); // no chat_id yet — unbound
     writeOnboardingState('999', { chatId: '999', slug: 'alice', currentStep: 'cv' }, { repoRoot });
     const dispatches = await routeMessages([msg('999', 'my resume text')], { repoRoot });
-    assert.equal(dispatches[0].cwd, join(repoRoot, 'workspaces', 'alice'));
+    assert.equal(dispatches[0].kind, 'onboarding');
+    assert.equal(dispatches[0].cwd, repoRoot);
+    assert.notEqual(dispatches[0].cwd, join(repoRoot, 'workspaces', 'alice'));
   } finally {
     rmSync(repoRoot, { recursive: true, force: true });
   }
