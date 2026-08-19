@@ -18,6 +18,7 @@ import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { runHook } from '../plugins/_engine.mjs';
 import { telegramOffsetPath } from './hub-paths.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 import { isMainModule } from './is-main.mjs';
 
 // This script now lives in core/, one directory below the repo root; ROOT is
@@ -62,13 +63,21 @@ function offsetPath() {
 }
 
 async function poll() {
+  // The telegram plugin's config (chat_id/chat_ids) lives under a specific
+  // workspace's config/plugins.yml since the #workspace-multitenancy
+  // migration — root alone (the repo root, for plugin discovery) has no
+  // config/plugins.yml of its own anymore. workspaceRoot() resolves it the
+  // same way every other workspace-scoped script does: CAREER_OPS_WORKSPACE
+  // if set (telegram-monitor.mjs sets this once via resolveHubWorkspace()
+  // before spawning this script), otherwise process.cwd().
+  //
   // runHook's own timeout must outlive ingest()'s ctx.fetch call, which
   // itself must outlive Telegram's own long-poll timeout — three nested
   // timeouts that all need to agree, driven from the same env var so a
   // long-poll caller (telegram-monitor.mjs --daemon) only has to set it once.
   // Matches runHook's own 15s default exactly when long-polling is off.
   const longPollSeconds = Math.max(0, Math.min(50, Number(process.env.CAREER_OPS_TELEGRAM_LONGPOLL_SECONDS) || 0));
-  const results = await runHook('ingest', undefined, { root: ROOT, dryRun: false, only: 'telegram', timeoutMs: (longPollSeconds + 15) * 1000 });
+  const results = await runHook('ingest', undefined, { root: ROOT, workspaceRoot: workspaceRoot(), dryRun: false, only: 'telegram', timeoutMs: (longPollSeconds + 15) * 1000 });
   const telegramResult = results.find(r => r.id === 'telegram');
   if (!telegramResult) {
     console.log(JSON.stringify({ messages: [], error: 'telegram plugin not enabled — see config/plugins.yml and .env' }));

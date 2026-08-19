@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-import { telegramOffsetPath, telegramDaemonLockPath } from '../core/hub-paths.mjs';
+import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { telegramOffsetPath, telegramDaemonLockPath, resolveHubWorkspace } from '../core/hub-paths.mjs';
 
 // REPO_ROOT, not core/ itself: hub-paths.mjs lives at core/hub-paths.mjs
 // (#workspace-multitenancy Task 1), and its two paths must land at the true
@@ -45,4 +46,58 @@ test('paths are unaffected by CAREER_OPS_WORKSPACE', () => {
   } finally {
     delete process.env.CAREER_OPS_WORKSPACE;
   }
+});
+
+function withFakeRepoRoot(slugs, fn) {
+  const repoRoot = mkdtempSync(join(tmpdir(), 'hub-workspace-test-'));
+  const workspacesDir = join(repoRoot, 'workspaces');
+  mkdirSync(workspacesDir, { recursive: true });
+  for (const slug of slugs) mkdirSync(join(workspacesDir, slug));
+  try {
+    return fn(repoRoot);
+  } finally {
+    rmSync(repoRoot, { recursive: true, force: true });
+  }
+}
+
+test('resolveHubWorkspace auto-selects the sole workspace when exactly one exists', () => {
+  withFakeRepoRoot(['only-tenant'], repoRoot => {
+    const p = resolveHubWorkspace({ repoRoot });
+    assert.equal(p, join(repoRoot, 'workspaces', 'only-tenant'));
+  });
+});
+
+test('resolveHubWorkspace throws when no workspaces exist', () => {
+  withFakeRepoRoot([], repoRoot => {
+    assert.throws(() => resolveHubWorkspace({ repoRoot }), /No workspaces provisioned/);
+  });
+});
+
+test('resolveHubWorkspace refuses to guess among multiple workspaces without an override', () => {
+  withFakeRepoRoot(['alice', 'bob'], repoRoot => {
+    assert.throws(() => resolveHubWorkspace({ repoRoot }), /Multiple workspaces exist.*CAREER_OPS_TELEGRAM_WORKSPACE/);
+  });
+});
+
+test('resolveHubWorkspace honors CAREER_OPS_TELEGRAM_WORKSPACE even with multiple workspaces present', () => {
+  withFakeRepoRoot(['alice', 'bob'], repoRoot => {
+    process.env.CAREER_OPS_TELEGRAM_WORKSPACE = 'bob';
+    try {
+      const p = resolveHubWorkspace({ repoRoot });
+      assert.equal(p, join(repoRoot, 'workspaces', 'bob'));
+    } finally {
+      delete process.env.CAREER_OPS_TELEGRAM_WORKSPACE;
+    }
+  });
+});
+
+test('resolveHubWorkspace throws when CAREER_OPS_TELEGRAM_WORKSPACE names a workspace that does not exist', () => {
+  withFakeRepoRoot(['alice'], repoRoot => {
+    process.env.CAREER_OPS_TELEGRAM_WORKSPACE = 'ghost';
+    try {
+      assert.throws(() => resolveHubWorkspace({ repoRoot }), /does not exist/);
+    } finally {
+      delete process.env.CAREER_OPS_TELEGRAM_WORKSPACE;
+    }
+  });
 });

@@ -35,7 +35,7 @@ import { existsSync } from 'fs';
 import { resolve, dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { acquirePipelineLock } from './pipeline-lock.mjs';
-import { telegramDaemonLockPath } from './hub-paths.mjs';
+import { telegramDaemonLockPath, resolveHubWorkspace } from './hub-paths.mjs';
 
 // ROOT is this script's own directory (core/, after the #workspace-multitenancy
 // Task 1 move) — kept as the cwd for spawning sibling scripts below ('plugins.mjs',
@@ -328,11 +328,27 @@ async function daemonLoop() {
 async function main() {
   const [, , arg] = process.argv;
 
-  // Handle reset (delegate to telegram-poll.mjs)
+  // Handle reset (delegate to telegram-poll.mjs) — no workspace needed, the
+  // offset cursor is hub-global (see hub-paths.mjs).
   if (arg === '--reset') {
     const proc = spawn('node', ['telegram-poll.mjs', 'reset'], { cwd: ROOT, stdio: 'inherit' });
     proc.on('close', code => process.exit(code));
     return;
+  }
+
+  // Every other mode polls and/or routes messages, both of which need a
+  // resolved workspace: polling reads that workspace's config/plugins.yml
+  // (chat_id/chat_ids), and routing spawns `claude -p` whose own session
+  // needs the same workspace for user-layer file resolution. Resolve once
+  // here and set it in this process's own env — spawn() below either omits
+  // `env` (inherits process.env automatically, e.g. the `claude -p` call)
+  // or spreads `...process.env` explicitly (pollTelegram), so this single
+  // assignment reaches every child.
+  try {
+    process.env.CAREER_OPS_WORKSPACE = resolveHubWorkspace();
+  } catch (err) {
+    console.error(`[telegram-monitor] ${err.message}`);
+    process.exit(1);
   }
 
   if (arg === '--daemon') {
