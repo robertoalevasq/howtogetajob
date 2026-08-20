@@ -92,8 +92,17 @@ On receiving the `profile_confirm` reply:
       - `_profile.md`: replace the "Your Target Roles" and "Your Adaptive Framing" tables' example rows with the candidate's actual `target_roles.primary`/`archetypes` (from profile.yml, above) and proof points drawn only from what their CV (Step 3) actually contains. Leave the rest of the file (negotiation scripts, comp/location scoring guidance) as seeded — it's generic instructions to the agent, not a factual claim about the candidate, so it isn't fabrication.
       - `_brief.md`: fill in Identity, Target Archetypes, Proof Points, and Comp Strategy from the same roles/CV/location/salary data already collected in this conversation. For sections with no real answer yet (Hard DQ Criteria, Soft Red Flags, Priority Override List), leave an explicit "none yet" rather than inventing one — same convention the seeded `_custom.md` already uses for its own empty sections.
    d. Run the completeness check: `node core/doctor.mjs --target workspaces/{slug} --json` and read `.templateLeftovers` from its output. If it's a non-empty array: re-edit the flagged fields/files using data already in this conversation (no new question to the candidate — this is self-correction against information already gathered, not a wait on a reply), then re-run the same command once. If `.templateLeftovers` is still non-empty after that one retry: proceed anyway (never leave a real person stuck mid-setup on an internal QA issue), but append one line to `data/onboarding-gaps.log` (hub-global, repo root — create the file if it doesn't exist) in this exact format: `{ISO timestamp} chatId={chatId} slug={slug} fields={comma-separated file:field entries from the still-flagged findings}`. This is one bounded retry, never more — matches this codebase's existing "flag, never silently hide" convention (`data/blacklist.md`, agent-inbox) rather than looping indefinitely.
-   e. Send: `Last setup choice — how much do you want to spend on model usage per evaluation?\n💰 economy — cheapest/fastest, good for scanning lots of offers\n⚖️ standard — balanced (most people pick this)\n💎 premium — most capable, best for offers you really care about\n\nReply with one word.`
-   f. Advance `currentStep` to `discord`, save state.
+   e. Send: `One more optional thing — in a line or two, how would you pitch yourself professionally, and what's your #1 strength that sets you apart? Reply "skip" to finish now — you can always tell me more later.`
+   f. Advance `currentStep` to `profile_narrative`, save state.
+
+## Step 4c — Professional headline (optional)
+
+On receiving the `profile_narrative` reply:
+
+1. If it's "skip" (or equivalent): leave `workspaces/{slug}/config/profile.yml`'s `narrative.headline` (`""`) and `narrative.superpowers` (`[]`) as Step 4b left them — this is still correct, not a gap, exactly like the Discord webhook being skippable.
+2. Otherwise, write the reply to those fields **lightly polished, not verbatim and not embellished**: fix grammar/phrasing/conciseness for a professional tone, but preserve every factual claim exactly as given and never add a claim, metric, or descriptor the candidate didn't state — the same "keywords get reformulated, never fabricated" discipline `core/AGENTS.md`'s Source-of-Truth Boundary already requires everywhere else in this system (CV tailoring, cover letters), applied here to the candidate's own self-description instead of CV bullets. A single strength becomes a one-item `narrative.superpowers` list; multiple strengths in one reply split into separate list items, each polished the same way. The "how would you pitch yourself" half of the reply goes to `narrative.headline`.
+3. Send: `Last setup choice — how much do you want to spend on model usage per evaluation?\n💰 economy — cheapest/fastest, good for scanning lots of offers\n⚖️ standard — balanced (most people pick this)\n💎 premium — most capable, best for offers you really care about\n\nReply with one word.`
+4. Advance `currentStep` to `discord`, save state (the spend-tier reply is handled inline in Step 5, since it's the same logical question set — `currentStep` only needs to distinguish "waiting on the headline/skip reply" from "waiting on discord/skip").
 
 ## Step 5 — Spend tier + Discord webhook (optional)
 
@@ -117,6 +126,8 @@ On receiving the Discord reply:
 2. Delete the onboarding state: remove `data/onboarding/{chatId}.json` — the hub-global one at the **repo root** (this session's cwd), never a copy under `workspaces/{slug}/`.
 3. Send the completion message, followed immediately by `modes/telegram.md` Step 3g's exact help text (read it from that file — never duplicate/paraphrase it here, since it drifts):
    > `✅ All set! You're ready to search. Here's what I can do:`
+   Then send one more short message inviting ongoing enrichment for whatever's still deliberately blank (exit story, hard disqualifiers, priority companies, and headline/superpowers if Step 4c was skipped):
+   > `The more you tell me about yourself over time, the smarter this gets — just message me anytime.`
 4. Nothing further happens in this turn — the *next* message from this chat will be picked up by `core/telegram-router.mjs` as a bound chat and routed through `modes/telegram.md` normally.
 
 ## `/restart`
@@ -132,6 +143,6 @@ If a step's tool call fails (a write error, `provision-workspace.mjs` exiting no
 - Never uses `AskUserQuestion`.
 - Never sends a message without the explicit `--chat-id {chatId}` flag.
 - Never binds a chat (`workspace.json`'s `chat_id`) until every prior onboarding question has actually been answered — the bind call itself is the first action of Step 6, precisely because a failure there (e.g. "already bound") should leave the onboarding state and pending completion message untouched, safe to retry, rather than happening after the state is already deleted and a false success message already sent.
-- Never invents CV content, skills, or achievements not present in what the candidate actually pasted — same non-fabrication discipline as every other content-generating mode in this system.
+- Never invents CV content, skills, or achievements not present in what the candidate actually pasted — same non-fabrication discipline as every other content-generating mode in this system. The same rule applies to Step 4c's optional headline/strength question: polishing the candidate's own words for grammar and tone is fine, adding a claim, metric, or descriptor they didn't state is not.
 - Never requires the Discord webhook — it is always skippable.
 - Never reads or writes any path outside `workspaces/{slug}/...` (this conversation's own workspace, once it exists) or the hub-global `data/onboarding/{chatId}.json` state file. Redeeming a code proves someone holds it, not that they're trusted with another tenant's `cv.md`, tracker, or reports — this mode has no more structural isolation from a sibling workspace than the model's own judgment enforces, so it must never go looking at one on purpose.

@@ -77,6 +77,36 @@ test('modes/telegram-onboarding.md exists and covers the required conventions', 
     /onboarding-gaps\.log/,
     'must log a residual gap to data/onboarding-gaps.log rather than blocking completion, matching this codebase\'s "flag, never silently hide" convention',
   );
+  assert.match(
+    content,
+    /profile_narrative/,
+    'must document the profile_narrative state for the optional headline/strength question (#onboarding-completeness-guardrails)',
+  );
+  assert.match(
+    content,
+    /pitch yourself professionally/,
+    'must ask an optional, skippable question for narrative.headline/narrative.superpowers — a CV can\'t answer these, only the candidate can',
+  );
+  assert.match(
+    content,
+    /Reply "skip" to finish now/,
+    'the optional headline/strength question must be clearly skippable, same pattern as the Discord webhook question',
+  );
+  assert.match(
+    content,
+    /lightly polished|light(ly)? polish/i,
+    'an answered headline/strength reply must be lightly polished for grammar/tone, never left verbatim-unedited nor embellished',
+  );
+  assert.match(
+    content,
+    /never add a claim|never embellish|not embellished/i,
+    'must explicitly forbid adding any claim, metric, or descriptor the candidate didn\'t state when polishing the headline/strength answer — same reformulate-never-fabricate discipline as the rest of this system',
+  );
+  assert.match(
+    content,
+    /message me anytime|tell me more.*anytime|anytime.*tell me more/i,
+    'the completion message must invite ongoing enrichment for whatever is still deliberately left blank',
+  );
 });
 
 test('modes/telegram-onboarding.md is registered in update-system.mjs SYSTEM_PATHS', () => {
