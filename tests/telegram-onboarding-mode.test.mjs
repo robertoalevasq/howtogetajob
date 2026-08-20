@@ -22,6 +22,11 @@ test('modes/telegram-onboarding.md exists and covers the required conventions', 
     /narrative\.headline.*blank|blank.*narrative\.headline/s,
     'must explicitly instruct clearing the profile template\'s fabricated narrative example content (found live 2026-08-20: a real onboarding run left "Jane Smith"/"built and sold my SaaS" template placeholders in a candidate\'s actual profile.yml)',
   );
+  assert.match(
+    content,
+    /title_filter\.positive/,
+    'must instruct customizing portals.yml\'s title_filter.positive from the collected target roles (found live 2026-08-20: a real onboarding run left the seeded AI/ML-focused example keywords in place, so scanning would search for the wrong jobs entirely)',
+  );
 });
 
 test('modes/telegram-onboarding.md is registered in update-system.mjs SYSTEM_PATHS', () => {
