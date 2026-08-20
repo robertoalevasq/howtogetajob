@@ -37,6 +37,11 @@ test('modes/telegram-onboarding.md exists and covers the required conventions', 
     /_brief\.md/,
     'must instruct filling in _brief.md from the collected roles/CV/location/salary data (found live 2026-08-20: a real onboarding run left it as entirely unfilled {placeholder} text, even though modes/triage.md reads it for every first-pass filtering decision)',
   );
+  assert.match(
+    content,
+    /location_flexibility/,
+    'must instruct capturing additional acceptable locations in compensation.location_flexibility, not just the one asked about for timezone (found live 2026-08-20: a real reply named four locations and only one survived into any file)',
+  );
 });
 
 test('modes/telegram-onboarding.md is registered in update-system.mjs SYSTEM_PATHS', () => {
