@@ -75,7 +75,7 @@ On receiving the roles/location/salary reply:
 
 On receiving the spend-tier reply:
 
-1. Set `workspaces/{slug}/config/profile.yml`'s `spend_tier` to the matched value (default `standard` if the reply doesn't clearly match one of the three).
+1. Set `workspaces/{slug}/config/profile.yml`'s `spend_tier` to the matched value (default `economy` if the reply doesn't clearly match one of the three — compute is shared across every tenant on one account, and `economy` is the safer default as more people onboard onto it).
 2. Send: `One more optional thing — want progress updates in Discord too? Paste a webhook URL, or reply "skip".`
 
 On receiving the Discord reply:
