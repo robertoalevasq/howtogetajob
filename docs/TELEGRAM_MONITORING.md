@@ -84,6 +84,24 @@ $ node core/telegram-monitor.mjs
 # A cycle-trigger message holds this process open for the full run duration.
 ```
 
+## Multi-Tenant Access (Access Codes + Onboarding)
+
+Since 2026-08-20, one running daemon can serve several people, each with their own `workspaces/{slug}/` (own `cv.md`, tracker, reports — see `docs/superpowers/specs/2026-08-15-workspace-multitenancy-core-design.md`). `core/telegram-router.mjs` classifies every incoming message *before* any Claude invocation: a chat already bound to a workspace (via `workspace.json`'s `chat_id`) routes normally through `modes/telegram.md`; an unbound chat is either mid-onboarding or being asked for an access code.
+
+**Inviting someone new:**
+```bash
+node core/access-code.mjs generate --label "Alice"
+```
+Send them the printed code however you like (text, Signal, etc. — never over Telegram itself, since the whole point is proving they're someone you actually invited). They message the bot, send the code as their first message, and `modes/telegram-onboarding.md` walks them through name → CV → profile → optional Discord webhook → done. Codes expire after 7 days if never redeemed; `node core/access-code.mjs list` shows pending/redeemed/expired, `revoke <code>` kills an unused one early.
+
+Five wrong codes from the same chat triggers a 1-hour silent lockout (no reply, no LLM cost) — this is automatic, nothing to configure.
+
+**Migrating an existing single-tenant setup onto this:** if you were running career-ops before this system existed, your own `chat_id` needs one manual bind so the router recognizes you:
+```bash
+node core/provision-workspace.mjs --bind-chat <your-slug> <your-chat-id>
+```
+Find your chat_id by messaging `@userinfobot` on Telegram. This is a one-time step — `workspace.json`'s `chat_id` is checked fresh on every poll after that.
+
 ## CLI Commands
 
 ```bash
@@ -170,9 +188,10 @@ Invoked every 5 minutes via `telegram-monitor.mjs`:
 - Check Task Scheduler logs for errors
 
 ### Task runs but messages not routed
-- Verify `.env` has `TELEGRAM_BOT_TOKEN` set
-- Verify `config/plugins.yml` has `telegram.enabled: true` and `telegram.chat_id` set
-- Run `node core/telegram-poll.mjs poll` manually to test — should return `{"messages": []}`
+- Verify the **repo root's own** `.env` has `TELEGRAM_BOT_TOKEN` set — this is hub-global (shared by every workspace), not per-workspace, and must live at the repo root specifically, not inside any `workspaces/{slug}/`.
+- Run `node core/telegram-poll.mjs poll` manually from the repo root to test — should return `{"messages": []}` with **no `error` field**. An `error` field (even with an empty `messages` array) means something's actually wrong — read it, it's specific (e.g. `TELEGRAM_BOT_TOKEN not set`).
+- If your own messages specifically aren't routing (a stranger's would still hit the access-code gate correctly), your `chat_id` may not be bound yet — see "Migrating an existing single-tenant setup" above.
+- Sends failing (replies never arrive, but polling works): run `node core/plugins.mjs run telegram notify "test" --dry-run` from inside your own `workspaces/{slug}/` directory — should print `would send to Telegram chats ...`. A "not enabled" or "missing TELEGRAM_BOT_TOKEN" error here means the repo-root `.env` issue above.
 
 ### "Node not found" error
 - Ensure Node.js is installed and `node` is in PATH
@@ -226,14 +245,19 @@ sudo systemctl enable --now telegram-monitor.timer
 
 ## Architecture Notes
 
-- **`telegram-monitor.mjs`**: Entry point that decides whether to invoke Claude
-- **`telegram-poll.mjs`**: Thin CLI wrapper around the Telegram plugin's `ingest` hook
+- **`telegram-monitor.mjs`**: Entry point — polls, classifies (via `telegram-router.mjs`), and dispatches one Claude invocation per chat group; bound-chat dispatches run non-blocking, onboarding dispatches are serialized and time-bounded
+- **`telegram-router.mjs`**: Zero-token, deterministic classification of every message by chat_id — bound, mid-onboarding, redeeming a code, or wrong-code/locked-out — before any Claude invocation
+- **`access-code.mjs`**: One-time access-code registry (`generate`/`list`/`revoke`), consumed by the router on redemption
+- **`telegram-poll.mjs`**: Thin CLI wrapper around the Telegram plugin's `ingest` hook — hub-global (see "Multi-Tenant Access" above)
 - **`plugins/telegram/index.mjs`**: Telegram Bot API integration (fetches messages, preserves command signals)
-- **`modes/telegram.md`**: Full routing logic (Steps 2-6, invoked only when messages exist)
+- **`modes/telegram.md`**: Full routing logic for a bound chat (Steps 2-6, invoked only when messages exist)
+- **`modes/telegram-onboarding.md`**: The conversational setup flow for an unbound chat that just redeemed a code
 
 ## See Also
 
 - `modes/telegram.md` — Full mode specification, routing rules, stateful confirmation handling
+- `modes/telegram-onboarding.md` — Onboarding conversation specification
+- `docs/superpowers/specs/2026-08-18-telegram-router-onboarding-design.md` — Router/access-code/onboarding design
 - `plugins/telegram/skill.md` — Telegram plugin API docs
 - `telegram-poll.mjs` — Headless polling CLI
 
