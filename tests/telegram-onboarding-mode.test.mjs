@@ -57,6 +57,26 @@ test('modes/telegram-onboarding.md exists and covers the required conventions', 
     /narrative\.proof_points.*derive|derive.*narrative\.proof_points/s,
     'must instruct auto-deriving narrative.proof_points from the CV\'s strongest quantified achievements, the same source _brief.md\'s Proof Points section already draws from — content already collected should be reused, not left blank by default (#onboarding-completeness-guardrails)',
   );
+  assert.match(
+    content,
+    /doctor\.mjs --target workspaces\/\{slug\} --json/,
+    'must run the doctor.mjs completeness check against the workspace before binding (#onboarding-completeness-guardrails)',
+  );
+  assert.match(
+    content,
+    /templateLeftovers/,
+    'must inspect doctor.mjs\'s templateLeftovers field to decide whether to self-correct',
+  );
+  assert.match(
+    content,
+    /one retry|one bounded|bounded self-correction/i,
+    'must cap the self-correction attempt at exactly one retry before proceeding anyway',
+  );
+  assert.match(
+    content,
+    /onboarding-gaps\.log/,
+    'must log a residual gap to data/onboarding-gaps.log rather than blocking completion, matching this codebase\'s "flag, never silently hide" convention',
+  );
 });
 
 test('modes/telegram-onboarding.md is registered in update-system.mjs SYSTEM_PATHS', () => {
