@@ -42,6 +42,16 @@ test('modes/telegram-onboarding.md exists and covers the required conventions', 
     /location_flexibility/,
     'must instruct capturing additional acceptable locations in compensation.location_flexibility, not just the one asked about for timezone (found live 2026-08-20: a real reply named four locations and only one survived into any file)',
   );
+  assert.match(
+    content,
+    /profile_confirm/,
+    'must document the profile_confirm state and a read-back/confirm step before writing any files (#onboarding-completeness-guardrails: closes the class of bug where a correctly-extracted-yet-incomplete answer, like the location_flexibility case above, would otherwise slip through undetected — the candidate is the one who notices a dropped detail, not a script)',
+  );
+  assert.match(
+    content,
+    /Reply "yes" to continue, or tell me what to fix/,
+    'must send a read-back summary and wait for explicit confirmation before Step 4b writes any workspace files',
+  );
 });
 
 test('modes/telegram-onboarding.md is registered in update-system.mjs SYSTEM_PATHS', () => {
