@@ -204,7 +204,7 @@ Store insights in `config/profile.yml` (narrative), `_profile.md`, or `article-d
 **After every evaluation, learn.** "This score is too high" or "you missed my experience in X" → update `_profile.md`, `config/profile.yml`, or `article-digest.md`. The system gets smarter with every interaction without putting personalization into system-layer files.
 
 #### Step 6: Ready
-Once all files exist, confirm:
+Once all files exist, re-run `node doctor.mjs --json` and check `templateLeftovers` — if it's non-empty, fix those fields the same way any other `doctor.mjs` warning gets fixed (a human is present on this path, so no self-correction loop is needed; just show and fix it) before continuing. Once clean, confirm:
 > "You're all set! You can now:
 > - Paste a job URL to evaluate it
 > - Run the scan entrypoint for your CLI to search portals: `/career-ops scan`, `/career-ops-scan`, or ask Codex to run `scan`

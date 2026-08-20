@@ -293,6 +293,20 @@ function checkScanExtractor(root) {
   return { pass: true, label: 'Scan extractor: mcp (default)' };
 }
 
+// Extracts the raw text of a markdown section (everything between a `##`
+// heading and the next `##` heading, or end of file), trimmed. Returns null
+// if the heading isn't found. Used to diff _profile.md's example tables
+// against the live template without needing a full markdown parser.
+function extractMarkdownSection(content, heading) {
+  const lines = content.split('\n');
+  const startIdx = lines.findIndex((l) => l.trim() === heading);
+  if (startIdx === -1) return null;
+  const rest = lines.slice(startIdx + 1);
+  const endIdx = rest.findIndex((l) => /^##\s/.test(l));
+  const body = endIdx === -1 ? rest : rest.slice(0, endIdx);
+  return body.join('\n').trim();
+}
+
 // Detects "this still matches the unedited template" for user-layer files
 // seeded by provisioning (#onboarding-completeness-guardrails, found live
 // 2026-08-20: five separate instances of unedited template/fabricated
@@ -365,6 +379,43 @@ function checkTemplateLeftovers(root) {
         file: 'portals.yml',
         label: 'portals.yml: title_filter.positive still matches the unedited template\'s example keywords',
         fix: ['Replace with keywords drawn from the candidate\'s actual target roles.'],
+      });
+    }
+  }
+
+  // -- _profile.md vs modes/_profile.template.md --
+  const profileMdPath = join(root, '_profile.md');
+  const profileMdTemplatePath = join(REPO_ROOT, 'modes', '_profile.template.md');
+  if (existsSync(profileMdPath) && existsSync(profileMdTemplatePath)) {
+    const live = readFileSync(profileMdPath, 'utf8');
+    const tmpl = readFileSync(profileMdTemplatePath, 'utf8');
+    for (const heading of ['## Your Target Roles', '## Your Adaptive Framing']) {
+      const liveSection = extractMarkdownSection(live, heading);
+      const tmplSection = extractMarkdownSection(tmpl, heading);
+      if (liveSection && tmplSection && liveSection === tmplSection) {
+        findings.push({
+          file: '_profile.md',
+          label: `_profile.md: "${heading.replace('## ', '')}" section still matches the unedited template's example archetypes`,
+          fix: ['Replace the example rows with the candidate\'s real target roles/archetypes and proof points.'],
+        });
+      }
+    }
+  }
+
+  // -- _brief.md: unfilled {placeholder} text (this template marks its own
+  // fill-in spots with {like this} syntax, so no template comparison is
+  // needed — just scan for anything still bracketed outside the file's own
+  // instructional HTML comment block). --
+  const briefPath = join(root, '_brief.md');
+  if (existsSync(briefPath)) {
+    const live = readFileSync(briefPath, 'utf8');
+    const withoutComments = live.replace(/<!--[\s\S]*?-->/g, '');
+    const bracketPlaceholder = /\{[A-Za-z][^{}]*\}/;
+    if (bracketPlaceholder.test(withoutComments)) {
+      findings.push({
+        file: '_brief.md',
+        label: '_brief.md still contains unfilled {placeholder} text',
+        fix: ['Fill in Identity, Target Archetypes, Proof Points, and Comp Strategy from the conversation; use plain "none specified yet" prose (not brackets) for genuinely-empty sections.'],
       });
     }
   }
