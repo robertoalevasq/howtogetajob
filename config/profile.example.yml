@@ -171,22 +171,26 @@ cover_letter:
   # template: modern
 
   # Your current professional domain (used to detect domain gaps vs the JD).
-  # Plain English, e.g. "digital media", "fintech", "healthcare IT".
-  primary_domain: "your current domain"
+  # Plain English, e.g. "digital media", "fintech", "healthcare IT". Uncomment
+  # and fill in your own — left commented by default so an unfilled template
+  # copy never silently ships this placeholder text as if it were real.
+  # primary_domain: "your current domain"
 
   # Languages you are actively learning. Each entry MAY produce a closing
   # sentence in that language IF the JD location matches one of the listed
   # countries AND the user confirms inclusion during the cover letter flow.
-  # Remove the block entirely if not applicable.
-  language_learning:
-    - language: Spanish
-      current_level: B1
-      target_level: B2
-      target_date: "end of 2026"
-      # The sentence to include, written in that language. Keep it one line.
-      sentence: "Estoy aprendiendo español y espero alcanzar el nivel B2 a finales de 2026."
-      # Only trigger this entry when the JD location is in one of these countries.
-      countries: [Spain, Mexico, Argentina, Colombia, Chile]
+  # Commented out by default (2026-08-20: found live — an unfilled template
+  # copy shipped this exact example as if the candidate were really learning
+  # Spanish) — uncomment and edit only if genuinely applicable to you.
+  # language_learning:
+  #   - language: Spanish
+  #     current_level: B1
+  #     target_level: B2
+  #     target_date: "end of 2026"
+  #     # The sentence to include, written in that language. Keep it one line.
+  #     sentence: "Estoy aprendiendo español y espero alcanzar el nivel B2 a finales de 2026."
+  #     # Only trigger this entry when the JD location is in one of these countries.
+  #     countries: [Spain, Mexico, Argentina, Colombia, Chile]
 
 # ── Contact Preferences ──────────────────────────────────────────────────────
 #
