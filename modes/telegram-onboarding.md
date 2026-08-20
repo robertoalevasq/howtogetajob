@@ -67,7 +67,12 @@ On receiving the CV text reply:
 On receiving the roles/location/salary reply:
 
 1. Parse the three answers (best-effort natural-language extraction — if something's ambiguous, ask a single focused follow-up rather than guessing, then continue once answered).
-2. Copy `config/profile.example.yml` (the repo-root template — a bare relative path is correct here, the session cwd *is* the repo root) into `workspaces/{slug}/config/profile.yml` if it isn't already the seeded template (it already is, from `--from-name`'s provisioning step) — edit in the target roles, location, and salary range fields.
+2. Copy `config/profile.example.yml` (the repo-root template — a bare relative path is correct here, the session cwd *is* the repo root) into `workspaces/{slug}/config/profile.yml` if it isn't already the seeded template (it already is, from `--from-name`'s provisioning step). Edit it in full — the seeded copy is the *example* template verbatim, and every one of its example values is fabricated content about a fictional person ("Jane Smith," a fake LinkedIn/GitHub, an invented "built and sold my SaaS" story). Leaving any of it in place is exactly the fabrication this system's own non-negotiable rule (AGENTS.md → Source-of-Truth Boundary) exists to prevent — it must never survive onboarding:
+   - `target_roles`/`location`/`compensation`: fill from the roles/location/salary reply, same as before.
+   - `candidate.email`/`candidate.phone`/`candidate.linkedin`/`candidate.portfolio_url`/`candidate.github`: fill from whatever the pasted CV (Step 3) actually contains — if the CV has no GitHub link, for example, set `github: ""`, never leave the template's `github.com/janesmith`.
+   - `candidate.twitter`: blank (`""`) unless the CV explicitly gives one — never leave the template's placeholder.
+   - `narrative.headline`, `narrative.exit_story`: blank (`""`) — nothing in this conversation asks for these, so there is no real answer to put here, only the template's fabricated one to remove.
+   - `narrative.superpowers`, `narrative.proof_points`: empty arrays (`[]`) for the same reason.
 3. Send: `Last setup choice — how much do you want to spend on model usage per evaluation?\n💰 economy — cheapest/fastest, good for scanning lots of offers\n⚖️ standard — balanced (most people pick this)\n💎 premium — most capable, best for offers you really care about\n\nReply with one word.`
 4. Advance `currentStep` to `discord`, save state (the spend-tier reply is handled inline in Step 5, since it's the same logical question set — `currentStep` only needs to distinguish "waiting on roles/location/salary" from "waiting on discord/skip").
 

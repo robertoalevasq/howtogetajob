@@ -17,6 +17,11 @@ test('modes/telegram-onboarding.md exists and covers the required conventions', 
   assert.match(content, /\/restart/, 'must document the /restart escape hatch');
   assert.match(content, /workspace\.json/, 'must describe the final chat_id bind step');
   assert.match(content, /Discord/, 'must cover the optional Discord webhook step');
+  assert.match(
+    content,
+    /narrative\.headline.*blank|blank.*narrative\.headline/s,
+    'must explicitly instruct clearing the profile template\'s fabricated narrative example content (found live 2026-08-20: a real onboarding run left "Jane Smith"/"built and sold my SaaS" template placeholders in a candidate\'s actual profile.yml)',
+  );
 });
 
 test('modes/telegram-onboarding.md is registered in update-system.mjs SYSTEM_PATHS', () => {
