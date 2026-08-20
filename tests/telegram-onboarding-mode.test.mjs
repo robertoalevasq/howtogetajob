@@ -27,6 +27,16 @@ test('modes/telegram-onboarding.md exists and covers the required conventions', 
     /title_filter\.positive/,
     'must instruct customizing portals.yml\'s title_filter.positive from the collected target roles (found live 2026-08-20: a real onboarding run left the seeded AI/ML-focused example keywords in place, so scanning would search for the wrong jobs entirely)',
   );
+  assert.match(
+    content,
+    /_profile\.md/,
+    'must instruct customizing _profile.md\'s archetype tables from the collected target roles (found live 2026-08-20: a real onboarding run left the seeded generic AI/LLMOps archetypes in place, which drive real scoring per AGENTS.md)',
+  );
+  assert.match(
+    content,
+    /_brief\.md/,
+    'must instruct filling in _brief.md from the collected roles/CV/location/salary data (found live 2026-08-20: a real onboarding run left it as entirely unfilled {placeholder} text, even though modes/triage.md reads it for every first-pass filtering decision)',
+  );
 });
 
 test('modes/telegram-onboarding.md is registered in update-system.mjs SYSTEM_PATHS', () => {
