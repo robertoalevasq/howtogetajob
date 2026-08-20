@@ -39,9 +39,9 @@ test('buildOnboardingPrompt embeds the chatId, the --chat-id convention, and the
   assert.ok(prompt.includes(JSON.stringify(dispatch.messages, null, 2)));
 });
 
-test('dispatchOne calls invoke with the onboarding prompt and the dispatch cwd for an onboarding dispatch', async () => {
+test('dispatchOne calls invoke with the onboarding prompt, the dispatch cwd, and a bounded timeout for an onboarding dispatch', async () => {
   const calls = [];
-  const fakeInvoke = async (prompt, cwd) => { calls.push({ prompt, cwd }); };
+  const fakeInvoke = async (prompt, cwd, timeoutMs) => { calls.push({ prompt, cwd, timeoutMs }); };
   const dispatch = {
     chatId: '1', cwd: '/fake/workspace', kind: 'onboarding',
     messages: [{ chatId: '1', text: 'Alice' }], state: { currentStep: 'name' },
@@ -50,11 +50,12 @@ test('dispatchOne calls invoke with the onboarding prompt and the dispatch cwd f
   assert.equal(calls.length, 1);
   assert.equal(calls[0].cwd, '/fake/workspace');
   assert.match(calls[0].prompt, /modes\/telegram-onboarding\.md/);
+  assert.equal(calls[0].timeoutMs, 10 * 60 * 1000);
 });
 
-test('dispatchOne calls invoke with the routing prompt and the dispatch cwd for a routing dispatch', async () => {
+test('dispatchOne calls invoke with the routing prompt, the dispatch cwd, and NO timeout for a routing dispatch', async () => {
   const calls = [];
-  const fakeInvoke = async (prompt, cwd) => { calls.push({ prompt, cwd }); };
+  const fakeInvoke = async (prompt, cwd, timeoutMs) => { calls.push({ prompt, cwd, timeoutMs }); };
   const dispatch = {
     chatId: '1', cwd: '/fake/workspace/alice', kind: 'routing',
     messages: [{ chatId: '1', text: '/status' }], state: null,
@@ -63,6 +64,7 @@ test('dispatchOne calls invoke with the routing prompt and the dispatch cwd for 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].cwd, '/fake/workspace/alice');
   assert.match(calls[0].prompt, /modes\/telegram\.md/);
+  assert.equal(calls[0].timeoutMs, undefined);
 });
 
 test('sendCannedReply runs the telegram notify hook with forceEnabled — the repo root has no config/plugins.yml', async () => {
@@ -70,7 +72,10 @@ test('sendCannedReply runs the telegram notify hook with forceEnabled — the re
   // REPO_ROOT, runHook returns [], nothing throws, and every wrong-code reply
   // is silently dropped. That is the regression this asserts against.
   const calls = [];
-  const fakeHook = async (kind, payload, opts) => { calls.push({ kind, payload, opts }); return []; };
+  const fakeHook = async (kind, payload, opts) => {
+    calls.push({ kind, payload, opts });
+    return [{ id: 'telegram', ok: true, result: { sent: true, chats: [{ chatId: payload.chatId, sent: true }] } }];
+  };
   await sendCannedReply('491507842', 'Please enter your access code to continue.', fakeHook);
 
   assert.equal(calls.length, 1);
@@ -81,6 +86,25 @@ test('sendCannedReply runs the telegram notify hook with forceEnabled — the re
   assert.equal(calls[0].opts.root, calls[0].opts.workspaceRoot);
   assert.equal(calls[0].payload.chatId, '491507842');
   assert.match(calls[0].payload.message, /access code/i);
+});
+
+test('sendCannedReply logs when notify() reports an in-band failure (sent: false) instead of throwing', async () => {
+  // notify() reports a missing token / unresolvable chat as { sent: false,
+  // error: '...' } inside an ok:true result, not by throwing — a bare
+  // try/catch around the hook call can't see this. Assert the failure is
+  // actually logged instead of silently treated as delivered.
+  const fakeHook = async () => [{ id: 'telegram', ok: true, result: { sent: false, error: 'TELEGRAM_BOT_TOKEN not set' } }];
+  const logged = [];
+  const original = console.error;
+  console.error = (...args) => logged.push(args.join(' '));
+  try {
+    await sendCannedReply('491507842', 'hi', fakeHook);
+  } finally {
+    console.error = original;
+  }
+  assert.ok(logged.length > 0, 'expected a logged failure');
+  assert.match(logged[0], /did not send/);
+  assert.match(logged[0], /TELEGRAM_BOT_TOKEN not set/);
 });
 
 test('sendCannedReply swallows a failing hook rather than breaking the poll loop', async () => {

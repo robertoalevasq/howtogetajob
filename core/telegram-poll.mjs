@@ -81,6 +81,17 @@ async function poll() {
   // timeouts that all need to agree, driven from the same env var so a
   // long-poll caller (telegram-monitor.mjs --daemon) only has to set it once.
   // Matches runHook's own 15s default exactly when long-polling is off.
+  // plugins/telegram/index.mjs's own offsetPath() defaults to the BARE
+  // relative 'data/telegram-offset.json', resolved against whatever cwd
+  // ingest() actually runs from — core/, since that's where the daemon
+  // spawns this script (see comment block above). Left unset, the plugin
+  // would read/write core/data/telegram-offset.json, a file `reset()`
+  // below (and every other hub-global consumer, via telegramOffsetPath())
+  // never touches — the cursor and the reset command would silently split
+  // brain. CAREER_OPS_TELEGRAM_OFFSET is the plugin's own documented
+  // override for exactly this case; set it here so both paths always agree.
+  process.env.CAREER_OPS_TELEGRAM_OFFSET = offsetPath();
+
   const longPollSeconds = Math.max(0, Math.min(50, Number(process.env.CAREER_OPS_TELEGRAM_LONGPOLL_SECONDS) || 0));
   const results = await runHook('ingest', undefined, {
     root: ROOT,
@@ -109,9 +120,10 @@ function reset() {
 }
 
 /**
- * Export parseCommand for use by modes/telegram.md Step 2 routing
+ * Export parseCommand for use by modes/telegram.md Step 2 routing, and
+ * offsetPath/poll for direct testability (see tests/telegram-poll.test.mjs).
  */
-export { parseCommand };
+export { parseCommand, offsetPath, poll };
 
 async function main() {
   const [, , cmd] = process.argv;

@@ -75,3 +75,34 @@ test('telegram-poll poll() sees a real TELEGRAM_BOT_TOKEN from the repo-root .en
   assert.notEqual(result.error, 'TELEGRAM_BOT_TOKEN not set', 'the poll subprocess never saw the token');
   assert.ok(Array.isArray(result.messages), 'expected a messages array');
 });
+
+test('telegram-poll poll() sets CAREER_OPS_TELEGRAM_OFFSET to the hub-global path before calling ingest()', async () => {
+  // Unlike the tests above, this imports the module directly rather than
+  // spawning a subprocess: with the token blanked, ingest() returns before
+  // ever reaching saveOffset() (nothing to save an offset for), so a
+  // subprocess-level check can't observe this fix from its effect on disk.
+  // Checking the env var poll() sets is the mechanism itself — plugins/
+  // telegram/index.mjs's own offsetPath() defaults to the BARE relative
+  // 'data/telegram-offset.json', resolved against whatever cwd ingest()
+  // happens to run from (core/, under the real daemon) — a split from the
+  // hub-global path every other consumer (reset(), hub-paths.mjs) uses,
+  // unless this env var bridges the two.
+  const { telegramOffsetPath } = await import('../core/hub-paths.mjs');
+  const { poll } = await import('../core/telegram-poll.mjs');
+  const originalOffset = process.env.CAREER_OPS_TELEGRAM_OFFSET;
+  const originalToken = process.env.TELEGRAM_BOT_TOKEN;
+  delete process.env.CAREER_OPS_TELEGRAM_OFFSET;
+  process.env.TELEGRAM_BOT_TOKEN = ''; // blank — short-circuits ingest() before any network call
+  const originalLog = console.log;
+  console.log = () => {}; // poll() writes its JSON result to stdout; not under test here
+  try {
+    await poll();
+    assert.equal(process.env.CAREER_OPS_TELEGRAM_OFFSET, telegramOffsetPath());
+  } finally {
+    console.log = originalLog;
+    if (originalOffset === undefined) delete process.env.CAREER_OPS_TELEGRAM_OFFSET;
+    else process.env.CAREER_OPS_TELEGRAM_OFFSET = originalOffset;
+    if (originalToken === undefined) delete process.env.TELEGRAM_BOT_TOKEN;
+    else process.env.TELEGRAM_BOT_TOKEN = originalToken;
+  }
+});

@@ -112,15 +112,37 @@ function resolveClaudeCommand() {
  * worth blocking the daemon loop on. Added 2026-08-13 after two real
  * messages were silently lost with no visible signal beyond a background
  * log file nobody was watching live.
+ *
+ * Targeted at the SAME chat whose message failed to route (`dispatch.chatId`,
+ * via `--chat-id`, which bypasses the plugin-enabled gate) rather than a
+ * generic "the operator" — this is the person most likely to actually notice
+ * something broke, and it works even for an onboarding failure where no
+ * workspace/config exists yet to resolve a fixed operator target from
+ * (2026-08-20: the original cwd:ROOT/no-override call silently failed its
+ * own enabled-gate for the same reason C1/C2 did — this alert path was
+ * broken by the exact class of bug it exists to alert about).
+ *
+ * Discord is only attempted for a `routing` (bound-chat) dispatch, run from
+ * that dispatch's own workspace `cwd` — a real `config/plugins.yml` with its
+ * own webhook may exist there. An onboarding failure has no workspace to
+ * resolve Discord config from, so it's skipped rather than attempted from a
+ * root that can never have one.
+ *
+ * @param {string} errorMessage
+ * @param {{chatId: string, cwd: string, kind: 'routing'|'onboarding', messages: any[]}} dispatch
  */
-function notifyRoutingFailure(errorMessage, messages) {
-  const summary = (messages || [])
+function notifyRoutingFailure(errorMessage, dispatch) {
+  const summary = (dispatch.messages || [])
     .map(m => `${m.from || 'unknown'}: ${(m.text || '').slice(0, 80)}`)
     .join(' | ') || '(no message text)';
   const text = `⚠️ Telegram routing failed: ${errorMessage}\nMessage(s): ${summary}`;
-  for (const platform of ['discord', 'telegram']) {
-    const proc = spawn('node', ['plugins.mjs', 'run', platform, 'notify', text], { cwd: ROOT, stdio: 'inherit' });
-    proc.on('error', err => console.error(`[telegram-monitor] Emergency notify to ${platform} also failed: ${err.message}`));
+
+  const telegramProc = spawn('node', ['plugins.mjs', 'run', 'telegram', 'notify', text, '--chat-id', String(dispatch.chatId)], { cwd: ROOT, stdio: 'inherit' });
+  telegramProc.on('error', err => console.error(`[telegram-monitor] Emergency notify to telegram also failed: ${err.message}`));
+
+  if (dispatch.kind === 'routing') {
+    const discordProc = spawn('node', ['plugins.mjs', 'run', 'discord', 'notify', text], { cwd: dispatch.cwd, stdio: 'inherit' });
+    discordProc.on('error', err => console.error(`[telegram-monitor] Emergency notify to discord also failed: ${err.message}`));
   }
 }
 
@@ -174,15 +196,48 @@ function logPollError(result) {
   }
 }
 
-/** Single attempt at spawning Claude — see dispatchOne() for retry/alert handling. */
-function invokeClaudeRoutingOnce(prompt, cwd) {
+// An onboarding turn is one short question-and-answer — 10 minutes is
+// generous headroom, not a realistic expected duration. A `routing`
+// dispatch (a bound chat's `cycle`/`apply`/etc.) legitimately runs for
+// hours, so it gets no timeout at all (undefined below).
+const ONBOARDING_TIMEOUT_MS = 10 * 60 * 1000;
+
+/**
+ * Single attempt at spawning Claude — see dispatchOne() for retry/alert
+ * handling.
+ *
+ * `timeoutMs`, when given, kills the spawned process and rejects if it
+ * hasn't settled in time (2026-08-20: before this, a wedged onboarding
+ * `claude -p` invocation — no network response, a hung tool call, anything
+ * that never reaches `close` — blocked the daemon's poll loop indefinitely,
+ * since fanOutDispatches() awaits onboarding dispatches one at a time and
+ * daemonLoop() awaits fanOutDispatches(); routing calls without a timeout
+ * were never affected, since they're fired non-blocking).
+ *
+ * @param {string} prompt
+ * @param {string} cwd
+ * @param {number} [timeoutMs]
+ */
+function invokeClaudeRoutingOnce(prompt, cwd, timeoutMs) {
   return new Promise((resolvePromise, reject) => {
     const { cmd, shell } = resolveClaudeCommand();
     let settled = false;
     const proc = spawn(cmd, ['-p', prompt], { cwd, stdio: 'inherit', shell });
+
+    let timer;
+    if (timeoutMs) {
+      timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        proc.kill();
+        reject(Object.assign(new Error(`claude -p timed out after ${timeoutMs}ms`), { timedOut: true }));
+      }, timeoutMs);
+    }
+
     proc.on('error', err => {
       if (settled) return;
       settled = true;
+      if (timer) clearTimeout(timer);
       // Marks this as a spawn-level failure (process never started at all —
       // ENOENT/EINVAL class) so the caller knows a retry might help, unlike
       // a runtime failure where Claude did run and just exited non-zero.
@@ -191,6 +246,7 @@ function invokeClaudeRoutingOnce(prompt, cwd) {
     proc.on('close', code => {
       if (settled) return;
       settled = true;
+      if (timer) clearTimeout(timer);
       if (code !== 0) {
         reject(new Error(`claude -p routing exited ${code}`));
         return;
@@ -266,11 +322,21 @@ Return a brief summary of actions taken.`;
  */
 export async function sendCannedReply(chatId, text, hook = runHook) {
   try {
-    await hook(
+    const results = await hook(
       'notify',
       { message: text, chatId },
       { root: REPO_ROOT, workspaceRoot: REPO_ROOT, dryRun: false, only: 'telegram', forceEnabled: true, timeoutMs: 15000 },
     );
+    // notify() reports failure IN-BAND (e.g. { sent: false, error: '...' }
+    // inside an ok:true result), not by throwing — a missing token or an
+    // unresolvable chat both look like success to a bare try/catch. Check
+    // the actual result so this failure class is visible too (the same gap
+    // logPollError() closed for polls, mirrored here for sends).
+    const telegramResult = results.find(r => r.id === 'telegram');
+    if (!telegramResult || !telegramResult.ok || !telegramResult.result?.sent) {
+      const reason = telegramResult?.error || telegramResult?.result?.error || 'no telegram result';
+      console.error(`[telegram-monitor] Canned reply to ${chatId} did not send: ${reason}`);
+    }
   } catch (err) {
     console.error(`[telegram-monitor] Could not send canned reply to ${chatId}: ${err.message}`);
   }
@@ -299,29 +365,32 @@ export async function sendCannedReply(chatId, text, hook = runHook) {
  * emergency notification before giving up (2026-08-13).
  *
  * @param {{chatId: string, cwd: string, kind: 'routing'|'onboarding', messages: any[], state: object|null}} dispatch
- * @param {(prompt: string, cwd: string) => Promise<void>} [invoke] - overridable for tests.
+ * @param {(prompt: string, cwd: string, timeoutMs?: number) => Promise<void>} [invoke] - overridable for tests.
  */
 export async function dispatchOne(dispatch, invoke = invokeClaudeRoutingOnce) {
   const prompt = dispatch.kind === 'onboarding'
     ? buildOnboardingPrompt(dispatch)
     : buildRoutingPrompt(dispatch.messages);
+  // Only onboarding gets a bounded timeout — see ONBOARDING_TIMEOUT_MS's own
+  // comment. A routing dispatch (cycle/apply/etc.) is undefined/unlimited.
+  const timeoutMs = dispatch.kind === 'onboarding' ? ONBOARDING_TIMEOUT_MS : undefined;
 
   try {
-    await invoke(prompt, dispatch.cwd);
+    await invoke(prompt, dispatch.cwd, timeoutMs);
   } catch (err) {
     if (err.spawnFailed) {
       console.error(`[telegram-monitor] Spawn failed (${err.message}) — retrying once...`);
       try {
-        await invoke(prompt, dispatch.cwd);
+        await invoke(prompt, dispatch.cwd, timeoutMs);
         return;
       } catch (retryErr) {
         console.error(`[telegram-monitor] Retry also failed (${retryErr.message}) — sending emergency notification.`);
-        notifyRoutingFailure(retryErr.message, dispatch.messages);
+        notifyRoutingFailure(retryErr.message, dispatch);
         throw retryErr;
       }
     }
     console.error(`[telegram-monitor] Routing failed (${err.message}) — sending emergency notification.`);
-    notifyRoutingFailure(err.message, dispatch.messages);
+    notifyRoutingFailure(err.message, dispatch);
     throw err;
   }
 }
