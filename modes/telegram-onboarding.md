@@ -80,8 +80,10 @@ On receiving the spend-tier reply:
 
 On receiving the Discord reply:
 
-1. If it's a URL: write it to `workspaces/{slug}/.env` as `DISCORD_WEBHOOK_URL=...` (create the file if it doesn't exist; never echo the URL back in a Telegram message). Set `workspaces/{slug}/config/plugins.yml`'s `discord.enabled: true`.
-2. If it's "skip" (or equivalent): leave `workspaces/{slug}/config/plugins.yml`'s `discord.enabled: false` (the seeded template default — no edit needed).
+1. If it's "skip" (or equivalent): leave `workspaces/{slug}/config/plugins.yml`'s `discord.enabled: false` (the seeded template default — no edit needed). Go to step 3.
+2. Otherwise, **validate before writing anything** — the reply is untrusted external content, and `.env` is a file `dotenv` parses as `KEY=value` lines for every node process run at that workspace's cwd, so an unvalidated multi-line paste could inject arbitrary keys. It must be a single line matching `^https://discord\.com/api/webhooks/\d+/[\w-]+$` (Discord's actual webhook URL shape) with no other content:
+   - **Matches:** write it to `workspaces/{slug}/.env` as `DISCORD_WEBHOOK_URL=...` on its own line (create the file if it doesn't exist; never echo the URL back in a Telegram message). Set `workspaces/{slug}/config/plugins.yml`'s `discord.enabled: true`.
+   - **Doesn't match:** don't write anything. Reply `That doesn't look like a Discord webhook URL (should start with https://discord.com/api/webhooks/...) — paste it again, or reply "skip".` and stay on this same question (do not advance `currentStep`).
 3. Either way, also set `workspaces/{slug}/config/plugins.yml`'s `telegram.enabled: true`, `telegram.chat_id: "{chatId}"`, and `telegram.chat_ids: ["{chatId}"]` — this is what makes the *ordinary* post-onboarding `modes/telegram.md` flow able to message them normally via `ctx.settings`, once bound. (This does not itself bind the chat — see Step 6.)
 4. Advance `currentStep` to `done`, save state.
 
@@ -108,3 +110,4 @@ If a step's tool call fails (a write error, `provision-workspace.mjs` exiting no
 - Never binds a chat (`workspace.json`'s `chat_id`) until every prior onboarding question has actually been answered — the bind call itself is the first action of Step 6, precisely because a failure there (e.g. "already bound") should leave the onboarding state and pending completion message untouched, safe to retry, rather than happening after the state is already deleted and a false success message already sent.
 - Never invents CV content, skills, or achievements not present in what the candidate actually pasted — same non-fabrication discipline as every other content-generating mode in this system.
 - Never requires the Discord webhook — it is always skippable.
+- Never reads or writes any path outside `workspaces/{slug}/...` (this conversation's own workspace, once it exists) or the hub-global `data/onboarding/{chatId}.json` state file. Redeeming a code proves someone holds it, not that they're trusted with another tenant's `cv.md`, tracker, or reports — this mode has no more structural isolation from a sibling workspace than the model's own judgment enforces, so it must never go looking at one on purpose.

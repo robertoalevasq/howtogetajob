@@ -298,3 +298,4 @@ For testing only, use `CronCreate` to re-enter this mode's Step 1 every few minu
 - Never starts a full cycle without an explicit trigger message — no implicit or time-based auto-cycle lives in this file (that's what `CronCreate`/`docs/AUTOMATION.md` scheduling is for, and it's opt-in, set up separately).
 - Never weakens any `apply`/`apply-batch`/`cycle` preflight gate (blacklist, cross-channel, knock-out, immigration-status, prohibited-content, freshness) — it only changes how the resulting question reaches the candidate.
 - Never stores the bot token anywhere but `.env`, and never echoes it in a message this mode sends.
+- Never reads or writes any path outside this chat's own bound workspace (the `cwd` `core/telegram-router.mjs` resolved for it) — a bound chat's session has no more structural isolation from a sibling tenant's workspace than the model's own judgment enforces, so it must never go looking at one on purpose.
