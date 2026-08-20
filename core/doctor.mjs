@@ -21,6 +21,14 @@ import { workspaceRoot } from './workspace-root.mjs';
 // prerequisites (cv.md, config/profile.yml, portals.yml, ...) live
 // (#workspace-multitenancy final-review Important 5).
 const DOCTOR_DIR = dirname(fileURLToPath(import.meta.url));
+// The actual repo root, one level above core/. Template files this script
+// diffs against (config/profile.example.yml, templates/portals.example.yml,
+// modes/_profile.template.md, modes/_brief.template.md) must always be read
+// from HERE, never from `root`/`--target` — `config/` is not junctioned into
+// a workspace (only config/profile.yml and config/plugins.yml are real
+// there), so config/profile.example.yml is only reachable at the real repo
+// root (#onboarding-completeness-guardrails).
+const REPO_ROOT = dirname(DOCTOR_DIR);
 
 const argv = process.argv.slice(2);
 const targetIdx = argv.indexOf('--target');
@@ -285,6 +293,85 @@ function checkScanExtractor(root) {
   return { pass: true, label: 'Scan extractor: mcp (default)' };
 }
 
+// Detects "this still matches the unedited template" for user-layer files
+// seeded by provisioning (#onboarding-completeness-guardrails, found live
+// 2026-08-20: five separate instances of unedited template/fabricated
+// content surviving a real onboarding conversation because the mode's own
+// instructions were narrower than what the templates actually contain).
+// WARN-level only — a leftover value is weaker, not broken; never flags a
+// blank value, since blank is an established "no real answer yet" state.
+// Returns an array of findings (empty = clean), one entry per file/field
+// that still byte-matches its template — self-maintaining, since it
+// compares against the CURRENT template file, not a hardcoded string list.
+function checkTemplateLeftovers(root) {
+  const findings = [];
+
+  // -- config/profile.yml vs config/profile.example.yml --
+  const profilePath = join(root, 'config', 'profile.yml');
+  const profileTemplatePath = join(REPO_ROOT, 'config', 'profile.example.yml');
+  if (existsSync(profilePath) && existsSync(profileTemplatePath)) {
+    let profile, template;
+    try {
+      profile = yaml.load(readFileSync(profilePath, 'utf8')) || {};
+      template = yaml.load(readFileSync(profileTemplatePath, 'utf8')) || {};
+    } catch {
+      profile = null; template = null; // malformed YAML — other checks catch this, skip silently here
+    }
+    if (profile && template) {
+      const scalarPaths = [['candidate', 'linkedin'], ['candidate', 'github'], ['candidate', 'twitter']];
+      for (const path of scalarPaths) {
+        const liveVal = path.reduce((o, k) => o?.[k], profile);
+        const templateVal = path.reduce((o, k) => o?.[k], template);
+        if (liveVal && templateVal && liveVal === templateVal) {
+          findings.push({
+            file: 'config/profile.yml',
+            label: `config/profile.yml: candidate.${path[1]} still matches the unedited template value ("${templateVal}")`,
+            fix: ["Fill in the real value, or set it to \"\" if the candidate doesn't have one."],
+          });
+        }
+      }
+      const arrayPaths = [['target_roles', 'primary'], ['narrative', 'superpowers'], ['narrative', 'proof_points']];
+      for (const path of arrayPaths) {
+        const liveVal = path.reduce((o, k) => o?.[k], profile);
+        const templateVal = path.reduce((o, k) => o?.[k], template);
+        if (Array.isArray(liveVal) && liveVal.length > 0 && Array.isArray(templateVal)
+            && JSON.stringify(liveVal) === JSON.stringify(templateVal)) {
+          findings.push({
+            file: 'config/profile.yml',
+            label: `config/profile.yml: ${path.join('.')} still matches the unedited template's example list`,
+            fix: ['Replace with the candidate\'s real values, or [] if none apply yet.'],
+          });
+        }
+      }
+    }
+  }
+
+  // -- portals.yml vs templates/portals.example.yml --
+  const portalsPath = join(root, 'portals.yml');
+  const portalsTemplatePath = join(REPO_ROOT, 'templates', 'portals.example.yml');
+  if (existsSync(portalsPath) && existsSync(portalsTemplatePath)) {
+    let portals, portalsTemplate;
+    try {
+      portals = yaml.load(readFileSync(portalsPath, 'utf8')) || {};
+      portalsTemplate = yaml.load(readFileSync(portalsTemplatePath, 'utf8')) || {};
+    } catch {
+      portals = null; portalsTemplate = null;
+    }
+    const liveTitles = portals?.title_filter?.positive;
+    const templateTitles = portalsTemplate?.title_filter?.positive;
+    if (Array.isArray(liveTitles) && liveTitles.length > 0 && Array.isArray(templateTitles)
+        && JSON.stringify(liveTitles) === JSON.stringify(templateTitles)) {
+      findings.push({
+        file: 'portals.yml',
+        label: 'portals.yml: title_filter.positive still matches the unedited template\'s example keywords',
+        fix: ['Replace with keywords drawn from the candidate\'s actual target roles.'],
+      });
+    }
+  }
+
+  return findings;
+}
+
 // Single source of truth for the four user-layer prerequisites (the list
 // AGENTS.md "First Run" documents). BOTH the human checklist (`checkPrereq`)
 // and the machine-readable cold-start state (`onboardingState`) derive from
@@ -475,6 +562,7 @@ async function main() {
     checkPlaywrightMcp(projectRoot, activeCli),
     checkScanExtractor(projectRoot),
     ...USER_LAYER_PREREQS.map(checkPrereq),
+    ...checkTemplateLeftovers(projectRoot).map((f) => ({ warn: true, label: f.label, fix: f.fix })),
     checkFonts(),
     checkAutoDir('data'),
     checkPipelineFile(),
@@ -586,6 +674,7 @@ function onboardingState(root) {
     playwright_mcp: playwrightMcp,
     active_cli: activeCli,
     cli_source: cliSource,
+    templateLeftovers: checkTemplateLeftovers(root),
   };
 }
 
