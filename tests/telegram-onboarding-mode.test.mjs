@@ -52,6 +52,11 @@ test('modes/telegram-onboarding.md exists and covers the required conventions', 
     /Reply "yes" to continue, or tell me what to fix/,
     'must send a read-back summary and wait for explicit confirmation before Step 4b writes any workspace files',
   );
+  assert.match(
+    content,
+    /narrative\.proof_points.*derive|derive.*narrative\.proof_points/s,
+    'must instruct auto-deriving narrative.proof_points from the CV\'s strongest quantified achievements, the same source _brief.md\'s Proof Points section already draws from — content already collected should be reused, not left blank by default (#onboarding-completeness-guardrails)',
+  );
 });
 
 test('modes/telegram-onboarding.md is registered in update-system.mjs SYSTEM_PATHS', () => {
