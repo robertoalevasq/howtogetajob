@@ -202,6 +202,16 @@ function logPollError(result) {
 // hours, so it gets no timeout at all (undefined below).
 const ONBOARDING_TIMEOUT_MS = 10 * 60 * 1000;
 
+// Onboarding turns are pinned to the fastest model: reading a short reply,
+// writing a few YAML/markdown fields, running a couple of deterministic CLI
+// commands — none of it needs the account's default (heavier, unpinned)
+// model, and onboarding turns are serialized (see fanOutDispatches), so
+// every extra second here is a second the whole daemon can't poll for
+// anyone else either. `routing` dispatches are deliberately left on
+// whatever model the `claude` CLI defaults to (undefined below) — a bound
+// chat's `cycle`/`apply`/etc. genuinely needs full capability.
+const ONBOARDING_MODEL = 'haiku';
+
 /**
  * Single attempt at spawning Claude — see dispatchOne() for retry/alert
  * handling.
@@ -214,15 +224,19 @@ const ONBOARDING_TIMEOUT_MS = 10 * 60 * 1000;
  * daemonLoop() awaits fanOutDispatches(); routing calls without a timeout
  * were never affected, since they're fired non-blocking).
  *
+ * `model`, when given, is passed as `--model <model>` — see ONBOARDING_MODEL.
+ *
  * @param {string} prompt
  * @param {string} cwd
  * @param {number} [timeoutMs]
+ * @param {string} [model]
  */
-function invokeClaudeRoutingOnce(prompt, cwd, timeoutMs) {
+function invokeClaudeRoutingOnce(prompt, cwd, timeoutMs, model) {
   return new Promise((resolvePromise, reject) => {
     const { cmd, shell } = resolveClaudeCommand();
     let settled = false;
-    const proc = spawn(cmd, ['-p', prompt], { cwd, stdio: 'inherit', shell });
+    const args = model ? ['-p', prompt, '--model', model] : ['-p', prompt];
+    const proc = spawn(cmd, args, { cwd, stdio: 'inherit', shell });
 
     let timer;
     if (timeoutMs) {
@@ -365,23 +379,25 @@ export async function sendCannedReply(chatId, text, hook = runHook) {
  * emergency notification before giving up (2026-08-13).
  *
  * @param {{chatId: string, cwd: string, kind: 'routing'|'onboarding', messages: any[], state: object|null}} dispatch
- * @param {(prompt: string, cwd: string, timeoutMs?: number) => Promise<void>} [invoke] - overridable for tests.
+ * @param {(prompt: string, cwd: string, timeoutMs?: number, model?: string) => Promise<void>} [invoke] - overridable for tests.
  */
 export async function dispatchOne(dispatch, invoke = invokeClaudeRoutingOnce) {
   const prompt = dispatch.kind === 'onboarding'
     ? buildOnboardingPrompt(dispatch)
     : buildRoutingPrompt(dispatch.messages);
-  // Only onboarding gets a bounded timeout — see ONBOARDING_TIMEOUT_MS's own
-  // comment. A routing dispatch (cycle/apply/etc.) is undefined/unlimited.
+  // Only onboarding gets a bounded timeout and a pinned fast model — see
+  // ONBOARDING_TIMEOUT_MS/ONBOARDING_MODEL's own comments. A routing
+  // dispatch (cycle/apply/etc.) is unlimited and uses the account default.
   const timeoutMs = dispatch.kind === 'onboarding' ? ONBOARDING_TIMEOUT_MS : undefined;
+  const model = dispatch.kind === 'onboarding' ? ONBOARDING_MODEL : undefined;
 
   try {
-    await invoke(prompt, dispatch.cwd, timeoutMs);
+    await invoke(prompt, dispatch.cwd, timeoutMs, model);
   } catch (err) {
     if (err.spawnFailed) {
       console.error(`[telegram-monitor] Spawn failed (${err.message}) — retrying once...`);
       try {
-        await invoke(prompt, dispatch.cwd, timeoutMs);
+        await invoke(prompt, dispatch.cwd, timeoutMs, model);
         return;
       } catch (retryErr) {
         console.error(`[telegram-monitor] Retry also failed (${retryErr.message}) — sending emergency notification.`);

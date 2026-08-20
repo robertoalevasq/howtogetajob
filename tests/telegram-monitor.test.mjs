@@ -39,9 +39,9 @@ test('buildOnboardingPrompt embeds the chatId, the --chat-id convention, and the
   assert.ok(prompt.includes(JSON.stringify(dispatch.messages, null, 2)));
 });
 
-test('dispatchOne calls invoke with the onboarding prompt, the dispatch cwd, and a bounded timeout for an onboarding dispatch', async () => {
+test('dispatchOne calls invoke with the onboarding prompt, the dispatch cwd, a bounded timeout, and the fast model for an onboarding dispatch', async () => {
   const calls = [];
-  const fakeInvoke = async (prompt, cwd, timeoutMs) => { calls.push({ prompt, cwd, timeoutMs }); };
+  const fakeInvoke = async (prompt, cwd, timeoutMs, model) => { calls.push({ prompt, cwd, timeoutMs, model }); };
   const dispatch = {
     chatId: '1', cwd: '/fake/workspace', kind: 'onboarding',
     messages: [{ chatId: '1', text: 'Alice' }], state: { currentStep: 'name' },
@@ -51,11 +51,12 @@ test('dispatchOne calls invoke with the onboarding prompt, the dispatch cwd, and
   assert.equal(calls[0].cwd, '/fake/workspace');
   assert.match(calls[0].prompt, /modes\/telegram-onboarding\.md/);
   assert.equal(calls[0].timeoutMs, 10 * 60 * 1000);
+  assert.equal(calls[0].model, 'haiku');
 });
 
-test('dispatchOne calls invoke with the routing prompt, the dispatch cwd, and NO timeout for a routing dispatch', async () => {
+test('dispatchOne calls invoke with the routing prompt, the dispatch cwd, NO timeout, and NO pinned model for a routing dispatch', async () => {
   const calls = [];
-  const fakeInvoke = async (prompt, cwd, timeoutMs) => { calls.push({ prompt, cwd, timeoutMs }); };
+  const fakeInvoke = async (prompt, cwd, timeoutMs, model) => { calls.push({ prompt, cwd, timeoutMs, model }); };
   const dispatch = {
     chatId: '1', cwd: '/fake/workspace/alice', kind: 'routing',
     messages: [{ chatId: '1', text: '/status' }], state: null,
@@ -63,6 +64,7 @@ test('dispatchOne calls invoke with the routing prompt, the dispatch cwd, and NO
   await dispatchOne(dispatch, fakeInvoke);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].cwd, '/fake/workspace/alice');
+  assert.equal(calls[0].model, undefined);
   assert.match(calls[0].prompt, /modes\/telegram\.md/);
   assert.equal(calls[0].timeoutMs, undefined);
 });
