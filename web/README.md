@@ -5,9 +5,7 @@ the exact same files the CLI reads and writes (`data/pipeline.md`,
 `data/applications.md`, `reports/`, `config/`): no parallel engine, no separate
 database, no server. If you never run it, nothing about your CLI workflow changes.
 
-> **Status: alpha.** Expect rough edges. Feedback →
-> [Discussion #1142](https://github.com/santifer/career-ops/discussions/1142) ·
-> roadmap context → [Discussion #156](https://github.com/santifer/career-ops/discussions/156).
+> **Status: alpha.** Expect rough edges.
 
 ## Quick start
 
