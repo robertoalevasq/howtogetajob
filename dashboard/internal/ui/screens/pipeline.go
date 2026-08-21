@@ -602,11 +602,6 @@ func (m PipelineModel) handleKey(msg tea.KeyMsg) (PipelineModel, tea.Cmd) {
 			}
 		}
 
-	case "m":
-		return m, func() tea.Msg {
-			return PipelineOpenURLMsg{URL: "https://career-ops.org/manifesto?utm_source=dashboard-shortcut"}
-		}
-
 	case "d":
 		if app, ok := m.CurrentApp(); ok {
 			manifest := data.LoadPDFManifest(m.careerOpsPath)
@@ -1906,7 +1901,6 @@ func (m PipelineModel) renderHelp() string {
 		keyStyle.Render("v") + descStyle.Render(i18n.Current.HelpView) +
 		keyStyle.Render("p") + descStyle.Render(i18n.Current.HelpProgress) +
 		keyStyle.Render("t") + descStyle.Render(i18n.Current.HelpLanguage) +
-		keyStyle.Render("m") + descStyle.Render(i18n.Current.HelpManifesto) +
 		keyStyle.Render("q") + descStyle.Render(i18n.Current.HelpQuit)
 
 	gap := m.width - lipgloss.Width(keys) - lipgloss.Width(brandPlain) - 2
