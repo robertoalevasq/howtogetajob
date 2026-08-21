@@ -8,13 +8,6 @@ body:
         Thanks for trying the **experimental career-ops web UI** (opt-in alpha)! 🙏
         Tip: the in-app **Report a bug** button (bottom-left pill) pre-fills most of this for you.
         **Please do NOT paste your CV, profile, real application answers, or private job URLs.**
-  - type: checkboxes
-    id: coc
-    attributes:
-      label: Code of Conduct
-      options:
-        - label: I agree to follow the [Code of Conduct](https://github.com/santifer/career-ops/blob/main/CODE_OF_CONDUCT.md)
-          required: true
   - type: textarea
     id: description
     attributes:
