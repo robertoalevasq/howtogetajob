@@ -1,4 +1,4 @@
-module github.com/santifer/career-ops/dashboard
+module career-ops/dashboard
 
 go 1.25.0
 

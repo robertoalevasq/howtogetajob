@@ -3,7 +3,7 @@ package data
 import (
 	"testing"
 
-	"github.com/santifer/career-ops/dashboard/internal/model"
+	"career-ops/dashboard/internal/model"
 )
 
 func TestDeriveNoteFields(t *testing.T) {

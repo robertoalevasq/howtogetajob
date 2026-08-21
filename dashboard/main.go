@@ -10,11 +10,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/santifer/career-ops/dashboard/internal/data"
-	"github.com/santifer/career-ops/dashboard/internal/i18n"
-	"github.com/santifer/career-ops/dashboard/internal/model"
-	"github.com/santifer/career-ops/dashboard/internal/theme"
-	"github.com/santifer/career-ops/dashboard/internal/ui/screens"
+	"career-ops/dashboard/internal/data"
+	"career-ops/dashboard/internal/i18n"
+	"career-ops/dashboard/internal/model"
+	"career-ops/dashboard/internal/theme"
+	"career-ops/dashboard/internal/ui/screens"
 )
 
 type viewState int

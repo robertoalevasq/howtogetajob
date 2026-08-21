@@ -11,10 +11,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/santifer/career-ops/dashboard/internal/data"
-	"github.com/santifer/career-ops/dashboard/internal/i18n"
-	"github.com/santifer/career-ops/dashboard/internal/model"
-	"github.com/santifer/career-ops/dashboard/internal/theme"
+	"career-ops/dashboard/internal/data"
+	"career-ops/dashboard/internal/i18n"
+	"career-ops/dashboard/internal/model"
+	"career-ops/dashboard/internal/theme"
 )
 
 // PipelineClosedMsg is emitted when the pipeline screen is dismissed.
@@ -108,8 +108,6 @@ type reportSummary struct {
 	remote    string
 	comp      string
 }
-
-const storyTemplateURL = "https://github.com/santifer/career-ops/issues/new?template=i-got-hired.yml"
 
 // Sort modes
 const (
@@ -999,9 +997,6 @@ func (m PipelineModel) handleHiredFlow(msg tea.KeyMsg) (PipelineModel, tea.Cmd) 
 		switch msg.String() {
 		case "y", "Y":
 			m.hiredStep = 3
-			return m, func() tea.Msg {
-				return PipelineOpenURLMsg{URL: storyTemplateURL}
-			}
 		case "n", "N", "enter", "esc":
 			m.hiredStep = 3
 		}
@@ -1894,12 +1889,8 @@ func (m PipelineModel) renderHelp() string {
 				keyStyle.Render("Esc") + descStyle.Render(i18n.Current.HelpCancel))
 	}
 
-	// The manifesto segment is an OSC 8 hyperlink (utm_source=dashboard);
-	// terminals without support show the same text, just not clickable. The
-	// gap math uses the plain text so the escapes never skew the layout.
-	const brandPlain = "built on the CareerOps Manifesto · career-ops by santifer.io"
-	manifestoLink := "\x1b]8;;https://career-ops.org/manifesto?utm_source=dashboard\x1b\\built on the CareerOps Manifesto\x1b]8;;\x1b\\"
-	brand := lipgloss.NewStyle().Foreground(m.theme.Overlay).Render(manifestoLink + " · career-ops by santifer.io")
+	const brandPlain = "career-ops"
+	brand := lipgloss.NewStyle().Foreground(m.theme.Overlay).Render(brandPlain)
 
 	keys := keyStyle.Render("↑↓/jk") + descStyle.Render(i18n.Current.HelpNav) +
 		keyStyle.Render("←→/hl") + descStyle.Render(i18n.Current.HelpTabs) +

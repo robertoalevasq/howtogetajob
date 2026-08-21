@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/santifer/career-ops/dashboard/internal/model"
+	"career-ops/dashboard/internal/model"
 )
 
 // The tracker's Notes column is free-text, but evaluations write it with stable

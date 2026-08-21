@@ -1334,9 +1334,6 @@ const allowedFiles = [
   'LICENSE', 'CITATION.cff', 'CHANGELOG.md',
   'package.json', '.github/FUNDING.yml', 'CLAUDE.md', 'AGENTS.md', 'go.mod', 'test-all.mjs',
   '.claude-plugin/marketplace.json', '.claude-plugin/plugin.json', '.github/plugin/plugin.json',
-  // Dashboard credit string
-  'dashboard/internal/ui/screens/pipeline.go',
-  'dashboard/internal/ui/screens/progress.go',
 ];
 
 // Build pathspec for git grep — only scan tracked files matching these
