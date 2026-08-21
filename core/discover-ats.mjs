@@ -28,7 +28,7 @@
  * Probing hits live third-party APIs, so honor CAREER_OPS_PORTALS to point at a
  * scratch portals file during tests/experiments.
  *
- * Issue #1864 — github.com/santifer/career-ops
+ * Issue #1864
  */
 
 import { readFileSync, existsSync, writeFileSync, renameSync } from 'fs';

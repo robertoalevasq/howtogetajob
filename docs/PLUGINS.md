@@ -121,7 +121,7 @@ To add your own plugin to the registry, follow the [Publishing + getting approve
 ## Not a plugin
 
 - **Centralized infrastructure** the project would run (hosted aggregation,
-  shared services, proxies) → a separate, opt-in service, see
-  [Discussion #904](https://github.com/santifer/career-ops/discussions/904).
+  shared services, proxies) → out of scope; would need to be a separate,
+  opt-in service.
 - **Auto-submitting / blind-applying** → out of the core everywhere. career-ops
   drafts for you to review and submit; it is a decision-support tool, not a bot.

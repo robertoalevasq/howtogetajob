@@ -20,7 +20,7 @@
  *      echo "..." | node invite-match.mjs --summary
  *      node invite-match.mjs --self-test
  *
- * Issue #1495 — github.com/santifer/career-ops
+ * Issue #1495
  */
 
 import { readFileSync, existsSync } from 'fs';

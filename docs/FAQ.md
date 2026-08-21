@@ -1,12 +1,12 @@
 # Frequently Asked Questions
 
-Common questions from the community, answered in one place. For setup details see [docs/SETUP.md](SETUP.md). For anything not covered here, ask in [Discord](https://discord.gg/8pRpHETxa4) or open a [GitHub Discussion](https://github.com/santifer/career-ops/discussions).
+Common questions, answered in one place. For setup details see [docs/SETUP.md](SETUP.md).
 
 ---
 
 ## 1. Skills aren't loading on Windows — symlink error on install
 
-Windows does not create symlinks by default, so Git checks out the CLI skill entrypoints (`.claude/skills/`, `.opencode/skills/`, etc.) as plain pointer files instead of real symlinks. The installer and updater both detect this automatically: run `node core/update-system.mjs apply` (or `npx @santifer/career-ops init` on a fresh install) and the `materializeSkillEntrypoints` step will replace the pointer files with the full canonical skill content. No manual `mklink` or Developer Mode changes are needed.
+Windows does not create symlinks by default, so Git checks out the CLI skill entrypoints (`.claude/skills/`, `.opencode/skills/`, etc.) as plain pointer files instead of real symlinks. The fix is `materializeSkillEntrypoints()` in `scaffolder/bin/skill-entrypoints.mjs`, which replaces a pointer file with the full canonical skill content — no manual `mklink` or Developer Mode changes needed. Note: for this checkout, both the installer and `node core/update-system.mjs apply` (which used to run this step automatically) are disabled (see `core/AGENTS.md`'s Origin note); this checkout's skill entrypoints already ship as full files, not pointers, so the issue shouldn't arise here. If a pointer file ever reappears, call `materializeSkillEntrypoints(root)` directly from that module.
 
 ## 2. What is the difference between `scan` and `scan:full`?
 

@@ -22,7 +22,7 @@
  *      node process-quality.mjs --file path/to/active-interviews.md  (override the data path; test isolation)
  *      node process-quality.mjs --self-test
  *
- * Issue #1466 — github.com/santifer/career-ops
+ * Issue #1466
  */
 
 import { readFileSync, existsSync } from 'fs';

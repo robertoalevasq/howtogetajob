@@ -8,16 +8,11 @@
 
 ## Quick Start
 
-### Recommended — one command
+### This checkout
+
+This is an existing checkout — there's nothing to install. Just open your AI CLI in this folder:
 
 ```bash
-npx @santifer/career-ops init
-```
-
-`npx` ships with Node.js — it runs the installer once without installing anything globally. This clones the latest release into `./career-ops` and installs dependencies. Then move into the workspace and open your AI CLI:
-
-```bash
-cd career-ops
 claude   # or codex / qwen / opencode / agy / grok
 ```
 
@@ -45,18 +40,18 @@ codex exec "Run career-ops email mode for the latest evaluated role. Draft only;
 codex exec "Run career-ops tracker mode and summarize the current statuses."
 ```
 
-### Advanced — clone manually
+### Setting up a fresh checkout elsewhere
 
 <details>
-<summary>Prefer to clone the repo yourself?</summary>
+<summary>Cloning career-ops onto a new machine or into a new folder?</summary>
 
 ```bash
-git clone https://github.com/santifer/career-ops.git
+git clone <repo-url>
 cd career-ops
 npm install
 ```
 
-Then open your AI CLI in the folder — the same first-run onboarding applies. Use this path if you want to track a specific branch, contribute, or audit the code before installing dependencies.
+Then open your AI CLI in the folder — the same first-run onboarding applies. This checkout already has its dependencies installed; use this pattern only when starting a new one somewhere else.
 
 </details>
 

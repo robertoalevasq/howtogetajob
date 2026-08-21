@@ -2,7 +2,7 @@
 
 ## Origin
 
-Built and used by [santifer](https://santifer.io) to evaluate 740+ offers, generate 100+ tailored CVs, and land a Head of Applied AI role. The archetypes, scoring, and negotiation scripts reflect that search; his portfolio is also open source: [cv-santiago](https://github.com/santifer/cv-santiago).
+This is a personal fork of [career-ops](https://github.com/santifer/career-ops), an MIT-licensed open-source job search pipeline originally created by Santiago Fernández de Valderrama. See `LICENSE` for the full copyright notice.
 
 **It works out of the box, but it's designed to be made yours.** You (AI Agent) can edit the user's files: they say "change the archetypes to data engineering roles" and you do it. That's the whole point.
 
