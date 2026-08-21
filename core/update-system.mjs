@@ -541,7 +541,7 @@ function mergePathLists(...lists) {
 // loads without a missing-module crash. Today this is the entry plus its only
 // local import; resolveReexecCheckout derives the real set from the fetched
 // source, so this is only a defensive fallback if parsing ever misses one.
-const REEXEC_FALLBACK_FILES = ['update-system.mjs', 'scaffolder/bin/skill-entrypoints.mjs'];
+const REEXEC_FALLBACK_FILES = ['core/update-system.mjs', 'scaffolder/bin/skill-entrypoints.mjs'];
 
 // Extracts static relative import/export specifiers ('./x.mjs', '../y.mjs')
 // from ESM source. Bare ('node:fs') and package ('js-yaml') specifiers are
@@ -882,9 +882,9 @@ async function apply() {
         // at load time must exist first. Resolve the fetched update-system.mjs's
         // relative-import closure and check out exactly those files, so a future
         // new top-level import can't reintroduce the self-reexec crash (#1245).
-        const reexecFiles = resolveReexecCheckout('FETCH_HEAD', 'update-system.mjs');
+        const reexecFiles = resolveReexecCheckout('FETCH_HEAD', 'core/update-system.mjs');
         git('checkout', 'FETCH_HEAD', '--', ...reexecFiles);
-        execFileSync(process.execPath, ['update-system.mjs', 'apply'], {
+        execFileSync(process.execPath, ['core/update-system.mjs', 'apply'], {
           cwd: ROOT,
           stdio: 'inherit',
           timeout,
