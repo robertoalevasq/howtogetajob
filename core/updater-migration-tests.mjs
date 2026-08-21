@@ -105,11 +105,11 @@ const requiredSystemPaths = [
   'README.ja.md',
   'README.ua.md',
   'CHANGELOG.md',
-  'CODE_OF_CONDUCT.md',
-  'GOVERNANCE.md',
-  'SECURITY.md',
-  'SUPPORT.md',
-  'TRADEMARK.md',
+  // de-brand-personal-fork Task 3: CODE_OF_CONDUCT.md, GOVERNANCE.md,
+  // SECURITY.md, SUPPORT.md, and TRADEMARK.md described upstream's own
+  // community/governance structure and were deleted along with the rest of
+  // the manifesto/governance feature; they were removed from SYSTEM_PATHS
+  // too, so they no longer belong in this required-coverage list either.
 ];
 
 const requiredBootstrapPaths = [
