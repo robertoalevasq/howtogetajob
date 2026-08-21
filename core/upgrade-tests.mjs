@@ -25,7 +25,13 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { seedFixture, loadExpectations } from './seed-fixture.mjs';
 import { isMainModule } from './is-main.mjs';
 
-const ROOT = dirname(fileURLToPath(import.meta.url));
+const CORE_DIR = dirname(fileURLToPath(import.meta.url));
+// This file lives in core/, one directory below the repo root
+// (#workspace-multitenancy Task 1) — REPO_ROOT is the actual repo root the
+// git tree operations below need (tag listing, ancestor checks, and the
+// `git clone --bare <source>` calls, whose source arg must literally be a
+// git repository root, not core/). Matches the pattern in hub-paths.mjs.
+const REPO_ROOT = dirname(CORE_DIR);
 const CANONICAL = 'https://github.com/santifer/career-ops.git';
 const TAG_RE = /^career-ops-v(\d+)\.(\d+)\.(\d+)$/;
 
@@ -34,7 +40,7 @@ function git(cwd, ...args) {
 }
 
 const semverKey = (t) => TAG_RE.exec(t).slice(1).map(Number);
-export function releaseTags(cwd = ROOT) {
+export function releaseTags(cwd = REPO_ROOT) {
   return git(cwd, 'tag', '--list', 'career-ops-v*').split('\n').filter((t) => TAG_RE.test(t))
     .sort((a, b) => { const [x, y] = [semverKey(a), semverKey(b)];
       return x[0] - y[0] || x[1] - y[1] || x[2] - y[2]; });
@@ -52,7 +58,7 @@ function sha256(path) { return createHash('sha256').update(readFileSync(path)).d
  *  the "fake GitHub" the old install fetches from. */
 function buildMirror(work, targetSha) {
   const mirror = join(work, 'mirror.git');
-  git(ROOT, 'clone', '--quiet', '--bare', ROOT, mirror);
+  git(REPO_ROOT, 'clone', '--quiet', '--bare', REPO_ROOT, mirror);
   git(mirror, 'update-ref', 'refs/heads/main', targetSha);
   return mirror;
 }
@@ -107,7 +113,7 @@ export function runLeg({ oldTag, targetSha, label = oldTag, mutateMirror = null 
     const oracleBlob = git(mirror, 'rev-parse', `${targetSha}:${oracle}`);
 
     const install = join(work, 'install');
-    git(ROOT, 'clone', '--quiet', '--branch', oldTag, ROOT, install);
+    git(REPO_ROOT, 'clone', '--quiet', '--branch', oldTag, REPO_ROOT, install);
     git(install, 'remote', 'set-url', 'origin', CANONICAL);
     const state = fixtureStateFor(oldTag);
     const { manifest } = seedFixture(install, { state });
@@ -192,12 +198,12 @@ export function runLeg({ oldTag, targetSha, label = oldTag, mutateMirror = null 
 }
 
 function newestAncestorTag(targetSha) {
-  const tags = releaseTags().filter((t) => isAncestor(ROOT, t, targetSha));
+  const tags = releaseTags().filter((t) => isAncestor(REPO_ROOT, t, targetSha));
   return tags.length ? tags[tags.length - 1] : null;
 }
 
 function prGate() {
-  const targetSha = git(ROOT, 'rev-parse', 'HEAD');
+  const targetSha = git(REPO_ROOT, 'rev-parse', 'HEAD');
   const newestOld = newestAncestorTag(targetSha);
   if (!newestOld) { console.error('No release tag is an ancestor of HEAD — fetch tags first (CI: fetch-depth: 0)'); process.exit(1); }
   console.log(`PR gate: ${newestOld} -> ${targetSha.slice(0, 8)}`);
@@ -209,7 +215,7 @@ function prGate() {
 /** Canary: plant a user-file clobber in the mirror; the harness MUST go red.
  *  Proves the gate is capable of failing — a gate never seen red proves nothing. */
 function canary() {
-  const targetSha = git(ROOT, 'rev-parse', 'HEAD');
+  const targetSha = git(REPO_ROOT, 'rev-parse', 'HEAD');
   const newestOld = newestAncestorTag(targetSha);
   if (!newestOld) { console.error('No release tag is an ancestor of HEAD'); process.exit(1); }
   const { failures } = runLeg({
