@@ -142,81 +142,34 @@ for (const path of requiredBootstrapPaths) {
 
 const twoPassManifestChecks = [
   {
-    name: 'apply has a re-exec guard',
-    pattern: /CAREER_OPS_UPDATE_REEXEC/,
+    // de-brand-personal-fork Task 1: apply() no longer fetches/re-execs/merges
+    // manifests from any upstream — it short-circuits with a disabled-state
+    // error before any of that machinery runs. This checkout has no upstream
+    // repo relationship, so the old cross-version fetch-and-migrate checks
+    // below (re-exec guard, FETCH_HEAD manifest merge, scoped commit, stash
+    // capture, #1998 verification) no longer apply to apply() and were
+    // removed rather than asserting on dead code paths. rollback() and the
+    // revertPaths()/removeAdditionsNotInHead() helpers it (and the #2015
+    // rollback-behavior suite in test-all.mjs) still exercise directly are
+    // unaffected and stay covered below.
+    name: 'apply() short-circuits with a disabled-state error before any git/network call',
+    pattern: /async function apply\(\) \{\s*throw new Error\('Auto-update is disabled for this instance/,
   },
   {
-    name: 'apply resolves the re-exec checkout closure from FETCH_HEAD (#1245)',
-    pattern: /resolveReexecCheckout\('FETCH_HEAD',\s*'core\/update-system\.mjs'\)/,
-  },
-  {
-    name: 'apply checks out the resolved re-exec files from FETCH_HEAD (#1245)',
-    pattern: /git\('checkout',\s*'FETCH_HEAD',\s*'--',\s*\.\.\.reexecFiles\)/,
+    name: 'check() short-circuits with a disabled status before any curl/network call',
+    pattern: /status:\s*'disabled',\s*reason:\s*'auto-update is disabled for this instance/,
   },
   {
     name: 're-exec fallback still covers the skill-entrypoints import (#1245)',
     pattern: /REEXEC_FALLBACK_FILES\s*=\s*\[[^\]]*'scaffolder\/bin\/skill-entrypoints\.mjs'/,
   },
   {
-    name: 'apply re-execs through the current Node binary',
-    pattern: /execFileSync\(process\.execPath,\s*\[\s*'core\/update-system\.mjs',\s*'apply'\s*\]/,
-  },
-  {
-    name: 'apply carries the original backup branch across re-exec',
-    pattern: /CAREER_OPS_UPDATE_BACKUP_BRANCH/,
-  },
-  {
-    name: 'apply reads the target updater manifest from FETCH_HEAD',
-    pattern: /git\('show',\s*'FETCH_HEAD:core\/update-system\.mjs'\)/,
-  },
-  {
-    name: 'apply extracts SYSTEM_PATHS from the target updater',
-    pattern: /extractArrayFromSource\([^,]+,\s*'SYSTEM_PATHS'\)/,
-  },
-  {
-    name: 'apply merges local and target system manifests',
-    pattern: /mergePathLists\(SYSTEM_PATHS,\s*remoteSystemPaths[\s\S]*?\)/,
-  },
-  {
-    name: 'apply checks out the merged manifest instead of only the local manifest',
-    pattern: /for\s*\(const path of updatePaths\)/,
-  },
-  {
     name: 'revertPaths uses git checkout HEAD (not just --) to reset index+worktree (#915)',
     pattern: /\b(?:git|runGit)\('checkout',\s*'HEAD',\s*'--'/,
   },
   {
-    name: 'apply commit is scoped to update paths, not bare commit (#915)',
-    pattern: /git\('commit',\s*'-m',[^)]+'--',\s*\.\.\.pathsToStage\)/,
-  },
-  {
     name: 'rollback commit is scoped to rollback paths, not bare commit (#915)',
     pattern: /git\('commit',\s*'-m',[^)]+'--',\s*\.\.\.rollbackPaths\)/,
-  },
-  {
-    name: 'apply captures uncommitted work via git stash create before branching (#915)',
-    pattern: /git\('stash',\s*'create'\)/,
-  },
-  {
-    // A client whose manifest predates the target checks out only its own
-    // paths, so everything added upstream since is silently absent and apply
-    // still printed "Update complete" (#1998).
-    name: 'apply verifies the target manifest materialized before claiming success (#1998)',
-    pattern: /missingFromTargetManifest\(remoteSystemPaths\)/,
-  },
-  {
-    name: 'an incomplete apply exits non-zero instead of reporting success (#1998)',
-    pattern: /Update incomplete[\s\S]{0,600}?process\.exit\(1\)/,
-  },
-  {
-    // execFileSync inherits stderr, so an expected per-path skip printed git's
-    // raw pathspec error right before the success banner (#1998).
-    name: 'per-path checkout pipes stderr so expected skips stay quiet (#1998)',
-    pattern: /gitQuiet\('checkout',\s*'FETCH_HEAD',\s*'--',\s*path\)/,
-  },
-  {
-    name: 'skipped upstream-absent paths are summarized explicitly (#1998)',
-    pattern: /Skipped \$\{skippedPaths\.length\} path\(s\) absent upstream/,
   },
   {
     // existsSync on a pre-existing directory (docs/) would call it materialized
@@ -224,13 +177,6 @@ const twoPassManifestChecks = [
     // into directory entries against FETCH_HEAD (#1998 CodeRabbit review).
     name: 'manifest verification recurses into directory entries via ls-tree (#1998)',
     pattern: /ls-tree', '-r', '--name-only', 'FETCH_HEAD'[\s\S]{0,400}?treeFiles\.some\(f => !existsSync/,
-  },
-  {
-    // A checkout failure is only an expected skip when the path is truly absent
-    // from FETCH_HEAD; timeouts/permission errors must rethrow, not report
-    // success (#1998 CodeRabbit review).
-    name: 'a checkout failure only skips when the path is absent upstream, else rethrows (#1998)',
-    pattern: /catch \{ absentUpstream = true; \}\s*if \(!absentUpstream\) throw err;/,
   },
   {
     // `git checkout HEAD -- docs/` restores tracked content but never removes
@@ -248,10 +194,6 @@ const twoPassManifestChecks = [
     // update ran, only additions the update itself introduced (#2015 review).
     name: 'rollback cleanup skips pre-update staged paths (protectedPaths) (#2015)',
     pattern: /if \(protectedPaths\.has\(file\)\) continue;/,
-  },
-  {
-    name: 'revertPaths receives the pre-update snapshot at its call sites (#2015)',
-    pattern: /revertPaths\(updated, initialStatusPaths\)/,
   },
   {
     // -z output is NUL-delimited/unquoted, so a path with spaces or newlines is
