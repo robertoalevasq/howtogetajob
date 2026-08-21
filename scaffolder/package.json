@@ -1,5 +1,5 @@
 {
-  "name": "@santifer/career-ops",
+  "name": "career-ops-scaffolder",
   "version": "1.25.0",
   "description": "One-command installer for career-ops — the AI-powered job search pipeline built on Claude Code.",
   "bin": {
@@ -22,16 +22,6 @@
     "create",
     "cli"
   ],
-  "author": "Santiago Fernández de Valderrama <hi@santifer.io> (https://santifer.io)",
-  "homepage": "https://github.com/santifer/career-ops#readme",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/santifer/career-ops.git",
-    "directory": "scaffolder"
-  },
-  "bugs": {
-    "url": "https://github.com/santifer/career-ops/issues"
-  },
   "license": "MIT",
   "dependencies": {}
 }

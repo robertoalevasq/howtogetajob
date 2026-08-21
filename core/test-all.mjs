@@ -1331,9 +1331,8 @@ const allowedFiles = [
   'README.ja.md', 'README.ko-KR.md', 'README.pl.md', 'README.pt-BR.md', 'README.ru.md', 'README.ta.md', 'README.cn.md',
   'README.ua.md', 'README.zh-TW.md', 'README.tr.md',
   // Standard project files
-  'LICENSE', 'CITATION.cff', 'CHANGELOG.md',
-  'package.json', '.github/FUNDING.yml', 'CLAUDE.md', 'AGENTS.md', 'go.mod', 'test-all.mjs',
-  '.claude-plugin/marketplace.json', '.claude-plugin/plugin.json', '.github/plugin/plugin.json',
+  'LICENSE', 'CHANGELOG.md',
+  'CLAUDE.md', 'AGENTS.md', 'go.mod', 'test-all.mjs',
 ];
 
 // Build pathspec for git grep — only scan tracked files matching these

@@ -231,7 +231,6 @@ export const SYSTEM_PATHS = [
   '.all-contributorsrc',
   'LEGAL_DISCLAIMER.md',
   'LICENSE',
-  'CITATION.cff',
   '.editorconfig',
   '.github/',
   'package.json',
