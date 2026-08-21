@@ -50,4 +50,4 @@ side; it only reads the tracker files.
 ## Tests
 
 Go tests live next to their packages (`*_test.go`). The Node suite builds
-the dashboard as part of `node test-all.mjs` (skipped with `--quick`).
+the dashboard as part of `node core/test-all.mjs` (skipped with `--quick`).

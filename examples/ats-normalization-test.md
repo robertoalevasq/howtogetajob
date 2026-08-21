@@ -2,7 +2,7 @@
 
 This file is a human-readable reference for the text normalization pass added in `generate-pdf.mjs` (issue #1). It contains the Unicode artifacts that can cause parsing errors or display issues in ATS systems and legacy parsers.
 
-**The automated test is `tests/generate-pdf-ats-normalization.test.mjs`** — it asserts every conversion listed below directly against `normalizeTextForATS()`, runs as part of `node test-all.mjs`, and will fail if a future change to `generate-pdf.mjs` breaks any of them. This file stays as the readable spec; the test file is the enforcement.
+**The automated test is `tests/generate-pdf-ats-normalization.test.mjs`** — it asserts every conversion listed below directly against `normalizeTextForATS()`, runs as part of `node core/test-all.mjs`, and will fail if a future change to `generate-pdf.mjs` breaks any of them. This file stays as the readable spec; the test file is the enforcement.
 
 ## Problematic Unicode (normalizer must convert these)
 
@@ -45,7 +45,7 @@ import('./generate-pdf.mjs').catch(()=>{});
 For an end-to-end test, generate a CV PDF from a known dirty HTML file and inspect the output:
 
 ```bash
-node generate-pdf.mjs /tmp/dirty-cv.html /tmp/clean-cv.pdf --format=a4
+node core/generate-pdf.mjs /tmp/dirty-cv.html /tmp/clean-cv.pdf --format=a4
 # Expected log line:
 # 🧹 ATS normalization: N replacements (em-dash=X, smart-double-quote=Y, ...)
 ```
