@@ -1156,6 +1156,48 @@ for (const f of skillEntrypoints) {
   }
 }
 
+// Same shape again, for the #workspace-multitenancy Task 1 move
+// (2026-08-15): every core/*.mjs script must never be referenced by a bare,
+// unprefixed `node {script}` in any doc/CI file, or a future script move can
+// silently break a Telegram acknowledgment, a CI job, or a contributor's
+// documented workflow with zero signal until someone notices by hand (found
+// live 2026-08-20 — modes/telegram.md's `node plugins.mjs` and 30+ other
+// references across the repo, plus a real bug in core/update-system.mjs's
+// own self-update re-exec path).
+{
+  const probeDir = join(ROOT, '.tmp-script-ref-guard-probe');
+  try {
+    const probeCoreDir = join(probeDir, 'core');
+    mkdirSync(probeCoreDir, { recursive: true });
+    copyFileSync(join(ROOT, 'core', 'validate-script-references.mjs'), join(probeCoreDir, 'validate-script-references.mjs'));
+    const probe = spawnSync(process.execPath, [join(probeCoreDir, 'validate-script-references.mjs')], {
+      cwd: probeCoreDir,
+      encoding: 'utf-8',
+    });
+    if (probe.status !== 0) {
+      pass('script-reference guard fails when it cannot inspect the tree (not a silent pass)');
+    } else {
+      fail('script-reference guard exited 0 from an untracked dir — it is a no-op in CI again');
+    }
+  } catch (err) {
+    fail(`could not probe the script-reference guard: ${err.message} (a failed probe is not a pass)`);
+  } finally {
+    rmSync(probeDir, { recursive: true, force: true });
+  }
+}
+
+{
+  const refs = spawnSync(process.execPath, [join(ROOT, 'core', 'validate-script-references.mjs')], {
+    cwd: ROOT,
+    encoding: 'utf-8',
+  });
+  if (refs.status === 0) {
+    pass('no stale bare-path references to a core/*.mjs script exist anywhere in tracked docs/CI files');
+  } else {
+    fail(`Stale core/ script references found:\n${(refs.stderr || refs.stdout || '').trim()}`);
+  }
+}
+
 // The plugin manifest ships in two locations: .claude-plugin/plugin.json is
 // canonical (Claude Code + Copilot CLI both read it), and .github/plugin/
 // plugin.json exists only because the awesome-copilot marketplace validator
