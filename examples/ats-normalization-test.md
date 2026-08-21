@@ -34,11 +34,11 @@ The normalizer does NOT fix writing style. These are enforced by the rules in `m
 
 ```bash
 # From the project root, after editing generate-pdf.mjs:
-node --check generate-pdf.mjs
+node --check core/generate-pdf.mjs
 
 # Quick smoke test of the normalizer logic (no Playwright needed):
 node -e "
-import('./generate-pdf.mjs').catch(()=>{});
+import('./core/generate-pdf.mjs').catch(()=>{});
 " 2>/dev/null || true
 ```
 

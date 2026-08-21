@@ -910,7 +910,7 @@ async function apply() {
     const updated = [];
     let remoteSystemPaths = [];
     try {
-      const remoteUpdaterSource = git('show', 'FETCH_HEAD:update-system.mjs');
+      const remoteUpdaterSource = git('show', 'FETCH_HEAD:core/update-system.mjs');
       remoteSystemPaths = extractArrayFromSource(remoteUpdaterSource, 'SYSTEM_PATHS');
     } catch {
       // Older targets may not have update-system.mjs. Fall back to the

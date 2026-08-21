@@ -2,7 +2,7 @@
 
 /**
  * validate-script-references.mjs — structural coverage check for the
- * core/ script-path move (#workspace-multitenancy Task 1, 2026-08-15).
+ * core/ script-path move (#workspace-multitenancy Task 1, 2026-08-16).
  *
  * Every core/*.mjs script is invoked by shell command from many places
  * across the repo's docs, CI workflows, and other prose — README files,
@@ -119,7 +119,7 @@ if (violations.length > 0) {
   for (const v of violations) console.error(`  ${v}`);
   console.error('');
   console.error('Every core/*.mjs script moved out of the repo root (#workspace-multitenancy');
-  console.error('Task 1, 2026-08-15) — prefix each reference with core/.');
+  console.error('Task 1, 2026-08-16) — prefix each reference with core/.');
   process.exit(1);
 }
 

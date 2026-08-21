@@ -167,7 +167,7 @@ const twoPassManifestChecks = [
   },
   {
     name: 'apply reads the target updater manifest from FETCH_HEAD',
-    pattern: /git\('show',\s*'FETCH_HEAD:update-system\.mjs'\)/,
+    pattern: /git\('show',\s*'FETCH_HEAD:core\/update-system\.mjs'\)/,
   },
   {
     name: 'apply extracts SYSTEM_PATHS from the target updater',

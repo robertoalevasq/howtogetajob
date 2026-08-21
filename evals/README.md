@@ -49,7 +49,7 @@ evals/
   golden/      labeled cases — one JSON per case (synthetic JDs, no user data)
   fixtures/    recorded candidate outputs for $0 deterministic replay in CI
   README.md    this file
-eval-golden.mjs  the harness (root level, sibling to openai-eval.mjs)
+eval-golden.mjs  the harness (in core/, sibling to core/openai-eval.mjs)
 ```
 
 ### Golden case format (`evals/golden/*.json`)

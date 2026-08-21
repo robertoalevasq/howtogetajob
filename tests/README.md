@@ -4,7 +4,7 @@ Auto-discovered test files for the career-ops suite.
 
 ## Purpose
 
-`test-all.mjs` (repo root) is the suite runner: it executes its inline core
+`test-all.mjs` (in `core/`) is the suite runner: it executes its inline core
 checks (syntax, scripts, dashboard, data contract, personal data, paths) and
 then auto-discovers every `*.test.mjs` file under this directory. There is no
 test framework by design — the suite must run on a fresh clone with only
@@ -20,8 +20,8 @@ Node.js (`tests/helpers.mjs`).
   shared cross-provider tests such as `ats-ssrf-hardening.test.mjs`.
   Underscore-prefixed files (e.g. `_html-entities.test.mjs`) test shared
   helper modules.
-- Other `*.test.mjs` files at this level (e.g. `stats.test.mjs`) cover root
-  scripts. Note: standalone `*.test.mjs` files in the repo root are run by
+- Other `*.test.mjs` files at this level (e.g. `stats.test.mjs`) cover
+  `core/` scripts. Note: standalone `*.test.mjs` files in `core/` are run by
   `test-all.mjs`'s inline script list, not by this directory's discovery.
 
 ## Running

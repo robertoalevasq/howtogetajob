@@ -1157,7 +1157,7 @@ for (const f of skillEntrypoints) {
 }
 
 // Same shape again, for the #workspace-multitenancy Task 1 move
-// (2026-08-15): every core/*.mjs script must never be referenced by a bare,
+// (2026-08-16): every core/*.mjs script must never be referenced by a bare,
 // unprefixed `node {script}` in any doc/CI file, or a future script move can
 // silently break a Telegram acknowledgment, a CI job, or a contributor's
 // documented workflow with zero signal until someone notices by hand (found
