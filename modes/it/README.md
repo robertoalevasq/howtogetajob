@@ -98,8 +98,7 @@ Per mantenere un tono coerente se decidi di modificare o estendere le modalità:
 
 Per migliorare una traduzione o aggiungere una modalità:
 
-1. Apri una Issue con la tua proposta (vedi `CONTRIBUTING.md`)
-2. Rispetta il lessico indicato sopra per mantenere un tono coerente
-3. Traduci in modo idiomatico -- evita traduzioni letterali o da traduttore automatico
-4. Conserva gli elementi strutturali (Blocchi A-F, tabelle, blocchi di codice, istruzioni strumenti) esattamente come nell'originale
-5. Esegui un test con un vero annuncio in italiano prima di inviare la PR
+1. Rispetta il lessico indicato sopra per mantenere un tono coerente
+2. Traduci in modo idiomatico -- evita traduzioni letterali o da traduttore automatico
+3. Conserva gli elementi strutturali (Blocchi A-F, tabelle, blocchi di codice, istruzioni strumenti) esattamente come nell'originale
+4. Esegui un test con un vero annuncio in italiano prima di inviare la PR

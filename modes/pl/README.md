@@ -99,8 +99,7 @@ Aby zachować spójny ton, jeśli modyfikujesz lub rozszerzasz tryby:
 
 Aby ulepszyć tłumaczenie lub dodać tryb:
 
-1. Otwórz Issue z propozycją (zobacz `CONTRIBUTING.md`)
-2. Trzymaj się powyższego słownika, aby zachować spójny ton
-3. Tłumacz idiomatycznie -- bez tłumaczenia słowo w słowo
-4. Zachowaj elementy strukturalne (Bloki A-F, tabele, bloki kodu, instrukcje narzędzi) identycznie
-5. Przetestuj na prawdziwej polskiej ofercie (Pracuj.pl, No Fluff Jobs, Just Join IT) przed wysłaniem PR-a
+1. Trzymaj się powyższego słownika, aby zachować spójny ton
+2. Tłumacz idiomatycznie -- bez tłumaczenia słowo w słowo
+3. Zachowaj elementy strukturalne (Bloki A-F, tabele, bloki kodu, instrukcje narzędzi) identycznie
+4. Przetestuj na prawdziwej polskiej ofercie (Pracuj.pl, No Fluff Jobs, Just Join IT) przed wysłaniem PR-a

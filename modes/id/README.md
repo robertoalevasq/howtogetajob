@@ -98,8 +98,7 @@ Agar nada tetap konsisten jika kamu mengubah atau memperluas mode:
 
 Untuk memperbaiki terjemahan atau menambahkan mode:
 
-1. Buka Issue dengan usulanmu (lihat `CONTRIBUTING.md`)
-2. Patuhi leksikon di atas agar nada tetap konsisten
-3. Terjemahkan secara idiomatik -- bukan kata per kata
-4. Pertahankan elemen struktural (Blok A-F, tabel, blok kode, instruksi perkakas) persis sama
-5. Uji dengan lowongan Indonesia yang nyata (Glints, Jobstreet, Kalibrr) sebelum mengirim PR
+1. Patuhi leksikon di atas agar nada tetap konsisten
+2. Terjemahkan secara idiomatik -- bukan kata per kata
+3. Pertahankan elemen struktural (Blok A-F, tabel, blok kode, instruksi perkakas) persis sama
+4. Uji dengan lowongan Indonesia yang nyata (Glints, Jobstreet, Kalibrr) sebelum mengirim PR

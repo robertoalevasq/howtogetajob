@@ -105,8 +105,7 @@ Wenn du Modi anpasst oder erweiterst, halte dich an dieses Vokabular — so blei
 
 Wenn du eine Übersetzung verbessern oder einen weiteren Modus eindeutschen willst:
 
-1. Öffne ein Issue mit dem Vorschlag (laut `CONTRIBUTING.md`)
-2. Halte dich an das Vokabular oben, um den Ton konsistent zu halten
-3. Übersetze sinngemäß und idiomatisch — keine wörtlichen Wort-für-Wort-Übersetzungen
-4. Behalte die strukturellen Elemente (Block A-F, Tabellen, Code-Blöcke, Tool-Anweisungen) exakt bei
-5. Teste mit einer echten deutschen Stellenanzeige (z. B. von StepStone oder XING), bevor du den PR aufmachst
+1. Halte dich an das Vokabular oben, um den Ton konsistent zu halten
+2. Übersetze sinngemäß und idiomatisch — keine wörtlichen Wort-für-Wort-Übersetzungen
+3. Behalte die strukturellen Elemente (Block A-F, Tabellen, Code-Blöcke, Tool-Anweisungen) exakt bei
+4. Teste mit einer echten deutschen Stellenanzeige (z. B. von StepStone oder XING), bevor du den PR aufmachst

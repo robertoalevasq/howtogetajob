@@ -104,8 +104,7 @@ Se você for adaptar ou expandir os modos, siga este vocabulário para manter a 
 
 Se quiser melhorar uma tradução ou traduzir um modo adicional:
 
-1. Abra uma issue com a proposta (conforme `CONTRIBUTING.md`)
-2. Siga o vocabulário acima para manter o tom consistente
-3. Traduza de forma natural e idiomática — nada de tradução literal palavra por palavra
-4. Mantenha os elementos estruturais (Bloco A-F, tabelas, blocos de código, instruções de tools) exatamente iguais
-5. Teste com uma vaga real brasileira (ex: do Gupy ou LinkedIn BR) antes de abrir o PR
+1. Siga o vocabulário acima para manter o tom consistente
+2. Traduza de forma natural e idiomática — nada de tradução literal palavra por palavra
+3. Mantenha os elementos estruturais (Bloco A-F, tabelas, blocos de código, instruções de tools) exatamente iguais
+4. Teste com uma vaga real brasileira (ex: do Gupy ou LinkedIn BR) antes de abrir o PR

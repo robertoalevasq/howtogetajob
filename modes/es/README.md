@@ -98,8 +98,7 @@ Para mantener un tono coherente si modificas o amplías los modos:
 
 Para mejorar una traducción o añadir un modo:
 
-1. Abre un Issue con tu propuesta (ver `CONTRIBUTING.md`)
-2. Respeta el glosario anterior para mantener un tono coherente
-3. Traduce de forma idiomática — sin traducción palabra por palabra
-4. Conserva los elementos estructurales (Bloques A-F, tablas, bloques de código, instrucciones de herramientas) tal cual
-5. Prueba con una oferta hispanohablante real (InfoJobs, LinkedIn ES, Indeed ES) antes de enviar el PR
+1. Respeta el glosario anterior para mantener un tono coherente
+2. Traduce de forma idiomática — sin traducción palabra por palabra
+3. Conserva los elementos estructurales (Bloques A-F, tablas, bloques de código, instrucciones de herramientas) tal cual
+4. Prueba con una oferta hispanohablante real (InfoJobs, LinkedIn ES, Indeed ES) antes de enviar el PR

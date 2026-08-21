@@ -99,8 +99,7 @@ Pour garder un ton coherent si tu modifies ou etends les modes :
 
 Pour ameliorer une traduction ou ajouter un mode :
 
-1. Ouvre une Issue avec ta proposition (voir `CONTRIBUTING.md`)
-2. Respecte le lexique ci-dessus pour garder le ton coherent
-3. Traduis de maniere idiomatique -- pas de traduction mot a mot
-4. Conserve les elements structurels (Blocs A-F, tableaux, blocs de code, instructions outils) a l'identique
-5. Teste avec une vraie offre francophone (Welcome to the Jungle, APEC, Indeed FR) avant de soumettre la PR
+1. Respecte le lexique ci-dessus pour garder le ton coherent
+2. Traduis de maniere idiomatique -- pas de traduction mot a mot
+3. Conserve les elements structurels (Blocs A-F, tableaux, blocs de code, instructions outils) a l'identique
+4. Teste avec une vraie offre francophone (Welcome to the Jungle, APEC, Indeed FR) avant de soumettre la PR

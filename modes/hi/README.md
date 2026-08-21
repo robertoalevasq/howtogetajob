@@ -126,8 +126,7 @@ Modes customize या extend करते समय इस vocabulary का �
 
 किसी translation को improve करना हो या नया mode add करना हो:
 
-1. `CONTRIBUTING.md` के अनुसार Issue खोलें
-2. ऊपर के vocabulary का follow करें — consistent tone के लिए
-3. Word-for-word translation नहीं — idiomatic और natural Hindi
-4. Structural elements (Blocks A-F, tables, code blocks, tool instructions) exactly वैसे ही रखें
-5. PR खोलने से पहले एक real Indian job offer (Naukri.com, Instahyre, या LinkedIn India) से test करें
+1. ऊपर के vocabulary का follow करें — consistent tone के लिए
+2. Word-for-word translation नहीं — idiomatic और natural Hindi
+3. Structural elements (Blocks A-F, tables, code blocks, tool instructions) exactly वैसे ही रखें
+4. PR खोलने से पहले एक real Indian job offer (Naukri.com, Instahyre, या LinkedIn India) से test करें
