@@ -289,9 +289,9 @@ cp .env.example .env
 npm install
 
 # 3. Evaluate a job description
-node gemini-eval.mjs "We are looking for a Senior AI Engineer..."
-node gemini-eval.mjs --file ./jds/my-job.txt
-node agent-inbox.mjs add "..."   # queue a request for the next session
+node core/gemini-eval.mjs "We are looking for a Senior AI Engineer..."
+node core/gemini-eval.mjs --file ./jds/my-job.txt
+node core/agent-inbox.mjs add "..."   # queue a request for the next session
 npm run gemini:eval -- "JD text here"
 ```
 
@@ -360,10 +360,10 @@ The scanner comes with **100+ companies** ready to scan and **45+ search queries
 
 **Job boards searched:** 55+ provider modules cover ATS APIs, board-wide feeds, XML/RSS feeds, markdown feeds, and local parsers. See [Supported job boards](docs/SUPPORTED_JOB_BOARDS.md) for the full table.
 
-By default `node scan.mjs` (a.k.a. `npm run scan`) trusts what each ATS feed returns. Some companies leave stale postings in their public API even after the role is closed, so those expired entries can leak into `pipeline.md`. Pass `--verify` to launch Playwright after the API pass and drop expired postings before they hit the pipeline:
+By default `node core/scan.mjs` (a.k.a. `npm run scan`) trusts what each ATS feed returns. Some companies leave stale postings in their public API even after the role is closed, so those expired entries can leak into `pipeline.md`. Pass `--verify` to launch Playwright after the API pass and drop expired postings before they hit the pipeline:
 
 ```bash
-node scan.mjs --verify          # zero-token discovery + Playwright liveness check
+node core/scan.mjs --verify          # zero-token discovery + Playwright liveness check
 ```
 
 The verification is sequential and only runs against new offers (after dedup), so the cost stays bounded.
