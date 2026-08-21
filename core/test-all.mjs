@@ -1809,8 +1809,8 @@ if (!/Antes de interpretar|clasifica el|salario p\u00fablico|promesa contractual
   fail('batch prompt contains Spanish system instructions despite its English canonical base');
 }
 
-const batchHtmlWritePath = batchPrompt.match(/node build-cv-html\.mjs\s+\S+\s+(\S+\.html)/)?.[1];
-const batchPdfInputPath = batchPrompt.match(/node generate-pdf\.mjs \\\n\s+([^\s\\]+) \\/)?.[1];
+const batchHtmlWritePath = batchPrompt.match(/node core\/build-cv-html\.mjs\s+\S+\s+(\S+\.html)/)?.[1];
+const batchPdfInputPath = batchPrompt.match(/node core\/generate-pdf\.mjs \\\n\s+([^\s\\]+) \\/)?.[1];
 if (batchHtmlWritePath && batchHtmlWritePath === batchPdfInputPath) {
   pass('batch prompt renders the HTML path it writes');
 } else {
