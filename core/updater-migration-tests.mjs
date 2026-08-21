@@ -147,7 +147,7 @@ const twoPassManifestChecks = [
   },
   {
     name: 'apply resolves the re-exec checkout closure from FETCH_HEAD (#1245)',
-    pattern: /resolveReexecCheckout\('FETCH_HEAD',\s*'update-system\.mjs'\)/,
+    pattern: /resolveReexecCheckout\('FETCH_HEAD',\s*'core\/update-system\.mjs'\)/,
   },
   {
     name: 'apply checks out the resolved re-exec files from FETCH_HEAD (#1245)',
@@ -159,7 +159,7 @@ const twoPassManifestChecks = [
   },
   {
     name: 'apply re-execs through the current Node binary',
-    pattern: /execFileSync\(process\.execPath,\s*\[\s*'update-system\.mjs',\s*'apply'\s*\]/,
+    pattern: /execFileSync\(process\.execPath,\s*\[\s*'core\/update-system\.mjs',\s*'apply'\s*\]/,
   },
   {
     name: 'apply carries the original backup branch across re-exec',
