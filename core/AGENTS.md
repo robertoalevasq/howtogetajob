@@ -381,6 +381,7 @@ Headless worker command per CLI:
 - Report numbering: sequential 3-digit zero-padded, max existing + 1
 - **RULE: After each batch of evaluations, run `node core/merge-tracker.mjs`** to merge tracker additions and avoid duplications.
 - **RULE: NEVER create new entries in applications.md if company+role already exists.** Update the existing entry.
+- **RULE: Moving or renaming any script requires TWO reference sweeps, not one.** The internal import/require graph among the moved files (`grep -rnE "(from|require)\s*\(?['\"]\./" core/*.mjs` style) catches JS-level breakage. It does **not** catch the other kind of reference these scripts have: a bare `node {script}` shell-command invocation written in prose — a mode file, a README, a CI workflow step. That second sweep (`grep -rn "node {old-name}" --include="*.md" --include="*.yml"`) is what a 2026-08-16 move skipped for one task while getting it right for three others in the same plan, and it silently broke a live Telegram acknowledgment, CI itself, and the self-updater's own re-exec path for four days before anyone noticed. `core/validate-script-references.mjs` (run automatically by `test-all.mjs`/CI) is the mechanical backstop that catches this now if it's ever missed again — but do the sweep anyway; the check should never be the first line of defense, only the one that can't be forgotten.
 
 ### TSV Format for Tracker Additions
 
