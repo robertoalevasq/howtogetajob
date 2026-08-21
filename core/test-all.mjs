@@ -4588,7 +4588,7 @@ const criticalRoutingContracts = [
   ['paste-a-JD auto-pipeline', /Pastes JD or URL\s*\|\s*auto-pipeline/],
   ['PDF mode', /generate CV\/PDF\s*\|\s*`pdf`/i],
   ['language modes_dir override', /language\.modes_dir:\s*modes\/(?:\{lang\}|de)/],
-  ['doctor --json onboarding', /node doctor\.mjs --json/],
+  ['doctor --json onboarding', /node core\/doctor\.mjs --json/],
 ];
 for (const [name, marker] of criticalRoutingContracts) {
   if (marker.test(agents)) pass(`AGENTS.md preserves ${name} routing for Claude`);
@@ -9890,7 +9890,7 @@ try {
   const agentsDoc = readFile('core/AGENTS.md');
   const claudeWrapperLines = claudeDoc.trim().split(/\r?\n/).filter(Boolean);
   if (
-    /node\s+doctor\.mjs\s+--json/.test(agentsDoc) &&
+    /node\s+core\/doctor\.mjs\s+--json/.test(agentsDoc) &&
     /"warnings"\s*:\s*\[\.\.\.\]/.test(agentsDoc) &&
     /"autoCopied"\s*:\s*\[\.\.\.\]/.test(agentsDoc) &&
     claudeWrapperLines[0] === '@core/AGENTS.md' &&

@@ -131,7 +131,7 @@ Some users enable plugins (external integrations). If an enabled plugin ships a 
 **Before doing ANYTHING else, check if the system is set up.** On the first message of each session, run the cold-start check (this doc and `doctor.mjs` share the same prerequisite list, so they can never drift):
 
 ```bash
-node doctor.mjs --json
+node core/doctor.mjs --json
 ```
 
 Output: `{"onboardingNeeded": <bool>, "missing": [...], "warnings": [...], "autoCopied": [...]}` — `missing` lists whichever of `cv.md`, `config/profile.yml`, `_profile.md`, `portals.yml` are absent; `warnings` is reserved for non-blocking setup signals; `autoCopied` lists customization files (`_profile.md` or `_custom.md`) doctor copied from `modes/_profile.template.md` / `modes/_custom.template.md`.
@@ -204,7 +204,7 @@ Store insights in `config/profile.yml` (narrative), `_profile.md`, or `article-d
 **After every evaluation, learn.** "This score is too high" or "you missed my experience in X" → update `_profile.md`, `config/profile.yml`, or `article-digest.md`. The system gets smarter with every interaction without putting personalization into system-layer files.
 
 #### Step 6: Ready
-Once all files exist, re-run `node doctor.mjs --json` and check `templateLeftovers` — if it's non-empty, fix those fields the same way any other `doctor.mjs` warning gets fixed (a human is present on this path, so no self-correction loop is needed; just show and fix it) before continuing. Once clean, confirm:
+Once all files exist, re-run `node core/doctor.mjs --json` and check `templateLeftovers` — if it's non-empty, fix those fields the same way any other `doctor.mjs` warning gets fixed (a human is present on this path, so no self-correction loop is needed; just show and fix it) before continuing. Once clean, confirm:
 > "You're all set! You can now:
 > - Paste a job URL to evaluate it
 > - Run the scan entrypoint for your CLI to search portals: `/career-ops scan`, `/career-ops-scan`, or ask Codex to run `scan`
