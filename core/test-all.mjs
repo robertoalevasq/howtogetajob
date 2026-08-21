@@ -5010,9 +5010,9 @@ console.log('\n12c. Materialized skill index mode');
   //
   // Fix the class rather than the instance: pin the global and system config to
   // an empty file outside the fixture work tree, so nothing ambient reaches it -
-  // init.templateDir and core.autocrlf as much as core.excludesFile. Same shape
-  // as the GIT_CONFIG_GLOBAL pin in upgrade-tests.mjs. Empty on purpose; the
-  // fixture's own `git config` calls below set everything it actually needs.
+  // init.templateDir and core.autocrlf as much as core.excludesFile. Empty on
+  // purpose; the fixture's own `git config` calls below set everything it
+  // actually needs.
   const gitConfigRoot = mkdtempSync(join(tmpdir(), 'career-ops-skill-gitcfg-'));
   const gitConfigPath = join(gitConfigRoot, 'gitconfig');
   writeFileSync(gitConfigPath, '');
