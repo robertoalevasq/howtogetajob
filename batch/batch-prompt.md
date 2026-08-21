@@ -454,11 +454,11 @@ If score is greater than or equal to the threshold:
 9. Build a 6-8 item competency grid.
 10. Inject keywords ethically into existing achievements; never invent skills or metrics. Replace the original wording with the JD term — never add it alongside a phrase that already says the same thing (e.g. "HR compliance verifications via HR compliance and regulatory verification" repeats one concept three ways). Read each finished bullet back; if a word or concept appears twice, cut the weaker instance. See `modes/pdf.md`'s Keyword injection strategy section for the full failure examples.
 11. Build a JSON payload (see `modes/pdf.md`'s JSON Input Schema) and write it to a temp file.
-12. Run: `node build-cv-html.mjs <input.json> output/cv-candidate-{company-slug}.html [template]`
+12. Run: `node core/build-cv-html.mjs <input.json> output/cv-candidate-{company-slug}.html [template]`
 13. Run:
 
 ```bash
-node generate-pdf.mjs \
+node core/generate-pdf.mjs \
   output/cv-candidate-{company-slug}.html \
   output/cv-candidate-{company-slug}-{{DATE}}.pdf \
   --format={letter|a4} \
@@ -471,8 +471,8 @@ On success, use `pdf_emoji` = `✅` and set `"pdf"` to the output path in the fi
 
 1–10. Same content generation as HTML path above (keywords, summary, projects, bullets, competencies).
 11. Build a JSON payload (see `modes/latex.md`'s JSON Input Schema) and write it to a temp file.
-12. Run: `node build-cv-latex.mjs <input.json> output/cv-candidate-{company-slug}-{{DATE}}.tex`
-13. Run: `node generate-latex.mjs output/cv-candidate-{company-slug}-{{DATE}}.tex output/cv-candidate-{company-slug}-{{DATE}}.pdf --report={{REPORT_NUM}}`
+12. Run: `node core/build-cv-latex.mjs <input.json> output/cv-candidate-{company-slug}-{{DATE}}.tex`
+13. Run: `node core/generate-latex.mjs output/cv-candidate-{company-slug}-{{DATE}}.tex output/cv-candidate-{company-slug}-{{DATE}}.pdf --report={{REPORT_NUM}}`
 
 On success, use `pdf_emoji` = `✅` and set `"pdf"` to the output path in the final JSON.
 

@@ -17,8 +17,8 @@ Run once, before the first poll:
    Once they paste the token, write it to `.env` as `TELEGRAM_BOT_TOKEN=...` — never echo it back in chat, never write it anywhere else.
 2. Look up the chat ID: `curl -s "https://api.telegram.org/bot{TOKEN}/getUpdates"`, extract `result[0].message.chat.id`. If empty, remind the candidate to message the bot first, then retry.
 3. Ensure `config/plugins.yml` exists (`cp config/plugins.example.yml config/plugins.yml` if not). Set `telegram.enabled: true` and `telegram.chat_id: "{chat_id}"`.
-4. Register the bot's "/" command menu: `node telegram-set-commands.mjs` — a curated list (`/run`, `/scan`, `/apply`, `/applyall`, `/pdf`, `/status`, `/help`), not the full recognized set (`/yes`/`/no`/`/skip`/`/cancel`/`/editpdf` still work typed, just aren't menu clutter). Safe/idempotent to re-run whenever the list changes.
-5. Verify: `node plugins.mjs run telegram notify "👋 career-ops connected. Send /help to see everything I can do."` — confirm it arrives.
+4. Register the bot's "/" command menu: `node core/telegram-set-commands.mjs` — a curated list (`/run`, `/scan`, `/apply`, `/applyall`, `/pdf`, `/status`, `/help`), not the full recognized set (`/yes`/`/no`/`/skip`/`/cancel`/`/editpdf` still work typed, just aren't menu clutter). Safe/idempotent to re-run whenever the list changes.
+5. Verify: `node core/plugins.mjs run telegram notify "👋 career-ops connected. Send /help to see everything I can do."` — confirm it arrives.
 6. Create `data/telegram-state.md` from the template below if it doesn't exist.
 
 ## State — `data/telegram-state.md`
@@ -51,7 +51,7 @@ User-layer, gitignored under `data/*` — never commit.
 
 ### Step 1 — Poll
 
-`node telegram-poll.mjs poll` → JSON `{"messages":[...]}`. No new messages → exit silently, no Telegram send, no state write, no log entry. (This mode is meant to run on a recurring schedule — see Scheduling below — so a silent no-op cycle is the common case, not an error.)
+`node core/telegram-poll.mjs poll` → JSON `{"messages":[...]}`. No new messages → exit silently, no Telegram send, no state write, no log entry. (This mode is meant to run on a recurring schedule — see Scheduling below — so a silent no-op cycle is the common case, not an error.)
 
 ### Step 2 — Classify each message
 
@@ -117,7 +117,7 @@ If a standalone confirm word or free-text reply arrives with **multiple** pendin
 2. Can't resolve it (bad report #, no company match, no prior report discussed) → reply `Couldn't find that report — try "/pdf {report#}" or "/pdf {company}".` and stop.
 3. Once the report is found, construct the PDF filename: `cv-{company-slug}-{YYYY-MM-DD}.pdf` (read the date from the report's date column; company-slug is the company name lowercased + hyphenated).
 4. Check if the file exists in `output/`. If not found, send: `❌ No PDF found for report {#} ({company}). Check if it was generated during the apply workflow.`
-5. If found, send via: `node plugins.mjs run telegram notify "{emoji} Here's your PDF for {company} — {role}:" --file output/{pdf_filename}`
+5. If found, send via: `node core/plugins.mjs run telegram notify "{emoji} Here's your PDF for {company} — {role}:" --file output/{pdf_filename}`
    - Emoji: 📎 if PDF was just generated this session, 📄 if it's from an earlier batch.
    - Let the Telegram plugin handle the attachment delivery; it returns a URL and file size.
 6. If the retrieval or send fails (file I/O error, plugin timeout), send: `⚠️ Couldn't retrieve PDF for report {#}. Try again in a moment.` and log the error.
@@ -131,8 +131,8 @@ Free-form edit instructions have no fixed argument shape to put after a slash, s
 2. Acknowledge: `✏️ What would you like to change in the {company} resume? Reply with the edit (e.g. "change the onboarding bullet to mention X").` Store a `stage: edit-intent` pending confirmation (report, company — no other data needed yet).
 3. **Once a reply arrives** (Step 4's `stage: edit-intent` branch resumes here): treat the reply text as the edit instruction. Read the target report file and the current CV JSON/tex source for that PDF (the `.tmp/cv-{candidate}-{company}.json` payload used to build it, rebuilt fresh if not present — never edit a `.pdf` or `.tex` file directly).
 4. Apply the requested change to the JSON payload. Same non-fabrication rule as everywhere else in this system: a requested rewording is fine; a requested new claim not backed by `cv.md`/`config/profile.yml`/`article-digest.md` is not — if the request asks for something unverifiable, reply asking for the missing detail instead of inventing it, and stay in `stage: edit-intent` for the clarified answer.
-5. Re-run the appropriate build chain per `config/profile.yml`'s `cv.output_format`: `node build-cv-latex.mjs .tmp/cv-{candidate}-{company}.json output/{num}-{company}-{YYYY-MM-DD}.tex` then `node generate-latex.mjs ...` for `"latex"`, or the `build-cv-html.mjs`/`generate-pdf.mjs` equivalent otherwise.
-6. Send the regenerated PDF back: `node plugins.mjs run telegram notify "📎 Updated resume for {company} — {role}:" --file output/{pdf_filename}`. Remove the pending confirmation.
+5. Re-run the appropriate build chain per `config/profile.yml`'s `cv.output_format`: `node core/build-cv-latex.mjs .tmp/cv-{candidate}-{company}.json output/{num}-{company}-{YYYY-MM-DD}.tex` then `node core/generate-latex.mjs ...` for `"latex"`, or the `build-cv-html.mjs`/`generate-pdf.mjs` equivalent otherwise.
+6. Send the regenerated PDF back: `node core/plugins.mjs run telegram notify "📎 Updated resume for {company} — {role}:" --file output/{pdf_filename}`. Remove the pending confirmation.
 7. **No approval gate needed** — regenerating a draft PDF isn't submission, so `Off-Limits` (never submit / never merge-tracker without confirmation) doesn't apply here. Log the edit to Recent Actions.
 8. If the reply is too ambiguous to apply confidently (unclear which bullet, unclear what change), ask a clarifying question and stay in `stage: edit-intent` rather than advancing — same one-clarifying-round pattern as a Step 3b `stage: question` pause.
 
@@ -140,14 +140,14 @@ Free-form edit instructions have no fixed argument shape to put after a slash, s
 
 One on-demand reply combining all three, added 2026-08-13 so a single check-in answers "what's going on" instead of three separate queries:
 
-1. **Cycle progress:** `node cycle-status.mjs --json` — if `step.id` isn't `"done"`, a cycle is actively running; report the current step label and counters. If it is `"done"` (or the file doesn't exist), report the last completed run's summary counters instead, with its `savedAt` timestamp.
-2. **Pipeline/tracker stats:** `node stats.mjs --summary` — include as-is; it's already a compact, mobile-readable block.
+1. **Cycle progress:** `node core/cycle-status.mjs --json` — if `step.id` isn't `"done"`, a cycle is actively running; report the current step label and counters. If it is `"done"` (or the file doesn't exist), report the last completed run's summary counters instead, with its `savedAt` timestamp.
+2. **Pipeline/tracker stats:** `node core/stats.mjs --summary` — include as-is; it's already a compact, mobile-readable block.
 3. **Pending approvals:** read `data/telegram-state.md`'s Pending Confirmations section — if `(none)`, say so; otherwise list each pending item's stage + short description + how long it's been waiting.
-4. Send as one message via `node plugins.mjs run telegram notify "<combined text>"`. This is a one-shot read, not a pending confirmation — don't create a `telegram-state.md` entry for it, just log it to Recent Actions (matching Step 3d's PDF-retrieval convention).
+4. Send as one message via `node core/plugins.mjs run telegram notify "<combined text>"`. This is a one-shot read, not a pending confirmation — don't create a `telegram-state.md` entry for it, just log it to Recent Actions (matching Step 3d's PDF-retrieval convention).
 
 ### Step 3g — Show help
 
-Send this exact static message via `node plugins.mjs run telegram notify "<message>"` (HTML subset — `<b>`, `<i>`, `<code>` only, matches `plugins/telegram/skill.md`'s formatting rules):
+Send this exact static message via `node core/plugins.mjs run telegram notify "<message>"` (HTML subset — `<b>`, `<i>`, `<code>` only, matches `plugins/telegram/skill.md`'s formatting rules):
 
 ```
 🤖 <b>career-ops help</b>
@@ -213,7 +213,7 @@ Look up the pending confirmation the reply resolves (threaded match, or the sole
 - **`stage: batch-approval`, reply approves** — proceed as Step 3c #3 describes.
 - **`stage: batch-approval`, reply rejects** — drop the batch, confirm `No problem — send "/applyall" again whenever you're ready.`
 
-**Reject & clean up** (any of `resume-approval`/`field-approval`/`submit-approval`, rejected or ambiguous-treated-as-rejected): mark the report `SKIP` via `node set-status.mjs {report#} SKIP --note "[telegram] user rejected at {stage}"`, remove the pending confirmation, and log one line to Recent Actions (`{date} — apply {report#} rejected at {stage}`). Then send a stage-specific confirmation back to the candidate — never clean up silently:
+**Reject & clean up** (any of `resume-approval`/`field-approval`/`submit-approval`, rejected or ambiguous-treated-as-rejected): mark the report `SKIP` via `node core/set-status.mjs {report#} SKIP --note "[telegram] user rejected at {stage}"`, remove the pending confirmation, and log one line to Recent Actions (`{date} — apply {report#} rejected at {stage}`). Then send a stage-specific confirmation back to the candidate — never clean up silently:
 - `resume-approval` reject: `Not applying to {company} — {role}. Send "/apply {report#}" again anytime if you change your mind.`
 - `field-approval` reject: `Not applying to {company} — {role}. The form was never touched. Send "/apply {report#}" again anytime if you change your mind.`
 - `submit-approval` reject: also stash the filled-form payload to `data/cache/rejected-apply-{report#}.json` before discarding — it's the one artifact genuinely expensive to reconstruct. Send: `Not submitted — {company} — {role}. The filled form is saved if you want to finish it yourself, or send "/apply {report#}" to start fresh.` No expiry job for that stash; it just sits there until the candidate deals with it or the standing stray-file check in `modes/_custom.md`'s Autonomous-Run Guardrails eventually flags it stale.
@@ -232,7 +232,7 @@ After processing every message this cycle: rewrite `data/telegram-state.md`'s Pe
 
 ## Sending messages
 
-`node plugins.mjs run telegram notify "message"` — see `plugins/telegram/skill.md` for formatting rules (HTML tags, 4096-char hard limit) and how to capture a `message_id` for threading. Keep every message mobile-readable: concise, line breaks over walls of text.
+`node core/plugins.mjs run telegram notify "message"` — see `plugins/telegram/skill.md` for formatting rules (HTML tags, 4096-char hard limit) and how to capture a `message_id` for threading. Keep every message mobile-readable: concise, line breaks over walls of text.
 
 ## Scheduling — Minimal Claude entry point (zero tokens on empty polls)
 
@@ -252,7 +252,7 @@ Two modes, same token cost either way — polling itself is always zero-token in
 telegram-daemon-scheduler.bat
 ```
 
-Sets up a Task Scheduler entry (`CareerOps-Telegram-Daemon`, triggered at logon) that keeps `node telegram-monitor.mjs --daemon` running continuously via `telegram-daemon-wrapper.bat`'s own restart-on-exit loop. The daemon holds a real Telegram long-poll open (`CAREER_OPS_TELEGRAM_LONGPOLL_SECONDS`, default 25s in the daemon) instead of checking every few minutes, so a message is picked up within seconds. Internally resilient to transient errors (logs and retries after 5s without exiting); a single-instance lock (`data/telegram-daemon.lock`) stops a second daemon instance from ever starting concurrently. This setup script automatically disables the old scheduled-poll task below if it finds one enabled, so the two can't conflict.
+Sets up a Task Scheduler entry (`CareerOps-Telegram-Daemon`, triggered at logon) that keeps `node core/telegram-monitor.mjs --daemon` running continuously via `telegram-daemon-wrapper.bat`'s own restart-on-exit loop. The daemon holds a real Telegram long-poll open (`CAREER_OPS_TELEGRAM_LONGPOLL_SECONDS`, default 25s in the daemon) instead of checking every few minutes, so a message is picked up within seconds. Internally resilient to transient errors (logs and retries after 5s without exiting); a single-instance lock (`data/telegram-daemon.lock`) stops a second daemon instance from ever starting concurrently. This setup script automatically disables the old scheduled-poll task below if it finds one enabled, so the two can't conflict.
 
 ```bash
 # Start it immediately without logging off/on:
@@ -270,15 +270,15 @@ schtasks /change /tn "CareerOps-Telegram-Daemon" /disable
 telegram-setup-scheduler.bat
 ```
 
-This creates a recurring task that runs `node telegram-monitor.mjs` every 5 minutes — each run does one non-blocking check and exits. A message can sit up to 5 minutes before it's noticed. Simpler operationally (nothing stays running between checks), but strictly worse latency than the daemon above for the same token cost — prefer the daemon unless there's a specific reason not to keep a persistent process running (e.g. a machine that's frequently off, where "at logon" triggers are more reliable than "must already be running").
+This creates a recurring task that runs `node core/telegram-monitor.mjs` every 5 minutes — each run does one non-blocking check and exits. A message can sit up to 5 minutes before it's noticed. Simpler operationally (nothing stays running between checks), but strictly worse latency than the daemon above for the same token cost — prefer the daemon unless there's a specific reason not to keep a persistent process running (e.g. a machine that's frequently off, where "at logon" triggers are more reliable than "must already be running").
 
 **Manual, one-off usage (either mode):**
 ```bash
 # One-off poll (exits silently if empty)
-node telegram-monitor.mjs
+node core/telegram-monitor.mjs
 
 # One-off long-poll (blocks up to 25s, exits after one round)
-CAREER_OPS_TELEGRAM_LONGPOLL_SECONDS=25 node telegram-monitor.mjs
+CAREER_OPS_TELEGRAM_LONGPOLL_SECONDS=25 node core/telegram-monitor.mjs
 ```
 
 ### Interactive mode (not recommended for recurring use)

@@ -14,7 +14,7 @@ license: MIT
 
 ## How to send (`notify`)
 
-- `node plugins.mjs run telegram notify "message text"` — sends a plain text
+- `node core/plugins.mjs run telegram notify "message text"` — sends a plain text
   message (HTML formatting allowed: `<b>`, `<i>`, `<code>`) to the configured
   chat. Messages over 4096 chars are truncated at Telegram's own hard limit.
 - The CLI prints `message id: {id}` on success — capture it when the message
@@ -22,16 +22,16 @@ license: MIT
 
 ## How to poll (`ingest`)
 
-Do **not** call this through `node plugins.mjs run telegram ingest` — that CLI
+Do **not** call this through `node core/plugins.mjs run telegram ingest` — that CLI
 path assumes every `ingest` hook returns job listings and silently discards
 anything without a `title`/`url`, which would eat every chat message. Use the
 dedicated wrapper instead:
 
-- `node telegram-poll.mjs poll` — returns new messages since the last poll as
+- `node core/telegram-poll.mjs poll` — returns new messages since the last poll as
   JSON: `{"messages":[{"updateId":...,"messageId":...,"chatId":...,"text":"...","date":...,"replyToMessageId":null,"from":"..."}]}`.
   Advances and persists the polling offset as a side effect — a message is
   only returned once.
-- `node telegram-poll.mjs reset` — clears the stored offset (re-poll from
+- `node core/telegram-poll.mjs reset` — clears the stored offset (re-poll from
   Telegram's current backlog; useful after a config mistake, not routine use).
 
 ## What it produces

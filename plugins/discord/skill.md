@@ -11,23 +11,23 @@ license: MIT
 
 ## How to run it
 
-- `node plugins.mjs run discord notify "message text"` — posts a plain text
+- `node core/plugins.mjs run discord notify "message text"` — posts a plain text
   message to the configured webhook.
-- `node plugins.mjs run discord notify "message text" --file path/to/file` —
+- `node core/plugins.mjs run discord notify "message text" --file path/to/file` —
   same, with one attachment.
 - `--file` is repeatable: `... --file a.pdf --file b.pdf` attaches multiple
   files in a single message (Discord webhook limits: 10 files, 8MB combined
   on a non-boosted server). Over either limit, the message is sent with a
   listing of the files' names instead of attaching them — it never fails
   silently and never truncates a file to fit.
-- `node plugins.mjs run discord notify "updated text" --edit <messageId>` —
+- `node core/plugins.mjs run discord notify "updated text" --edit <messageId>` —
   edits a previously sent message in place instead of posting a new one. Read
   the `message id: {id}` line the CLI printed on the first call (every notify
   call prints one) to get the id to reuse. `--edit` and `--file` are not
   combined; a message with attachments can't be edited into having different
   attachments through this path — but `--edit` and `--embed-file` combine
   fine (editing a message's embed, not its attachments).
-- `node plugins.mjs run discord notify --embed-file path/to/embed.json` —
+- `node core/plugins.mjs run discord notify --embed-file path/to/embed.json` —
   sends a Discord embed instead of (or alongside, if a message is also given)
   plain text: a bordered, colored card with a title, description, `fields`
   (label/value pairs), footer, and timestamp. Write the JSON to a file first
