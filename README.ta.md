@@ -76,30 +76,6 @@ career-ops ஒரு **Agentic** அமைப்பு. நீங்கள் �
 
 ## Quick Start
 
-**வேகமாக தொடங்குவதற்கான வழி — ஒரு கட்டளை போதும்:**
-
-```bash
-npx @santifer/career-ops init
-```
-
-> 💡 `npx` என்பது [Node.js](https://nodejs.org)-உடன் கிடைக்கிறது. இது எந்த Global Installation-மும் இல்லாமல் Installer-ஐ ஒருமுறை இயக்கும்.
->
-> இன்னும் Node.js நிறுவவில்லையா? முதலில் அதை நிறுவுங்கள்.
->
-> (ஏற்கனவே Claude Code / Gemini / Codex CLI பயன்படுத்துகிறீர்களா? அப்படியானால் தேவையானவை ஏற்கனவே உங்களிடம் உள்ளன.)
-
-இந்தக் கட்டளை, சமீபத்திய Release-ஐ `./career-ops` கோப்பகத்தில் Clone செய்து, தேவையான Dependencies-ஐ நிறுவும். அதன் பிறகு:
-
-```bash
-cd career-ops
-claude   # அல்லது codex / qwen / opencode / agy / grok — உங்கள் AI CLI-ஐ இங்கே திறக்கவும்
-```
-
-**முதல் முறையாக இயக்கும்போது, career-ops உங்களுடன் உரையாடி உங்கள் CV, Profile மற்றும் இலக்கு பணியிடங்களை (Target Roles) அமைக்க உதவும். கைமுறையாக எந்த கோப்பையும் திருத்த வேண்டியதில்லை.**
-
-<details>
-<summary><b>கைமுறையாக அமைக்க விரும்புகிறீர்களா? (git clone)</b></summary>
-
 ```bash
 git clone <repo-url>
 cd career-ops && npm install
@@ -134,7 +110,7 @@ claude   # அல்லது codex / opencode / qwen / agy / grok
 # "Run the career-ops tracker mode and summarize the current statuses"
 ```
 
-</details>
+**முதல் முறையாக இயக்கும்போது, career-ops உங்களுடன் உரையாடி உங்கள் CV, Profile மற்றும் இலக்கு பணியிடங்களை (Target Roles) அமைக்க உதவும். கைமுறையாக எந்த கோப்பையும் திருத்த வேண்டியதில்லை.**
 
 > **இந்த அமைப்பு, நீங்கள் பயன்படுத்தும் AI Coding CLI மூலம் எளிதாக தனிப்பயனாக்கப்படுமாறு வடிவமைக்கப்பட்டுள்ளது.** Modes, Archetypes, Scoring Weights, Negotiation Scripts போன்றவற்றை மாற்ற AI-யிடம் கேட்டாலே போதும். அது பயன்படுத்தும் அதே கோப்புகளைப் படிப்பதால், எந்த இடத்தில் என்ன மாற்ற வேண்டும் என்பதைத் துல்லியமாக அறியும்.
 

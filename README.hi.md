@@ -73,28 +73,6 @@ career-ops agentic है: जो भी AI coding CLI आप चुनें �
 
 ## Quick Start
 
-**सबसे तेज़ तरीका — एक command:**
-
-```bash
-npx @santifer/career-ops init
-```
-
-> 💡 `npx` [Node.js](https://nodejs.org) के साथ आता है — यह installer एक बार run करता है,
-> globally कुछ install किए बिना। Node नहीं है? पहले install करें।
-> (Claude Code / Gemini / Codex CLI पहले से use कर रहे हैं? तो आपके पास पहले से है।)
-
-यह latest release को `./career-ops` में clone करता है और dependencies install करता है। फिर:
-
-```bash
-cd career-ops
-claude   # या gemini / codex / qwen / opencode / agy / grok — यहाँ अपना AI CLI खोलें
-```
-
-**पहले launch पर, career-ops setup के through walk करता है — आपका CV, profile और target roles — simply chatting करके। कुछ manually edit नहीं करना।**
-
-<details>
-<summary><b>Manually setup करना पसंद करते हैं? (git clone)</b></summary>
-
 ```bash
 git clone <repo-url>
 cd career-ops && npm install
@@ -129,7 +107,7 @@ claude   # या codex / opencode / gemini / qwen / agy / grok
 # "Run the career-ops tracker mode and summarize the current statuses"
 ```
 
-</details>
+**पहले launch पर, career-ops setup के through walk करता है — आपका CV, profile और target roles — simply chatting करके। कुछ manually edit नहीं करना।**
 
 > **System को आपका AI coding CLI खुद customize करने के लिए design किया गया है।** Modes, archetypes, scoring weights, negotiation scripts -- बस उसे change करने को कहें। वह वही files पढ़ता है जो वह use करता है, इसलिए उसे exactly पता है क्या edit करना है।
 

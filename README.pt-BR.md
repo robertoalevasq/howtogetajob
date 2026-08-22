@@ -70,28 +70,6 @@ career-ops é agentic: Claude Code navega páginas de carreira com Playwright, a
 
 ## Início rápido
 
-**Forma mais rápida — um único comando:**
-
-```bash
-npx @santifer/career-ops init
-```
-
-> 💡 `npx` já vem com o [Node.js](https://nodejs.org) — ele roda o instalador uma vez,
-> sem instalar nada globalmente. Ainda não tem Node? Instale-o primeiro.
-> (Já usa uma CLI Claude Code / Gemini / Codex? Então você já tem.)
-
-Isso clona o último release em `./career-ops` e instala as dependências. Depois:
-
-```bash
-cd career-ops
-claude   # ou gemini / codex / qwen / opencode — abra sua CLI de IA aqui
-```
-
-**No primeiro uso, o career-ops conduz você pela configuração — seu CV, perfil e vagas-alvo — apenas conversando. Nada para editar à mão.**
-
-<details>
-<summary><b>Prefere configurar manualmente? (git clone)</b></summary>
-
 ```bash
 git clone <repo-url>
 cd career-ops && npm install
@@ -99,7 +77,7 @@ npx playwright install chromium   # necessário apenas para geração de PDF
 claude
 ```
 
-</details>
+**No primeiro uso, o career-ops conduz você pela configuração — seu CV, perfil e vagas-alvo — apenas conversando. Nada para editar à mão.**
 
 > **O sistema foi projetado para ser customizado pelo próprio Claude.** Modos, arquétipos, pesos de pontuação, scripts de negociação -- é só pedir para ele alterar. Ele lê os mesmos arquivos que usa, então sabe exatamente o que editar.
 

@@ -70,28 +70,6 @@ career-opsはエージェンティックです: Claude CodeがPlaywrightで求�
 
 ## クイックスタート
 
-**最速の方法 — コマンド1つ:**
-
-```bash
-npx @santifer/career-ops init
-```
-
-> 💡 `npx` は [Node.js](https://nodejs.org) に付属しています — グローバルに何もインストールせず、
-> インストーラーを一度だけ実行します。まだNodeがない場合は、先にインストールしてください。
-> （すでにClaude Code / Gemini / Codex CLIを使っているなら、もう持っています。）
-
-これにより最新リリースが `./career-ops` にクローンされ、依存関係がインストールされます。その後:
-
-```bash
-cd career-ops
-claude   # or gemini / codex / qwen / opencode — ここでAI CLIを起動
-```
-
-**初回起動時、career-opsが対話するだけでセットアップ（CV、プロフィール、対象ロール）をご案内します。手で編集するものは何もありません。**
-
-<details>
-<summary><b>手動でセットアップしたいですか？（git clone）</b></summary>
-
 ```bash
 git clone <repo-url>
 cd career-ops && npm install
@@ -99,7 +77,7 @@ npx playwright install chromium   # PDF生成にのみ必要
 claude   # AI CLIを起動 — 初回起動時にオンボーディングします
 ```
 
-</details>
+**初回起動時、career-opsが対話するだけでセットアップ（CV、プロフィール、対象ロール）をご案内します。手で編集するものは何もありません。**
 
 > **このシステムはClaude自身がカスタマイズする前提で設計されています。** モード、アーキタイプ、スコアリング重み、交渉スクリプト -- すべてClaudeに依頼すれば変更してくれます。Claudeは自分が使うのと同じファイルを読むので、どこを編集すればよいか正確に把握しています。
 

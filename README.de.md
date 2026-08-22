@@ -73,26 +73,6 @@ career-ops ist agentisch: Die KI-Coding-CLI deiner Wahl navigiert mit Playwright
 
 ## Schnellstart
 
-**Der schnellste Weg -- ein Befehl:**
-
-```bash
-npx @santifer/career-ops init
-```
-
-> `npx` wird mit [Node.js](https://nodejs.org) ausgeliefert. Es führt den Installer einmal aus, ohne global etwas zu installieren. Noch kein Node? Installiere es zuerst. Wenn du bereits Claude Code, Gemini oder Codex nutzt, hast du Node wahrscheinlich schon.
-
-Das klont die neueste Version nach `./career-ops` und installiert die Abhängigkeiten. Danach:
-
-```bash
-cd career-ops
-claude   # oder gemini / codex / qwen / opencode / agy / grok -- öffne deine KI-CLI hier
-```
-
-**Beim ersten Start führt dich career-ops per Chat durch die Einrichtung: Lebenslauf, Profil und Zielrollen. Du musst nichts von Hand bearbeiten.**
-
-<details>
-<summary><b>Lieber manuell einrichten? (git clone)</b></summary>
-
 ```bash
 git clone <repo-url>
 cd career-ops && npm install
@@ -112,7 +92,7 @@ cp templates/portals.example.yml portals.yml       # Unternehmen anpassen
 claude   # oder codex / opencode / gemini / qwen / agy / grok
 ```
 
-</details>
+**Beim ersten Start führt dich career-ops per Chat durch die Einrichtung: Lebenslauf, Profil und Zielrollen. Du musst nichts von Hand bearbeiten.**
 
 > **Das System ist darauf ausgelegt, von deiner KI-Coding-CLI selbst angepasst zu werden.** Modi, Archetypen, Scoring-Gewichte, Verhandlungsskripte -- frag einfach danach. Die CLI liest dieselben Dateien, die sie nutzt, und weiß daher genau, was zu ändern ist.
 

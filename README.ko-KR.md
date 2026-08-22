@@ -70,28 +70,6 @@ career-ops는 에이전트 기반으로 작동합니다: Claude Code가 Playwrig
 
 ## 빠른 시작
 
-**가장 빠른 방법 — 명령어 하나:**
-
-```bash
-npx @santifer/career-ops init
-```
-
-> 💡 `npx`는 [Node.js](https://nodejs.org)에 함께 제공됩니다 — 전역으로 아무것도
-> 설치하지 않고 인스톨러를 한 번만 실행합니다. 아직 Node가 없다면 먼저 설치하세요.
-> (이미 Claude Code / Gemini / Codex CLI를 사용 중이라면 이미 가지고 있습니다.)
-
-이 명령어는 최신 릴리스를 `./career-ops`에 클론하고 의존성을 설치합니다. 그다음:
-
-```bash
-cd career-ops
-claude   # or gemini / codex / qwen / opencode — open your AI CLI here
-```
-
-**처음 실행하면 career-ops가 대화만으로 설정 과정을 안내합니다 — 이력서, 프로필, 목표 직무까지. 손으로 편집할 것이 없습니다.**
-
-<details>
-<summary><b>수동으로 설정하고 싶으신가요? (git clone)</b></summary>
-
 ```bash
 git clone <repo-url>
 cd career-ops && npm install
@@ -99,7 +77,7 @@ npx playwright install chromium   # only needed for PDF generation
 claude   # open your AI CLI — it onboards you on first launch
 ```
 
-</details>
+**처음 실행하면 career-ops가 대화만으로 설정 과정을 안내합니다 — 이력서, 프로필, 목표 직무까지. 손으로 편집할 것이 없습니다.**
 
 > **이 시스템은 Claude가 직접 커스터마이즈하도록 설계되었습니다.** 모드, 아키타입, 스코어링 가중치, 협상 스크립트 -- 그냥 요청하세요. Claude가 사용하는 파일을 직접 읽기 때문에, 무엇을 수정해야 하는지 정확히 알고 있습니다.
 

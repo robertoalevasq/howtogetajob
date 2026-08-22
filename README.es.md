@@ -68,26 +68,6 @@ career-ops convierte cualquier CLI de IA en un centro de mando de búsqueda de e
 
 ## Inicio rápido
 
-**La forma más rápida — un solo comando:**
-
-```bash
-npx @santifer/career-ops init
-```
-
-> 💡 `npx` viene incluido con [Node.js](https://nodejs.org) — ejecuta el instalador una vez, sin instalar nada de forma global. ¿No tienes Node? Instálalo primero. (¿Ya usas un CLI como Claude Code / Gemini / Codex? Entonces ya lo tienes.)
-
-Esto clona la última release en `./career-ops` e instala las dependencias. Después:
-
-```bash
-cd career-ops
-claude   # o gemini / codex / qwen / opencode — abre tu CLI de IA aquí
-```
-
-**En el primer arranque, career-ops te guía en la configuración — tu CV, tu perfil y los roles que buscas — simplemente conversando. No hay nada qué editar a mano.**
-
-<details>
-<summary><b>¿Prefieres instalarlo manualmente? (git clone)</b></summary>
-
 ```bash
 git clone <repo-url>
 cd career-ops && npm install
@@ -95,19 +75,7 @@ npx playwright install chromium   # solo para generar PDFs
 claude   # abre tu CLI de IA — te guiará en el primer arranque
 ```
 
-</details>
-
-### Instalación global
-
-```bash
-npm i -g @santifer/career-ops
-```
-
-Esto instala el binario `career-ops` de forma global para que puedas ejecutarlo directamente en lugar de usar `npx`. A diferencia de `npx @santifer/career-ops init` (que prepara un directorio de proyecto), la instalación global te da un comando `career-ops` persistente disponible en cualquier terminal.
-
-**¿Cuál deberías usar?**
-- `npx @santifer/career-ops init` — mejor para el primer uso; crea una carpeta de proyecto dedicada.
-- `npm i -g @santifer/career-ops` — mejor una vez que tienes una carpeta de proyecto y quieres ejecutar comandos de career-ops directamente.
+**En el primer arranque, career-ops te guía en la configuración — tu CV, tu perfil y los roles que buscas — simplemente conversando. No hay nada qué editar a mano.**
 
 > **El sistema está diseñado para que Claude lo personalice.** Modes, arquetipos, scoring, scripts de negociación -- solo pídelo. Claude lee los mismos archivos que usa, así que sabe exactamente qué editar.
 
