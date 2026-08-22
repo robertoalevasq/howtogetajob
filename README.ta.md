@@ -3,54 +3,14 @@
 [English](README.md) | [Deutsch](README.de.md) | [Español](README.es.md) | [Français](README.fr.md) | [Português (Brasil)](README.pt-BR.md) | [한국어](README.ko-KR.md) | [日本語](README.ja.md) | [简体中文](README.cn.md) | [繁體中文](README.zh-TW.md) | [Українська](README.ua.md) | [Русский](README.ru.md) | [Polski](README.pl.md) | [Dansk](README.da.md) | [العربية](README.ar.md) | [हिन्दी](README.hi.md) | [தமிழ்](README.ta.md)
 
 <p align="center">
-  <a href="https://x.com/santifer"><img src="docs/hero-banner.jpg" alt="career-ops Multi-Agent Job Search System" width="800"></a>
-</p>
-
-<p align="center">
-  <em>வேலைக்கு விண்ணப்பிப்பதில் பல மாதங்கள் சிரமப்பட்ட பிறகு, எனக்குத் தேவைப்பட்ட அமைப்பை நான் உருவாக்கினேன்.</em><br>
-  நிறுவனங்கள் விண்ணப்பதாரர்களை வடிகட்ட AI-ஐ பயன்படுத்துகின்றன. <strong>நான் வேலை தேடுபவர்களுக்கு நிறுவனங்களை <em>தேர்ந்தெடுக்க</em> AI-ஐ வழங்கினேன்.</strong><br>
-  <em>இப்போது இது Open Source ஆக அனைவருக்கும் கிடைக்கிறது.</em>
-</p>
-
-<p align="center">
-  <a href="https://trendshift.io/repositories/25195" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/25195" alt="santifer%2Fcareer-ops | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-</p>
-
-<p align="center">
-  <a href="https://www.producthunt.com/products/santifer-io?utm_source=badge-featured&utm_medium=badge" target="_blank" rel="noopener noreferrer"><img src="docs/press/producthunt.svg" alt="career-ops on Claude | Product Hunt" style="width: 206px; height: 54px; vertical-align: middle;" width="206" height="54"/></a>
-</p>
-
-<p align="center"><sub>FEATURED IN</sub></p>
-
-<p align="center">
-  <a href="https://wired.com.gr/article/to-ai-ergaleio-pou-fernei-epanastasi-ston-tropo-pou-psachnoume-douleia/" rel="noopener noreferrer nofollow"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/press/wired-dark.svg"><img src="docs/press/wired.svg" alt="WIRED" height="32"></picture></a>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="https://www.businessinsider.com/how-i-built-tool-filter-job-listings-landed-head-ai-2026-4" rel="noopener noreferrer nofollow"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/press/business-insider-dark.svg"><img src="docs/press/business-insider.svg" alt="Business Insider" height="32"></picture></a>
+  <em>AI-இயங்கும் வேலை தேடல் தானியங்கு அமைப்பு — வேலை வாய்ப்புகளை மதிப்பீடு செய்யுங்கள், தனிப்பயனாக்கப்பட்ட CV-களை உருவாக்குங்கள், உங்கள் Pipeline-ஐ முழுவதுமாக கண்காணியுங்கள்.</em><br>
+  இது Open Source <a href="https://github.com/santifer/career-ops">career-ops</a> திட்டத்தின் ஒரு Personal Fork ஆகும்; இதை முதலில் உருவாக்கியவர் Santiago Fernández de Valderrama.
 </p>
 
 ---
 
 <p align="center">
   <img src="docs/demo.gif" alt="career-ops Demo" width="800">
-</p>
-
-<p align="center"><strong>740+ job listings evaluated · 100+ personalized CVs · 1 dream role landed</strong></p>
-
-<p align="center">
-  <a href="https://warpchart.dev/hq">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://warpchart.dev/api/chart?theme=dark&v=3">
-      <img alt="Live star telemetry of santifer/career-ops" src="https://warpchart.dev/api/chart?theme=light&v=3" loading="lazy">
-    </picture>
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://discord.gg/8pRpHETxa4"><img src="https://img.shields.io/badge/Join_the_community-Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
-</p>
-
-<p align="center">
-  <a href="https://github.com/santifer/career-ops/releases/latest"><img src="https://img.shields.io/npm/v/%40santifer%2Fcareer-ops?style=for-the-badge&labelColor=2b3137&color=2ea44f&label=release" alt="Latest release"></a>
 </p>
 
 <p align="center">
@@ -73,12 +33,11 @@
   <img src="https://img.shields.io/badge/Playwright-2EAD33?style=flat&logo=playwright&logoColor=white" alt="Playwright">
   <img src="https://img.shields.io/badge/Bubble_Tea-FF75B5?style=flat&logo=go&logoColor=white" alt="Bubble Tea">
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT">
-  <a href="TRADEMARK.md"><img src="https://img.shields.io/badge/Trademark-Policy-blue.svg" alt="Trademark Policy"></a>
 </p>
 
 ## career-ops அறிமுகம்
 
-career-ops ([career-ops.org](https://career-ops.org), **careerops** என்றும் அழைக்கப்படுகிறது) என்பது எந்த AI Coding CLI-யையும் வேலை தேடலுக்கான முழுமையான கட்டுப்பாட்டு மையமாக மாற்றும் ஒரு Open Source அமைப்பு. Spreadsheet-ல் விண்ணப்பங்களைக் கைமுறையாகக் கண்காணிப்பதற்குப் பதிலாக, AI-ஆல் இயக்கப்படும் ஒரு செயல்முறையை இது வழங்குகிறது. இதன் மூலம் நீங்கள்:
+career-ops என்பது எந்த AI Coding CLI-யையும் வேலை தேடலுக்கான முழுமையான கட்டுப்பாட்டு மையமாக மாற்றும் ஒரு Open Source அமைப்பு. Spreadsheet-ல் விண்ணப்பங்களைக் கைமுறையாகக் கண்காணிப்பதற்குப் பதிலாக, AI-ஆல் இயக்கப்படும் ஒரு செயல்முறையை இது வழங்குகிறது. இதன் மூலம் நீங்கள்:
 
 - **வேலை வாய்ப்புகளை மதிப்பீடு** செய்யலாம் — 10 எடையிடப்பட்ட அம்சங்களைக் கொண்ட A–F மதிப்பீட்டு முறையின் மூலம்.
 - **தனிப்பயனாக்கப்பட்ட PDF-களை உருவாக்கலாம்** — ஒவ்வொரு வேலை விளக்கத்திற்கும் (Job Description) ஏற்ற ATS-optimized CV-கள்.
@@ -96,8 +55,6 @@ career-ops ஒரு **Agentic** அமைப்பு. நீங்கள் �
 - ஒவ்வொரு வேலைக்கும் ஏற்றவாறு உங்கள் Resume-ஐ மாற்றி அமைக்கிறது.
 
 > **கவனத்திற்கு:** ஆரம்பத்தில் கிடைக்கும் மதிப்பீடுகள் மிகச் சிறப்பாக இருக்காது. காரணம், இந்த அமைப்பு இன்னும் உங்களைப் பற்றி அறிந்திருக்காது. உங்கள் CV, தொழில் பயணம், முக்கிய சாதனைகள், விருப்பங்கள், திறன்கள், தவிர்க்க விரும்பும் விஷயங்கள் போன்ற தகவல்களை வழங்குங்கள். நீங்கள் அதிக தகவல்களை வழங்கும் அளவுக்கு, இந்த அமைப்பு உங்களை நன்றாகப் புரிந்துகொண்டு தொடர்ந்து சிறந்த பரிந்துரைகளை வழங்கும். இதை ஒரு புதிய Recruiter-ஐ அறிமுகப்படுத்துவதைப் போல நினைத்துக் கொள்ளுங்கள். முதல் சில நாட்கள் அவர் உங்களைப் பற்றி கற்றுக்கொள்வார்; அதன் பிறகு அவர் மிகவும் பயனுள்ளவராக மாறுவார்.
-
-740-க்கும் மேற்பட்ட வேலை வாய்ப்புகளை மதிப்பீடு செய்து, 100-க்கும் மேற்பட்ட தனிப்பயனாக்கப்பட்ட CV-களை உருவாக்கி, **Head of Applied AI** பதவியைப் பெற்ற ஒருவரால் இந்த அமைப்பு உருவாக்கப்பட்டது. [முழுமையான அனுபவக் கட்டுரையை இங்கே படிக்கலாம்](https://santifer.io/career-ops-system).
 
 ## Features
 
@@ -144,7 +101,7 @@ claude   # அல்லது codex / qwen / opencode / agy / grok — உங்
 <summary><b>கைமுறையாக அமைக்க விரும்புகிறீர்களா? (git clone)</b></summary>
 
 ```bash
-git clone https://github.com/santifer/career-ops.git
+git clone <repo-url>
 cd career-ops && npm install
 npx playwright install chromium   # PDF உருவாக்குவதற்கு மட்டும் தேவை
 
@@ -426,31 +383,6 @@ career-ops/
 - **Data:** Markdown Tables + YAML Configuration + TSV Files
 
 
-## மேலும் Open Source திட்டங்கள்
-
-- **[cv-santiago](https://github.com/santifer/cv-santiago)** — AI Chatbot, LLMOps Dashboard மற்றும் Case Studies கொண்ட Portfolio Website (santifer.io). உங்கள் வேலை தேடலுக்காக ஒரு Portfolio Website தேவைப்பட்டால், இதை Fork செய்து உங்களுக்கேற்றவாறு மாற்றிக் கொள்ளலாம்.
-
-
-## ஆசிரியரைப் பற்றி
-
-நான் **Santiago Fernández de Valderrama Aparicio (santifer)** — தற்போது **Head of Applied AI** ஆக பணியாற்றுகிறேன். இதற்கு முன்பு ஒரு நிறுவனத்தைத் தொடங்கி, பின்னர் அதை வெற்றிகரமாக விற்றேன்.
-
-career-ops-ஐ என் சொந்த வேலை தேடலை எளிதாக்க உருவாக்கினேன். அது வெற்றிகரமாக செயல்பட்டு, நான் தற்போது இருக்கும் பணியைப் பெற உதவியது.
-
-இந்த Repository-ஐ வாரத்திற்கு சுமார் **4 மணி நேரம்** மட்டுமே செலவழித்து எப்படி பராமரிக்கிறேன் என்பதை அறிய விரும்புகிறீர்களா?
-
-[Agentic maintenance: how career-ops is run by a fleet of AI agents](https://santifer.io/ai-agent-fleet) என்ற கட்டுரையைப் படிக்கவும்.
-
-எனது Portfolio மற்றும் பிற Open Source திட்டங்களைப் பார்க்க:
-
-**https://santifer.io**
-
-Wikidata:
-
-- Santiago Fernández de Valderrama Aparicio
-- career-ops
-
-
 ## Disclaimer
 
 **career-ops என்பது உங்கள் கணினியில் இயங்கும் Local Open Source கருவி மட்டுமே; இது Hosted Service அல்ல.** இந்த மென்பொருளைப் பயன்படுத்துவதன் மூலம், நீங்கள் பின்வருவனவற்றை ஏற்றுக்கொள்கிறீர்கள்:
@@ -468,29 +400,6 @@ Wikidata:
 இந்த மென்பொருள் **MIT License**-ன் கீழ் **"as is"** அடிப்படையில், எந்த உத்தரவாதமும் இன்றி வழங்கப்படுகிறது.
 
 
-## Contributors
-
-<a href="https://github.com/santifer/career-ops/graphs/contributors">
-  <img
-  src="https://contrib.rocks/image?repo=santifer/career-ops"
-  alt="career-ops contributors"
-/>
-</a>
-
-career-ops-ஐ பயன்படுத்தி வேலை கிடைத்ததா? [உங்கள் வெற்றிக் கதையைப் பகிருங்கள்!](https://github.com/santifer/career-ops/issues/new?template=i-got-hired.yml)
-
-
-## License & Trademark
+## License
 
 இந்த நிரலின் Code, **MIT License**-ன் கீழ் வழங்கப்படுகிறது.
-
-**career-ops** என்ற பெயரும் அதன் Brand-மும் [Trademark Policy](TRADEMARK.md)-க்கு உட்பட்டவை. சமூகப் பயன்பாட்டிற்கு அனுமதி வழங்கப்பட்டாலும், வணிகப் பொருட்களின் பெயரிடல் மற்றும் அதிகாரப்பூர்வ ஒப்புதலுக்கான உரிமைகள் பாதுகாக்கப்பட்டுள்ளன.
-
-
-## Let's Connect
-
-[![Website](https://img.shields.io/badge/santifer.io-000?style=for-the-badge&logo=safari&logoColor=white)](https://santifer.io)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/santifer)
-[![X](https://img.shields.io/badge/X-000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/santifer)
-[![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/8pRpHETxa4)
-[![Email](https://img.shields.io/badge/Email-EA4335?style=for-the-badge&logo=gmail&logoColor=white)](mailto:hi@santifer.io)

@@ -7,45 +7,14 @@
 </div>
 
 <p align="center">
-  <a href="https://x.com/santifer"><img src="docs/hero-banner.jpg" alt="Système de recherche d'emploi multi-agent career-ops" width="800"></a>
-</p>
-
-<p align="center">
-  <em>J'ai passé des mois à postuler à des emplois à la dure. J'ai donc conçu le système que j'aurais aimé avoir.</em><br>
-  Les entreprises utilisent l'IA pour filtrer les candidats. <strong>Je viens de donner aux candidats une IA pour <em>choisir</em> leurs entreprises.</strong><br>
-  <em>Maintenant, c'est open source.</em>
-</p>
-
-<p align="center">
-  <a href="https://trendshift.io/repositories/25195" target="_blank"><img src="https://trendshift.io/api/badge/repositories/25195" alt="santifer%2Fcareer-ops | Trendshift" style="width: 245px; height: 54px; vertical-align: middle;" width="245" height="54"/></a>
-</p>
-
-<p align="center">
-  <a href="https://www.producthunt.com/products/santifer-io?utm_source=badge-featured&utm_medium=badge" target="_blank"><img src="docs/press/producthunt.svg" alt="career-ops sur Claude | Product Hunt" style="width: 206px; height: 54px; vertical-align: middle;" width="206" height="54"/></a>
-</p>
-
-<p align="center"><sub>PRÉSENTÉ DANS</sub></p>
-
-<p align="center">
-  <a href="https://wired.com.gr/article/to-ai-ergaleio-pou-fernei-epanastasi-ston-tropo-pou-psachnoume-douleia/" rel="noopener noreferrer nofollow"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/press/wired-dark.svg"><img src="docs/press/wired.svg" alt="WIRED" height="32"></picture></a>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="https://www.businessinsider.com/how-i-built-tool-filter-job-listings-landed-head-ai-2026-4" rel="noopener noreferrer nofollow"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/press/business-insider-dark.svg"><img src="docs/press/business-insider.svg" alt="Business Insider" height="32"></picture></a>
+  <em>Automatisation de la recherche d'emploi par IA — évaluez des offres, générez des CV sur mesure et suivez votre pipeline de bout en bout.</em><br>
+  Ceci est un fork personnel du projet open source <a href="https://github.com/santifer/career-ops">career-ops</a>, créé à l'origine par Santiago Fernández de Valderrama.
 </p>
 
 ---
 
 <p align="center">
   <img src="docs/demo.gif" alt="Démo de career-ops" width="800">
-</p>
-
-<p align="center"><strong>Plus de 740 offres d'emploi évaluées · Plus de 100 CV personnalisés · 1 poste de rêve décroché</strong></p>
-
-<p align="center">
-  <a href="https://discord.gg/8pRpHETxa4"><img src="https://img.shields.io/badge/Rejoindre_la_communauté-Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
-</p>
-
-<p align="center">
-  <a href="https://github.com/santifer/career-ops/releases/latest"><img src="https://img.shields.io/badge/release-v1.9.0-2ea44f?style=for-the-badge&labelColor=2b3137" alt="Dernière version"></a>
 </p>
 
 <p align="center">
@@ -66,12 +35,11 @@
   <img src="https://img.shields.io/badge/Playwright-2EAD33?style=flat&logo=playwright&logoColor=white" alt="Playwright">
   <img src="https://img.shields.io/badge/Bubble_Tea-FF75B5?style=flat&logo=go&logoColor=white" alt="Bubble Tea">
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT">
-  <a href="TRADEMARK.md"><img src="https://img.shields.io/badge/Trademark-Policy-blue.svg" alt="Trademark Policy"></a>
 </p>
 
 ## Qu'est-ce que c'est
 
-career-ops ([career-ops.org](https://career-ops.org), également connu sous le nom de **careerops**) transforme n'importe quelle interface de ligne de commande (CLI) de codage IA en un véritable centre de commandement pour votre recherche d'emploi. Au lieu de suivre manuellement vos candidatures dans un tableau de bord, vous disposez d'un pipeline alimenté par l'IA qui :
+career-ops transforme n'importe quelle interface de ligne de commande (CLI) de codage IA en un véritable centre de commandement pour votre recherche d'emploi. Au lieu de suivre manuellement vos candidatures dans un tableau de bord, vous disposez d'un pipeline alimenté par l'IA qui :
 
 - **Évalue les offres** avec une évaluation structurée de A à F (cinq dimensions alimentant un score de 1,0 à 5,0)
 - **Génère des PDF sur mesure** — des CV optimisés pour les systèmes ATS, personnalisés pour chaque description de poste
@@ -84,8 +52,6 @@ career-ops ([career-ops.org](https://career-ops.org), également connu sous le n
 career-ops est agentic : Claude Code navigue sur les pages carrières avec Playwright, évalue l'adéquation en analysant votre CV par rapport à la description du poste (et non par simple correspondance de mots-clés), et adapte votre CV pour chaque offre.
 
 > **Attention : les premières évaluations ne seront pas parfaites.** Le système ne vous connaît pas encore. Fournissez-lui du contexte — votre CV, votre parcours professionnel, vos réalisations marquantes, vos préférences, vos points forts et ce que vous souhaitez éviter. Plus vous l'alimentez, plus il devient performant. Voyez cela comme l'intégration d'un nouveau recruteur : la première semaine, il doit apprendre à vous connaître, puis il devient indispensable.
-
-Conçu par quelqu'un qui l'a utilisé pour évaluer plus de 740 offres d'emploi, générer plus de 100 CV personnalisés et décrocher un poste de Head of Applied AI. [Lire l'étude de cas complète (en anglais)](https://santifer.io/career-ops-system).
 
 ## Fonctionnalités
 
@@ -125,7 +91,7 @@ claude   # ou gemini / codex / qwen / opencode — ouvrez votre CLI d'IA ici
 <summary><b>Vous préférez le configurer manuellement ? (git clone)</b></summary>
 
 ```bash
-git clone https://github.com/santifer/career-ops.git
+git clone <repo-url>
 cd career-ops && npm install
 npx playwright install chromium   # requis uniquement pour la génération de PDF
 claude   # ouvrez votre CLI d'IA — il vous guidera au premier lancement
@@ -301,28 +267,6 @@ career-ops/
 - **Tableau de bord** : Go + Bubble Tea + Lipgloss (thème Catppuccin Mocha)
 - **Données** : Tableaux Markdown + configuration YAML + fichiers TSV pour les lots
 
-## Également en Open Source
-
-- **[cv-santiago](https://github.com/santifer/cv-santiago)** — Le site web de portfolio (santifer.io) avec chatbot IA, tableau de bord LLMOps et études de cas. Si vous avez besoin d'un portfolio pour accompagner votre recherche d'emploi, forkez-le et personnalisez-le.
-
-## À propos de l'auteur
-
-Je m'appelle [Santiago Fernández de Valderrama Aparicio](https://santifer.io/about) (santifer) — Head of Applied AI, ancien fondateur (j'ai créé et vendu une entreprise qui fonctionne toujours sous mon nom). J'ai conçu career-ops pour gérer ma propre recherche d'emploi. Cela a fonctionné : je l'ai utilisé pour décrocher mon poste actuel.
-
-Mon portfolio et mes autres projets open source → [santifer.io](https://santifer.io)
-
-Wikidata: [Santiago Fernández de Valderrama Aparicio](https://www.wikidata.org/wiki/Q138710224) · [career-ops](https://www.wikidata.org/wiki/Q139007988).
-
-## Historique des étoiles
-
-<a href="https://www.star-history.com/?repos=santifer%2Fcareer-ops&type=timeline&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=santifer/career-ops&type=timeline&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=santifer/career-ops&type=timeline&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=santifer/career-ops&type=timeline&legend=top-left" />
- </picture>
-</a>
-
 ## Clause de non-responsabilité
 
 **career-ops est un outil local et open source, pas un service hébergé.** En utilisant ce logiciel, vous reconnaissez que :
@@ -334,22 +278,6 @@ Wikidata: [Santiago Fernández de Valderrama Aparicio](https://www.wikidata.org/
 
 Voir [LEGAL_DISCLAIMER.md](LEGAL_DISCLAIMER.md) (en anglais) pour tous les détails. Ce logiciel est fourni sous [Licence MIT](LICENSE) "en l'état", sans aucune garantie d'aucune sorte.
 
-## Contributeurs
+## Licence
 
-<a href="https://github.com/santifer/career-ops/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=santifer/career-ops" />
-</a>
-
-Vous avez été embauché grâce à career-ops ? [Partagez votre histoire ! (en anglais)](https://github.com/santifer/career-ops/issues/new?template=i-got-hired.yml)
-
-## Licence et marques déposées
-
-Le code est distribué sous [Licence MIT](LICENSE). Le nom et la marque "career-ops" sont régis par la [Politique de marques déposées](TRADEMARK.md), qui autorise l'usage par la communauté mais le réserve pour les produits commerciaux et les promotions.
-
-## Connectons-nous
-
-[![Site Web](https://img.shields.io/badge/santifer.io-000?style=for-the-badge&logo=safari&logoColor=white)](https://santifer.io)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/santifer)
-[![X](https://img.shields.io/badge/X-000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/santifer)
-[![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/8pRpHETxa4)
-[![Email](https://img.shields.io/badge/Email-EA4335?style=for-the-badge&logo=gmail&logoColor=white)](mailto:hi@santifer.io)
+Le code est distribué sous [Licence MIT](LICENSE).

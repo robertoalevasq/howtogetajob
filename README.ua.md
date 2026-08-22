@@ -7,41 +7,14 @@
 </div>
 
 <p align="center">
-  <a href="https://x.com/santifer"><img src="docs/hero-banner.jpg" alt="career-ops Multi-Agent Система Пошуку Роботи" width="800"></a>
-</p>
-
-<p align="center">
-  <em>Я провів місяці у пошуках роботи, роблячи все самотужки. Тому я створив систему, яку хотів би мати з самого початку.</em><br>
-  Компанії використовують AI для фільтрації кандидатів. <strong>Я дав кандидатам AI, щоб вони могли <em>вибирати</em> компанії.</strong><br>
-  <em>Тепер це open source.</em>
-</p>
-
-<p align="center">
-  <a href="https://trendshift.io/repositories/25195" target="_blank"><img src="https://trendshift.io/api/badge/repositories/25195" alt="santifer%2Fcareer-ops | Trendshift" style="width: 245px; height: 54px; vertical-align: middle;" width="245" height="54"/></a>
-  &nbsp;&nbsp;
-  <a href="https://www.producthunt.com/products/santifer-io?utm_source=badge-featured&utm_medium=badge" target="_blank"><img src="docs/press/producthunt.svg" alt="career-ops on Claude | Product Hunt" style="width: 206px; height: 54px; vertical-align: middle;" width="206" height="54"/></a>
-</p>
-
-<p align="center"><sub>Згадані у</sub></p>
-
-<p align="center">
-  <a href="https://wired.com.gr/article/to-ai-ergaleio-pou-fernei-epanastasi-ston-tropo-pou-psachnoume-douleia/" rel="noopener noreferrer nofollow"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/press/wired-dark.svg"><img src="docs/press/wired.svg" alt="WIRED" height="32"></picture></a>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="https://www.businessinsider.com/how-i-built-tool-filter-job-listings-landed-head-ai-2026-4" rel="noopener noreferrer nofollow"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/press/business-insider-dark.svg"><img src="docs/press/business-insider.svg" alt="Business Insider" height="32"></picture></a>
+  <em>Автоматизація пошуку роботи на основі AI — оцінюйте вакансії, генеруйте персоналізовані резюме та керуйте своїм конвеєром від початку до кінця.</em><br>
+  Це особистий форк проєкту з відкритим кодом <a href="https://github.com/santifer/career-ops">career-ops</a>, який спочатку створив Santiago Fernández de Valderrama.
 </p>
 
 ---
 
 <p align="center">
   <img src="docs/demo.gif" alt="Демо career-ops" width="800">
-</p>
-
-<p align="center"><strong>740+ вакансій оцінено · 100+ персоналізованих резюме · 1 роботу мрії отримано</strong></p>
-
-<p align="center">
-  <a href="https://discord.gg/8pRpHETxa4"><img src="https://img.shields.io/badge/Приєднатися_до_спільноти-Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
-  &nbsp;
-  <a href="https://www.npmjs.com/package/@santifer/career-ops"><img src="https://img.shields.io/npm/dt/@santifer/career-ops?style=for-the-badge&logo=npm&color=CB3837&label=npx%20installs" alt="npm installs"></a>
 </p>
 
 <p align="center">
@@ -62,7 +35,6 @@
   <img src="https://img.shields.io/badge/Playwright-2EAD33?style=flat&logo=playwright&logoColor=white" alt="Playwright">
   <img src="https://img.shields.io/badge/Bubble_Tea-FF75B5?style=flat&logo=go&logoColor=white" alt="Bubble Tea">
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT">
-  <a href="TRADEMARK.md"><img src="https://img.shields.io/badge/Trademark-Policy-blue.svg" alt="Trademark Policy"></a>
 </p>
 
 ## Що це таке
@@ -80,8 +52,6 @@ career-ops перетворює будь-який AI-кодинг CLI на по�
 career-ops працює агентно: Claude Code переходить на кар'єрні сторінки за допомогою Playwright, оцінює відповідність, аналізуючи ваше резюме відносно опису вакансії (не за ключовими словами), та адаптує ваше резюме під кожну вакансію.
 
 > **Зверніть увагу: перші оцінки будуть не ідеальними.** Система ще не знає вас. Дайте їй контекст — ваше резюме, вашу кар'єрну історію, ваші досягнення, уподобання, сильні сторони, що хочете уникати. Чим більше ви її "навчаєте", тим краще вона стає. Уявіть, що ви вводите в курс справ нового рекрутера: перший тиждень він вивчає вас, а потім стає незамінним.
-
-Створено людиною, яка використовувала систему для оцінки 740+ вакансій, генерації 100+ персоналізованих резюме та отримання посади Head of Applied AI. [Читати повний кейс](https://santifer.io/career-ops-system).
 
 ## Що система вміє
 
@@ -124,7 +94,7 @@ claude   # or gemini / codex / qwen / opencode — open your AI CLI here
 <summary><b>Бажаєте налаштувати вручну? (git clone)</b></summary>
 
 ```bash
-git clone https://github.com/santifer/career-ops.git
+git clone <repo-url>
 cd career-ops && npm install
 npx playwright install chromium   # only needed for PDF generation
 claude
@@ -251,28 +221,6 @@ career-ops/
 - **Дашборд**: Go + Bubble Tea + Lipgloss (тема Catppuccin Mocha)
 - **Дані**: Markdown-таблиці + YAML-конфігурація + TSV-пакетні файли
 
-## Також у відкритому коді
-
-- **[cv-santiago](https://github.com/santifer/cv-santiago)** — Портфоліо-сайт (santifer.io) з AI-чатботом, LLMOps-дашбордом та кейсами. Якщо вам потрібне портфоліо для демонстрації під час пошуку роботи, форкніть його та зробіть своїм.
-
-## Про автора
-
-Я Сантьяго — Head of Applied AI, колишній засновник (побудував і продав бізнес, який досі працює під моїм ім'ям). Я створив career-ops для управління власним пошуком роботи. Це спрацювало: я використав його, щоб отримати свою поточну посаду.
-
-Моє портфоліо та інші open source проєкти → [santifer.io](https://santifer.io)
-
-☕ [Пригостіть мене кавою](https://buymeacoffee.com/santifer), якщо career-ops допоміг у вашому пошуку роботи.
-
-## Історія зірок
-
-<a href="https://www.star-history.com/?repos=santifer%2Fcareer-ops&type=timeline&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=santifer/career-ops&type=timeline&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=santifer/career-ops&type=timeline&legend=top-left" />
-   <img alt="Графік історії зірок" src="https://api.star-history.com/chart?repos=santifer/career-ops&type=timeline&legend=top-left" />
- </picture>
-</a>
-
 ## Застереження
 
 **career-ops — це локальний інструмент з відкритим кодом, а НЕ хмарний сервіс.** Використовуючи це програмне забезпечення, ви підтверджуєте:
@@ -284,23 +232,6 @@ career-ops/
 
 Дивіться [LEGAL_DISCLAIMER.md](LEGAL_DISCLAIMER.md) за повною інформацією. Це програмне забезпечення надається за [ліцензією MIT](LICENSE) "як є", без будь-яких гарантій.
 
-## Контриб'ютори
-
-<a href="https://github.com/santifer/career-ops/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=santifer/career-ops" alt="Контриб'ютори santifer/career-ops" />
-</a>
-
-Отримали роботу завдяки career-ops? [Поділіться своєю історією!](https://github.com/santifer/career-ops/issues/new?template=i-got-hired.yml)
-
 ## Ліцензія
 
 MIT
-
-## Контакти
-
-[![Вебсайт](https://img.shields.io/badge/santifer.io-000?style=for-the-badge&logo=safari&logoColor=white)](https://santifer.io)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/santifer)
-[![X](https://img.shields.io/badge/X-000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/santifer)
-[![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/8pRpHETxa4)
-[![Email](https://img.shields.io/badge/Email-EA4335?style=for-the-badge&logo=gmail&logoColor=white)](mailto:hi@santifer.io)
-[![Пригостити кавою](https://img.shields.io/badge/Buy_Me_a_Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/santifer)

@@ -7,41 +7,14 @@
 </div>
 
 <p align="center">
-  <a href="https://x.com/santifer"><img src="docs/hero-banner.jpg" alt="career-ops Мультиагентная система поиска работы" width="800"></a>
-</p>
-
-<p align="center">
-  <em>Я месяцами откликался на вакансии вручную. И создал систему, которую хотел бы иметь с самого начала.</em><br>
-  Компании используют ИИ для фильтрации кандидатов. <strong>Я дал кандидатам ИИ, чтобы <em>выбирать</em> компании.</strong><br>
-  <em>Теперь это open source.</em>
-</p>
-
-<p align="center">
-  <a href="https://trendshift.io/repositories/25195" target="_blank"><img src="https://trendshift.io/api/badge/repositories/25195" alt="santifer%2Fcareer-ops | Trendshift" style="width: 245px; height: 54px; vertical-align: middle;" width="245" height="54"/></a>
-  &nbsp;&nbsp;
-  <a href="https://www.producthunt.com/products/santifer-io?utm_source=badge-featured&utm_medium=badge" target="_blank"><img src="docs/press/producthunt.svg" alt="career-ops on Claude | Product Hunt" style="width: 206px; height: 54px; vertical-align: middle;" width="206" height="54"/></a>
-</p>
-
-<p align="center"><sub>УПОМИНАНИЯ В СМИ</sub></p>
-
-<p align="center">
-  <a href="https://wired.com.gr/article/to-ai-ergaleio-pou-fernei-epanastasi-ston-tropo-pou-psachnoume-douleia/" rel="noopener noreferrer nofollow"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/press/wired-dark.svg"><img src="docs/press/wired.svg" alt="WIRED" height="32"></picture></a>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="https://www.businessinsider.com/how-i-built-tool-filter-job-listings-landed-head-ai-2026-4" rel="noopener noreferrer nofollow"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/press/business-insider-dark.svg"><img src="docs/press/business-insider.svg" alt="Business Insider" height="32"></picture></a>
+  <em>Автоматизация поиска работы на основе ИИ — оценивайте вакансии, генерируйте персонализированные резюме и ведите весь пайплайн в одном месте.</em><br>
+  Это личный форк проекта с открытым исходным кодом <a href="https://github.com/santifer/career-ops">career-ops</a>, изначально созданного Santiago Fernández de Valderrama.
 </p>
 
 ---
 
 <p align="center">
   <img src="docs/demo.gif" alt="career-ops Демо" width="800">
-</p>
-
-<p align="center"><strong>740+ вакансий оценено · 100+ персонализированных резюме · 1 позиция мечты получена</strong></p>
-
-<p align="center">
-  <a href="https://discord.gg/8pRpHETxa4"><img src="https://img.shields.io/badge/Присоединиться_к_сообществу-Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
-  &nbsp;
-  <a href="https://www.npmjs.com/package/@santifer/career-ops"><img src="https://img.shields.io/npm/dt/@santifer/career-ops?style=for-the-badge&logo=npm&color=CB3837&label=npx%20installs" alt="npm installs"></a>
 </p>
 
 <p align="center">
@@ -62,7 +35,6 @@
   <img src="https://img.shields.io/badge/Playwright-2EAD33?style=flat&logo=playwright&logoColor=white" alt="Playwright">
   <img src="https://img.shields.io/badge/Bubble_Tea-FF75B5?style=flat&logo=go&logoColor=white" alt="Bubble Tea">
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT">
-  <a href="TRADEMARK.md"><img src="https://img.shields.io/badge/Trademark-Policy-blue.svg" alt="Trademark Policy"></a>
 </p>
 
 ## Что это
@@ -117,7 +89,7 @@ claude   # или gemini / codex / qwen / opencode — открой здесь �
 <summary><b>Предпочитаешь настроить вручную? (git clone)</b></summary>
 
 ```bash
-git clone https://github.com/santifer/career-ops.git
+git clone <repo-url>
 cd career-ops && npm install
 npx playwright install chromium   # нужно только для генерации PDF
 claude   # открой свой AI-CLI — он проведёт онбординг при первом запуске
@@ -257,7 +229,7 @@ career-ops/
 ## FAQ
 
 **Для чего нужен career-ops?**
-career-ops — это приложение для поиска работы с открытым кодом, запускающийся через CLI. Данное приложение превращает CLI с встроенным AI-агентом в систему, которая будет оценивать, насколько вакансии соответствуют вашему резюме, генерировать файлы в формате PDF, адаптированные под каждый ATS, искать нужного человека для связи, и, конечно же, все будет отслеживаться в одном месте, оставляя окончательное решение за вами. Является первой реализацией CareerOps Manifesto. Подробнее: [career-ops.org](https://career-ops.org).
+career-ops — это приложение для поиска работы с открытым кодом, запускающийся через CLI. Данное приложение превращает CLI с встроенным AI-агентом в систему, которая будет оценивать, насколько вакансии соответствуют вашему резюме, генерировать файлы в формате PDF, адаптированные под каждый ATS, искать нужного человека для связи, и, конечно же, все будет отслеживаться в одном месте, оставляя окончательное решение за вами.
 
 **Можно ли использовать career-ops бесплатно или на более дешёвой/локальной модели?**
 Да. career-ops не привязан к конкретному CLI и работает с бесплатными и локальными моделями — через OpenRouter, Ollama или любой другой OpenAI-совместимой точкой доступа — поэтому платная подписка необязательна. Ознакомиться с полной настройкой можно в [docs/RUNNING_ON_A_BUDGET.md](docs/RUNNING_ON_A_BUDGET.md)
@@ -272,7 +244,7 @@ career-ops работает на Windows. Если навыки не загру�
 Нет. career-ops — это фильтр, а не автоматический рассыльщик. AI оценивает, ранжирует и создаёт черновики. Вы же проверяете их и принимаете решения. Он никогда не отправляет, не посылает и не нажимает ничего за вас — окончательный выбор всегда за вами. Принцип «человек в цикле» является ключевым.
 
 **career-ops бесплатный? с открытым исходным кодом?**
-Да. career-ops бесплатен и имеет открытый исходный код, и для соискателей всегда таким останется — это первая реализация [CareerOps Manifesto](https://career-ops.org/manifesto). Прочтите, и если он отражает ваши убеждения, пожалуйста, подпишите его.
+Да. career-ops бесплатен и имеет открытый исходный код, и для соискателей всегда таким останется.
 
 ## Дисклеймер
 

@@ -7,27 +7,8 @@
 </div>
 
 <p align="center">
-  <a href="https://x.com/santifer"><img src="docs/hero-banner.jpg" alt="career-ops 多代理求职系统" width="800"></a>
-</p>
-
-<p align="center">
-  <em>我花了好几个月用最费力的方式找工作。所以我打造了一个当初就希望拥有的系统。</em><br>
-  公司用 AI 筛选候选人。<strong>我把 AI 交给候选人，让他们来<em>挑选</em>公司。</strong><br>
-  <em>现在，它开源了。</em>
-</p>
-
-<p align="center">
-  <a href="https://trendshift.io/repositories/25195" target="_blank"><img src="https://trendshift.io/api/badge/repositories/25195" alt="santifer%2Fcareer-ops | Trendshift" style="width: 245px; height: 54px; vertical-align: middle;" width="245" height="54"/></a>
-  &nbsp;&nbsp;
-  <a href="https://www.producthunt.com/products/santifer-io?utm_source=badge-featured&utm_medium=badge" target="_blank"><img src="docs/press/producthunt.svg" alt="career-ops on Claude | Product Hunt" style="width: 206px; height: 54px; vertical-align: middle;" width="206" height="54"/></a>
-</p>
-
-<p align="center"><sub>媒体报道</sub></p>
-
-<p align="center">
-  <a href="https://wired.com.gr/article/to-ai-ergaleio-pou-fernei-epanastasi-ston-tropo-pou-psachnoume-douleia/" rel="noopener noreferrer nofollow"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/press/wired-dark.svg"><img src="docs/press/wired.svg" alt="WIRED" height="32"></picture></a>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="https://www.businessinsider.com/how-i-built-tool-filter-job-listings-landed-head-ai-2026-4" rel="noopener noreferrer nofollow"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/press/business-insider-dark.svg"><img src="docs/press/business-insider.svg" alt="Business Insider" height="32"></picture></a>
+  <em>AI 驱动的求职自动化工具 —— 评估职位、生成定制简历，端到端管理你的求职管道。</em><br>
+  本仓库是开源项目 <a href="https://github.com/santifer/career-ops">career-ops</a> 的个人 fork，原始作者为 Santiago Fernández de Valderrama。
 </p>
 
 ---
@@ -35,12 +16,6 @@
 <p align="center">
   <img src="docs/demo.gif" alt="career-ops 演示" width="800">
 </p>
-
-<p align="center"><strong>评估超过 740 个职位 · 生成超过 100 份个性化简历 · 成功拿下理想职位</strong></p>
-
-<p align="center"><a href="https://discord.gg/8pRpHETxa4"><img src="https://img.shields.io/badge/加入社区-Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
-  &nbsp;
-  <a href="https://www.npmjs.com/package/@santifer/career-ops"><img src="https://img.shields.io/npm/dt/@santifer/career-ops?style=for-the-badge&logo=npm&color=CB3837&label=npx%20installs" alt="npm installs"></a></p>
 
 <p align="center">
   <a href="https://claude.com/claude-code"><img src="https://img.shields.io/badge/Built_with-Claude_Code-000?style=for-the-badge&logo=anthropic&logoColor=white" alt="Built with Claude Code"></a>
@@ -60,7 +35,6 @@
   <img src="https://img.shields.io/badge/Playwright-2EAD33?style=flat&logo=playwright&logoColor=white" alt="Playwright">
   <img src="https://img.shields.io/badge/Bubble_Tea-FF75B5?style=flat&logo=go&logoColor=white" alt="Bubble Tea">
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT">
-  <a href="TRADEMARK.md"><img src="https://img.shields.io/badge/Trademark-Policy-blue.svg" alt="Trademark Policy"></a>
 </p>
 
 ## 这是什么
@@ -78,8 +52,6 @@ career-ops 可以把任何 AI 编码 CLI 变成完整的求职指挥中心。你
 career-ops 具备代理式工作能力：Claude Code 会用 Playwright 浏览招聘页面，通过推理你的简历与职位描述是否匹配来评估契合度，而不是只做关键词匹配；同时它也会根据每个职位调整你的简历。
 
 > **提醒：最开始几次评估不会特别准。** 系统还不了解你。请给它更多上下文，比如你的简历、职业故事、成果证明、个人偏好、擅长的事、想避开的事。你喂给它的信息越多，它就越准确。把它当成在培养一个新招聘顾问：第一周它需要先了解你，之后就会变得非常有价值。
-
-这个系统的作者曾用它评估 740 多个职位、生成 100 多份定制简历，并拿到一份 Head of Applied AI 的工作。[阅读完整案例研究](https://santifer.io/career-ops-system)。
 
 ## 功能特性
 
@@ -121,7 +93,7 @@ claude   # 或 gemini / codex / qwen / opencode —— 在这里打开你的 AI 
 <summary><b>更喜欢手动设置？（git clone）</b></summary>
 
 ```bash
-git clone https://github.com/santifer/career-ops.git
+git clone <repo-url>
 cd career-ops && npm install
 npx playwright install chromium   # 仅生成 PDF 时需要
 claude   # 打开你的 AI CLI —— 它会在首次启动时引导你完成设置
@@ -291,14 +263,10 @@ career-ops/
 - **Dashboard**：Go + Bubble Tea + Lipgloss（Catppuccin Mocha 主题）
 - **数据**：Markdown 表格 + YAML 配置 + TSV 批处理文件
 
-## 也已开源
-
-- **[cv-santiago](https://github.com/santifer/cv-santiago)**：作者的作品集网站（santifer.io），包含 AI 聊天机器人、LLMOps Dashboard 和案例研究。如果你也需要一个能在求职时展示的作品集，可以 fork 它然后改成自己的版本。
-
 ## 常见问题（FAQ）
 
 **career-ops 是什么？**
-career-ops 是一个开源且不受特定 CLI 限制的求职命令中心。它能把任意 AI 编程 CLI 变成一套求职流程：根据你的 CV 评估职位，生成适配 ATS 的 PDF，查找合适的联系人，并在一个地方记录所有进展，最终决定仍由你作出。它是 CareerOps Manifesto 的首个参考实现，详情见 [career-ops.org](https://career-ops.org)。
+career-ops 是一个开源且不受特定 CLI 限制的求职命令中心。它能把任意 AI 编程 CLI 变成一套求职流程：根据你的 CV 评估职位，生成适配 ATS 的 PDF，查找合适的联系人，并在一个地方记录所有进展，最终决定仍由你作出。
 
 **我可以免费运行 career-ops，或使用更便宜的本地模型吗？**
 可以。career-ops 不受特定 CLI 限制，可通过 OpenRouter 免费模型、Ollama 或任何兼容 OpenAI 的端点使用免费或本地模型，因此无需依赖付费订阅。完整设置方法见 [docs/RUNNING_ON_A_BUDGET.md](docs/RUNNING_ON_A_BUDGET.md)。
@@ -313,25 +281,7 @@ career-ops 可以在 Windows 上运行。如果安装时因符号链接（symlin
 不会。career-ops 用来筛选职位，而不是盲目批量申请；AI 负责评估、排序和起草，你负责审阅与决定。它不会自行提交、发送或点击任何内容，最终决定始终在你手中。这正是保留人工审核的意义。
 
 **career-ops 是免费开源软件吗？**
-是。career-ops 是免费开源软件，而且对求职者会一直免费；它是 [CareerOps Manifesto](https://career-ops.org/manifesto) 的首个参考实现。欢迎阅读这份宣言，如果认同其内容，也可以签名支持。
-
-## 关于作者
-
-我是 [Santiago Fernández de Valderrama Aparicio](https://santifer.io/about)（santifer），现任 Head of Applied AI，也曾是一名创业者（创建并出售过一家公司，那家公司至今仍以我的名字运营）。我构建 career-ops 是为了管理我自己的求职流程，而它确实奏效了：我用它拿到了现在这份工作。
-
-我的作品集和其他开源项目 → [santifer.io](https://santifer.io)
-
-Wikidata: [Santiago Fernández de Valderrama Aparicio](https://www.wikidata.org/wiki/Q138710224) · [career-ops](https://www.wikidata.org/wiki/Q139007988).
-
-## Star 历史
-
-<a href="https://www.star-history.com/?repos=santifer%2Fcareer-ops&type=timeline&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=santifer/career-ops&type=timeline&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=santifer/career-ops&type=timeline&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=santifer/career-ops&type=timeline&legend=top-left" />
- </picture>
-</a>
+是。career-ops 是免费开源软件，而且对求职者会一直免费。
 
 ## 免责声明
 
@@ -342,24 +292,8 @@ Wikidata: [Santiago Fernández de Valderrama Aparicio](https://www.wikidata.org/
 3. **你需要遵守第三方服务条款。** 你必须按照所使用招聘平台（Greenhouse、Lever、Workday、LinkedIn 等）的服务条款来使用本工具。不要用它向雇主发送垃圾申请，也不要对 ATS 系统造成过载。
 4. **不提供任何保证。** 评估结果只是建议，不是真相。AI 模型可能会幻觉出并不存在的技能或经历。作者不对任何求职结果、申请被拒、账号受限或其他后果承担责任。
 
-完整内容见 [LEGAL_DISCLAIMER.md](LEGAL_DISCLAIMER.md)。本软件依据 [MIT License](LICENSE) 以“按现状”方式提供，不附带任何形式的担保。
+完整内容见 [LEGAL_DISCLAIMER.md](LEGAL_DISCLAIMER.md)。本软件依据 [MIT License](LICENSE) 以”按现状”方式提供，不附带任何形式的担保。
 
-## 贡献者
+## 许可证
 
-<a href="https://github.com/santifer/career-ops/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=santifer/career-ops" />
-</a>
-
-通过 career-ops 成功入职？[分享你的故事！](https://github.com/santifer/career-ops/issues/new?template=i-got-hired.yml)
-
-## 许可证与商标
-
-代码以 [MIT](LICENSE) 许可证授权。"career-ops" 名称及品牌受 [商标政策](TRADEMARK.md) 约束 —— 允许社区使用，商业产品命名和背书需保留权利。
-
-## 联系我们
-
-[![Website](https://img.shields.io/badge/santifer.io-000?style=for-the-badge&logo=safari&logoColor=white)](https://santifer.io)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/santifer)
-[![X](https://img.shields.io/badge/X-000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/santifer)
-[![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/8pRpHETxa4)
-[![Email](https://img.shields.io/badge/Email-EA4335?style=for-the-badge&logo=gmail&logoColor=white)](mailto:hi@santifer.io)
+代码以 [MIT](LICENSE) 许可证授权。

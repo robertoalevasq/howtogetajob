@@ -7,54 +7,14 @@
 </div>
 
 <p align="center">
-  <a href="https://x.com/santifer"><img src="docs/hero-banner.jpg" alt="career-ops Multi-Agent Job Search System" width="800"></a>
-</p>
-
-<p align="center">
-  <em>मैंने महीनों मुश्किल तरीके से नौकरी के लिए apply किया। इसलिए मैंने वह system बनाया जो काश मेरे पास होता।</em><br>
-  कंपनियाँ candidates को filter करने के लिए AI use करती हैं। <strong>मैंने candidates को कंपनियाँ <em>चुनने</em> के लिए AI दे दिया।</strong><br>
-  <em>अब यह open source है।</em>
-</p>
-
-<p align="center">
-  <a href="https://trendshift.io/repositories/25195" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/25195" alt="santifer%2Fcareer-ops | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-</p>
-
-<p align="center">
-  <a href="https://www.producthunt.com/products/santifer-io?utm_source=badge-featured&utm_medium=badge" target="_blank" rel="noopener noreferrer"><img src="docs/press/producthunt.svg" alt="career-ops on Claude | Product Hunt" style="width: 206px; height: 54px; vertical-align: middle;" width="206" height="54"/></a>
-</p>
-
-<p align="center"><sub>FEATURED IN</sub></p>
-
-<p align="center">
-  <a href="https://wired.com.gr/article/to-ai-ergaleio-pou-fernei-epanastasi-ston-tropo-pou-psachnoume-douleia/" rel="noopener noreferrer nofollow"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/press/wired-dark.svg"><img src="docs/press/wired.svg" alt="WIRED" height="32"></picture></a>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="https://www.businessinsider.com/how-i-built-tool-filter-job-listings-landed-head-ai-2026-4" rel="noopener noreferrer nofollow"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/press/business-insider-dark.svg"><img src="docs/press/business-insider.svg" alt="Business Insider" height="32"></picture></a>
+  <em>AI-powered job search automation — offers evaluate करें, tailored CVs generate करें, और अपनी pipeline को end to end track करें।</em><br>
+  यह open-source <a href="https://github.com/santifer/career-ops">career-ops</a> project का एक personal fork है, जिसे मूल रूप से Santiago Fernández de Valderrama ने बनाया था।
 </p>
 
 ---
 
 <p align="center">
   <img src="docs/demo.gif" alt="career-ops Demo" width="800">
-</p>
-
-<p align="center"><strong>740+ job listings evaluated · 100+ personalized CVs · 1 dream role landed</strong></p>
-
-<p align="center">
-  <a href="https://warpchart.dev/hq">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://warpchart.dev/api/chart?theme=dark&v=3">
-      <img alt="Live star telemetry of santifer/career-ops" src="https://warpchart.dev/api/chart?theme=light&v=3" loading="lazy">
-    </picture>
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://discord.gg/8pRpHETxa4"><img src="https://img.shields.io/badge/Join_the_community-Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
-</p>
-
-<p align="center">
-  <a href="https://github.com/santifer/career-ops/releases/latest"><img src="https://img.shields.io/npm/v/%40santifer%2Fcareer-ops?style=for-the-badge&labelColor=2b3137&color=2ea44f&label=release" alt="Latest release"></a>
 </p>
 
 <p align="center">
@@ -77,12 +37,11 @@
   <img src="https://img.shields.io/badge/Playwright-2EAD33?style=flat&logo=playwright&logoColor=white" alt="Playwright">
   <img src="https://img.shields.io/badge/Bubble_Tea-FF75B5?style=flat&logo=go&logoColor=white" alt="Bubble Tea">
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT">
-  <a href="TRADEMARK.md"><img src="https://img.shields.io/badge/Trademark-Policy-blue.svg" alt="Trademark Policy"></a>
 </p>
 
 ## यह क्या है
 
-career-ops ([career-ops.org](https://career-ops.org), जिसे **careerops** भी कहते हैं) किसी भी AI coding CLI को एक पूर्ण job search command center में बदल देता है। Applications को spreadsheet में manually track करने की जगह, आपको एक AI-powered pipeline मिलती है जो:
+career-ops किसी भी AI coding CLI को एक पूर्ण job search command center में बदल देता है। Applications को spreadsheet में manually track करने की जगह, आपको एक AI-powered pipeline मिलती है जो:
 
 - **Offers evaluate करती है** एक structured A-F evaluation के साथ (पाँच dimensions जो 1.0-5.0 का score देते हैं)
 - **Tailored PDFs generate करती है** -- job description के अनुसार customize किए गए ATS-optimized CVs
@@ -95,8 +54,6 @@ career-ops ([career-ops.org](https://career-ops.org), जिसे **careerops**
 career-ops agentic है: जो भी AI coding CLI आप चुनें वह Playwright से career pages navigate करता है, आपके CV बनाम job description के बारे में reasoning करके fit evaluate करता है (keyword matching नहीं), और हर listing के लिए आपका resume adapt करता है।
 
 > **ध्यान दें: पहले कुछ evaluations बहुत अच्छे नहीं होंगे।** System अभी आपको नहीं जानता। इसे context दें -- आपका CV, आपकी career story, आपके proof points, आपकी preferences, आप किसमें अच्छे हैं, क्या avoid करना चाहते हैं। जितना ज़्यादा nurture करेंगे, उतना बेहतर होगा। इसे एक नए recruiter को onboard करने की तरह समझें: पहले हफ्ते उन्हें आपके बारे में सीखना है, फिर वे invaluable बन जाते हैं।
-
-किसी ऐसे व्यक्ति ने बनाया जिसने इसे 740+ job offers evaluate करने, 100+ tailored CVs generate करने, और Head of Applied AI role land करने के लिए use किया। [पूरा case study पढ़ें](https://santifer.io/career-ops-system)।
 
 ## Features
 
@@ -139,7 +96,7 @@ claude   # या gemini / codex / qwen / opencode / agy / grok — यहाँ
 <summary><b>Manually setup करना पसंद करते हैं? (git clone)</b></summary>
 
 ```bash
-git clone https://github.com/santifer/career-ops.git
+git clone <repo-url>
 cd career-ops && npm install
 npx playwright install chromium   # केवल PDF generation के लिए ज़रूरी
 
@@ -403,27 +360,13 @@ career-ops/
 - **Dashboard**: Go + Bubble Tea + Lipgloss (Catppuccin Mocha theme)
 - **Data**: Markdown tables + YAML config + TSV batch files
 
-## Also Open Source
-
-- **[cv-santiago](https://github.com/santifer/cv-santiago)** -- Portfolio website (santifer.io) जिसमें AI chatbot, LLMOps dashboard, और case studies हैं। यदि आपको job search के साथ showcase करने के लिए portfolio चाहिए, इसे fork करें और अपना बनाएं।
-
 ## अक्सर पूछे जाने वाले प्रश्न (FAQ)
 
 **career-ops क्या है?**  
-career-ops एक ओपन-सोर्स, CLI-agnostic जॉब सर्च कमांड सेंटर है। यह किसी भी AI कोडिंग CLI को ऐसे पाइपलाइन में बदल देता है जो आपके CV के अनुसार नौकरी के ऑफ़र्स का मूल्यांकन करता है, ATS-अनुकूल PDF तैयार करता है, सही व्यक्ति का संपर्क ढूँढता है, और पूरी प्रक्रिया को एक ही जगह ट्रैक करता है — जबकि अंतिम निर्णय हमेशा आपका होता है। यह CareerOps Manifesto का पहला reference implementation है। अधिक जानकारी के लिए देखें: [career-ops.org](https://career-ops.org).
+career-ops एक ओपन-सोर्स, CLI-agnostic जॉब सर्च कमांड सेंटर है। यह किसी भी AI कोडिंग CLI को ऐसे पाइपलाइन में बदल देता है जो आपके CV के अनुसार नौकरी के ऑफ़र्स का मूल्यांकन करता है, ATS-अनुकूल PDF तैयार करता है, सही व्यक्ति का संपर्क ढूँढता है, और पूरी प्रक्रिया को एक ही जगह ट्रैक करता है — जबकि अंतिम निर्णय हमेशा आपका होता है।
 
 **क्या मैं career-ops को मुफ्त में या किसी सस्ते / लोकल मॉडल के साथ चला सकता हूँ?**  
 हाँ। career-ops CLI-agnostic है और OpenRouter के मुफ्त मॉडल, Ollama, या किसी भी OpenAI-compatible endpoint के माध्यम से मुफ्त तथा लोकल मॉडलों पर चल सकता है। इसलिए आप किसी पेड सब्सक्रिप्शन पर निर्भर नहीं हैं। पूरी सेटअप प्रक्रिया के लिए [docs/RUNNING_ON_A_BUDGET.md](docs/RUNNING_ON_A_BUDGET.md) देखें।
-
-## Author के बारे में
-
-मैं [Santiago Fernández de Valderrama Aparicio](https://santifer.io/about) (santifer) हूँ -- Head of Applied AI, former founder (एक ऐसा business build किया और बेचा जो अभी भी मेरे नाम से चलता है)। मैंने career-ops अपनी खुद की job search manage करने के लिए बनाया। यह काम आया: मैंने इसे अपना current role land करने के लिए use किया।
-
-क्या आप जानना चाहते हैं कि यह repo हफ्ते में सिर्फ ~4 घंटे में कैसे maintain होता है? पढ़ें [Agentic maintenance: how career-ops is run by a fleet of AI agents](https://santifer.io/ai-agent-fleet)।
-
-मेरा portfolio और अन्य open source projects → [santifer.io](https://santifer.io)
-
-Wikidata: [Santiago Fernández de Valderrama Aparicio](https://www.wikidata.org/wiki/Q138710224) · [career-ops](https://www.wikidata.org/wiki/Q139007988).
 
 ## Disclaimer
 
@@ -436,22 +379,6 @@ Wikidata: [Santiago Fernández de Valderrama Aparicio](https://www.wikidata.org/
 
 Full details के लिए [LEGAL_DISCLAIMER.md](LEGAL_DISCLAIMER.md) देखें। यह software [MIT License](LICENSE) के under "as is" provide किया जाता है, बिना किसी warranty के।
 
-## Contributors
+## License
 
-<a href="https://github.com/santifer/career-ops/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=santifer/career-ops" />
-</a>
-
-career-ops use करके hired हुए? [अपनी story share करें!](https://github.com/santifer/career-ops/issues/new?template=i-got-hired.yml)
-
-## License & Trademark
-
-Code [MIT](LICENSE) के under licensed है। "career-ops" नाम और brand [Trademark Policy](TRADEMARK.md) के under governed हैं, community use के लिए permissive, commercial product naming और endorsement के लिए reserved।
-
-## Connect करें
-
-[![Website](https://img.shields.io/badge/santifer.io-000?style=for-the-badge&logo=safari&logoColor=white)](https://santifer.io)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/santifer)
-[![X](https://img.shields.io/badge/X-000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/santifer)
-[![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/8pRpHETxa4)
-[![Email](https://img.shields.io/badge/Email-EA4335?style=for-the-badge&logo=gmail&logoColor=white)](mailto:hi@santifer.io)
+Code [MIT](LICENSE) के under licensed है।

@@ -7,27 +7,8 @@
 </div>
 
 <p align="center">
-  <a href="https://x.com/santifer"><img src="docs/hero-banner.jpg" alt="career-ops 멀티 에이전트 취업 시스템" width="800"></a>
-</p>
-
-<p align="center">
-  <em>수개월간의 비효율적인 수동 지원 끝에, 직접 구직 파이프라인 시스템을 설계했습니다.</em><br>
-  기업은 AI로 지원자를 걸러냅니다. <strong>저는 지원자에게 AI를 줘서 <em>기업을 고르게</em> 했습니다.</strong><br>
-  <em>이제 오픈소스입니다.</em>
-</p>
-
-<p align="center">
-  <a href="https://trendshift.io/repositories/25195" target="_blank"><img src="https://trendshift.io/api/badge/repositories/25195" alt="santifer%2Fcareer-ops | Trendshift" style="width: 245px; height: 54px; vertical-align: middle;" width="245" height="54"/></a>
-  &nbsp;&nbsp;
-  <a href="https://www.producthunt.com/products/santifer-io?utm_source=badge-featured&utm_medium=badge" target="_blank"><img src="docs/press/producthunt.svg" alt="career-ops on Claude | Product Hunt" style="width: 206px; height: 54px; vertical-align: middle;" width="206" height="54"/></a>
-</p>
-
-<p align="center"><sub>소개된 매체</sub></p>
-
-<p align="center">
-  <a href="https://wired.com.gr/article/to-ai-ergaleio-pou-fernei-epanastasi-ston-tropo-pou-psachnoume-douleia/" rel="noopener noreferrer nofollow"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/press/wired-dark.svg"><img src="docs/press/wired.svg" alt="WIRED" height="32"></picture></a>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="https://www.businessinsider.com/how-i-built-tool-filter-job-listings-landed-head-ai-2026-4" rel="noopener noreferrer nofollow"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/press/business-insider-dark.svg"><img src="docs/press/business-insider.svg" alt="Business Insider" height="32"></picture></a>
+  <em>AI 기반 구직 자동화 — 채용 공고를 평가하고, 맞춤형 이력서를 생성하고, 파이프라인 전체를 관리하세요.</em><br>
+  이 저장소는 오픈소스 프로젝트 <a href="https://github.com/santifer/career-ops">career-ops</a>의 개인 포크이며, 원저작자는 Santiago Fernández de Valderrama입니다.
 </p>
 
 ---
@@ -35,12 +16,6 @@
 <p align="center">
   <img src="docs/demo.gif" alt="career-ops 데모" width="800">
 </p>
-
-<p align="center"><strong>740개 이상의 채용 공고 평가 · 100개 이상의 맞춤형 이력서 생성 · 꿈의 직장 1곳 합격</strong></p>
-
-<p align="center"><a href="https://discord.gg/8pRpHETxa4"><img src="https://img.shields.io/badge/커뮤니티_참여하기-Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
-  &nbsp;
-  <a href="https://www.npmjs.com/package/@santifer/career-ops"><img src="https://img.shields.io/npm/dt/@santifer/career-ops?style=for-the-badge&logo=npm&color=CB3837&label=npx%20installs" alt="npm installs"></a></p>
 
 <p align="center">
   <a href="https://claude.com/claude-code"><img src="https://img.shields.io/badge/Built_with-Claude_Code-000?style=for-the-badge&logo=anthropic&logoColor=white" alt="Built with Claude Code"></a>
@@ -60,7 +35,6 @@
   <img src="https://img.shields.io/badge/Playwright-2EAD33?style=flat&logo=playwright&logoColor=white" alt="Playwright">
   <img src="https://img.shields.io/badge/Bubble_Tea-FF75B5?style=flat&logo=go&logoColor=white" alt="Bubble Tea">
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT">
-  <a href="TRADEMARK.md"><img src="https://img.shields.io/badge/Trademark-Policy-blue.svg" alt="Trademark Policy"></a>
 </p>
 
 ## 이게 뭔가요
@@ -78,8 +52,6 @@ career-ops는 AI 코딩 CLI를 취업 활동 전체를 관리하는 커맨드 �
 career-ops는 에이전트 기반으로 작동합니다: Claude Code가 Playwright로 채용 페이지를 탐색하고, 키워드 매칭이 아닌 이력서와 JD를 비교 분석하여 적합도를 판단하고, 공고별로 이력서를 맞춤 생성합니다.
 
 > **참고: 처음 몇 번의 평가는 정확하지 않을 수 있습니다.** 시스템이 아직 당신을 모르기 때문입니다. 이력서, 커리어 스토리, 주요 성과, 선호도, 잘하는 것, 피하고 싶은 것 등 맥락을 알려주세요. 정보를 줄수록 더 정확해집니다. 새로운 리크루터를 온보딩한다고 생각하세요: 첫 주는 당신을 파악하는 시간이고, 그 이후부터 진가를 발휘합니다.
-
-740개 이상의 채용 공고를 평가하고, 100개 이상의 맞춤 이력서를 생성하여, Head of Applied AI 포지션에 합격한 사람이 직접 만들었습니다. [전체 케이스 스터디 읽기](https://santifer.io/career-ops-system).
 
 ## 주요 기능
 
@@ -121,7 +93,7 @@ claude   # or gemini / codex / qwen / opencode — open your AI CLI here
 <summary><b>수동으로 설정하고 싶으신가요? (git clone)</b></summary>
 
 ```bash
-git clone https://github.com/santifer/career-ops.git
+git clone <repo-url>
 cd career-ops && npm install
 npx playwright install chromium   # only needed for PDF generation
 claude   # open your AI CLI — it onboards you on first launch
@@ -247,26 +219,6 @@ career-ops/
 - **대시보드**: Go + Bubble Tea + Lipgloss (Catppuccin Mocha 테마)
 - **데이터**: Markdown 테이블 + YAML 설정 + TSV 배치 파일
 
-## 관련 오픈소스 프로젝트
-
-- **[cv-santiago](https://github.com/santifer/cv-santiago)** -- 포트폴리오 웹사이트 (santifer.io). AI 챗봇, LLMOps 대시보드, 케이스 스터디가 포함되어 있습니다. 취업 활동과 함께 포트폴리오가 필요하다면, 포크해서 자유롭게 활용하세요.
-
-## 저자 소개
-
-Santiago입니다 -- Head of Applied AI, 전직 창업자 (직접 사업을 만들고 매각했으며, 아직도 제 이름으로 운영되고 있습니다). 제 취업 활동을 관리하기 위해 career-ops를 만들었습니다. 효과가 있었습니다: 이 시스템으로 현재 포지션에 합격했습니다.
-
-포트폴리오 및 기타 오픈소스 프로젝트 → [santifer.io](https://santifer.io)
-
-## Star History
-
-<a href="https://www.star-history.com/?repos=santifer%2Fcareer-ops&type=timeline&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=santifer/career-ops&type=timeline&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=santifer/career-ops&type=timeline&legend=top-left" />
-   <img alt="Star History 차트" src="https://api.star-history.com/chart?repos=santifer/career-ops&type=timeline&legend=top-left" />
- </picture>
-</a>
-
 ## 면책 조항
 
 **career-ops는 로컬 오픈소스 도구이며, 별도의 호스팅 서비스가 아닙니다.** 이 소프트웨어를 사용함으로써 다음 사항에 동의하는 것으로 간주됩니다:
@@ -281,11 +233,3 @@ Santiago입니다 -- Head of Applied AI, 전직 창업자 (직접 사업을 만�
 ## 라이선스
 
 MIT
-
-## 소통하기
-
-[![Website](https://img.shields.io/badge/santifer.io-000?style=for-the-badge&logo=safari&logoColor=white)](https://santifer.io)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/santifer)
-[![X](https://img.shields.io/badge/X-000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/santifer)
-[![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/8pRpHETxa4)
-[![Email](https://img.shields.io/badge/Email-EA4335?style=for-the-badge&logo=gmail&logoColor=white)](mailto:hi@santifer.io)

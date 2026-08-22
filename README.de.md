@@ -7,54 +7,14 @@
 </div>
 
 <p align="center">
-  <a href="https://x.com/santifer"><img src="docs/hero-banner.jpg" alt="career-ops Multi-Agent-System für die Jobsuche" width="800"></a>
-</p>
-
-<p align="center">
-  <em>Ich habe monatelang Jobs auf die harte Tour gesucht. Also habe ich das System gebaut, das ich gern gehabt hätte.</em><br>
-  Unternehmen nutzen KI, um Bewerber:innen zu filtern. <strong>Ich habe Bewerber:innen KI gegeben, um Unternehmen zu <em>bewerten</em>.</strong><br>
-  <em>Jetzt ist es Open Source.</em>
-</p>
-
-<p align="center">
-  <a href="https://trendshift.io/repositories/25195" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/25195" alt="santifer%2Fcareer-ops | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-</p>
-
-<p align="center">
-  <a href="https://www.producthunt.com/products/santifer-io?utm_source=badge-featured&utm_medium=badge" target="_blank" rel="noopener noreferrer"><img src="docs/press/producthunt.svg" alt="career-ops auf Claude | Product Hunt" style="width: 206px; height: 54px; vertical-align: middle;" width="206" height="54"/></a>
-</p>
-
-<p align="center"><sub>BEKANNT AUS</sub></p>
-
-<p align="center">
-  <a href="https://wired.com.gr/article/to-ai-ergaleio-pou-fernei-epanastasi-ston-tropo-pou-psachnoume-douleia/" rel="noopener noreferrer nofollow"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/press/wired-dark.svg"><img src="docs/press/wired.svg" alt="WIRED" height="32"></picture></a>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="https://www.businessinsider.com/how-i-built-tool-filter-job-listings-landed-head-ai-2026-4" rel="noopener noreferrer nofollow"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/press/business-insider-dark.svg"><img src="docs/press/business-insider.svg" alt="Business Insider" height="32"></picture></a>
+  <em>KI-gestützte Automatisierung der Jobsuche — Stellenangebote bewerten, maßgeschneiderte Lebensläufe erstellen und die Pipeline durchgängig verfolgen.</em><br>
+  Dies ist ein persönlicher Fork des quelloffenen Projekts <a href="https://github.com/santifer/career-ops">career-ops</a>, ursprünglich erstellt von Santiago Fernández de Valderrama.
 </p>
 
 ---
 
 <p align="center">
   <img src="docs/demo.gif" alt="career-ops Demo" width="800">
-</p>
-
-<p align="center"><strong>740+ Stellenanzeigen bewertet · 100+ personalisierte Lebensläufe · 1 Traumrolle bekommen</strong></p>
-
-<p align="center">
-  <a href="https://warpchart.dev/hq">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://warpchart.dev/api/chart?theme=dark&v=3">
-      <img alt="Live-Sterne-Telemetrie von santifer/career-ops" src="https://warpchart.dev/api/chart?theme=light&v=3" loading="lazy">
-    </picture>
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://discord.gg/8pRpHETxa4"><img src="https://img.shields.io/badge/Community_beitreten-Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
-</p>
-
-<p align="center">
-  <a href="https://github.com/santifer/career-ops/releases/latest"><img src="https://img.shields.io/npm/v/%40santifer%2Fcareer-ops?style=for-the-badge&labelColor=2b3137&color=2ea44f&label=release" alt="Neueste Version"></a>
 </p>
 
 <p align="center">
@@ -77,12 +37,11 @@
   <img src="https://img.shields.io/badge/Playwright-2EAD33?style=flat&logo=playwright&logoColor=white" alt="Playwright">
   <img src="https://img.shields.io/badge/Bubble_Tea-FF75B5?style=flat&logo=go&logoColor=white" alt="Bubble Tea">
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT">
-  <a href="TRADEMARK.md"><img src="https://img.shields.io/badge/Trademark-Policy-blue.svg" alt="Trademark Policy"></a>
 </p>
 
 ## Was ist das?
 
-career-ops ([career-ops.org](https://career-ops.org), auch **careerops**) macht jede KI-Coding-CLI zu einer Kommandozentrale für die Jobsuche. Statt Bewerbungen manuell in einer Tabelle zu verfolgen, bekommst du eine KI-gestützte Pipeline, die:
+career-ops macht jede KI-Coding-CLI zu einer Kommandozentrale für die Jobsuche. Statt Bewerbungen manuell in einer Tabelle zu verfolgen, bekommst du eine KI-gestützte Pipeline, die:
 
 - **Stellenanzeigen mit einer strukturierten A-F-Bewertung bewertet** (fünf Dimensionen, die zu einer Bewertung von 1,0–5,0 führen)
 - **maßgeschneiderte PDFs generiert** -- ATS-optimierte Lebensläufe, angepasst an jede Stellenanzeige
@@ -95,8 +54,6 @@ career-ops ([career-ops.org](https://career-ops.org), auch **careerops**) macht 
 career-ops ist agentisch: Die KI-Coding-CLI deiner Wahl navigiert mit Playwright durch Karriereseiten, bewertet den Fit zwischen Lebenslauf und Stellenanzeige durch echtes Reasoning statt Keyword-Matching und passt deinen Lebenslauf pro Stellenanzeige an.
 
 > **Hinweis: Die ersten Bewertungen werden nicht perfekt sein.** Das System kennt dich noch nicht. Gib ihm Kontext: deinen Lebenslauf, deinen Werdegang, Proof Points, Präferenzen, Stärken und No-Gos. Je besser du es einarbeitest, desto besser wird es. Denk daran wie an das Onboarding eines neuen Recruiters: In der ersten Woche muss er dich kennenlernen, danach wird er wertvoll.
-
-Gebaut von jemandem, der damit 740+ Stellenanzeigen bewertet, 100+ personalisierte Lebensläufe erstellt und eine Rolle als Head of Applied AI bekommen hat. [Lies die vollständige Case Study](https://santifer.io/career-ops-system).
 
 ## Features
 
@@ -137,7 +94,7 @@ claude   # oder gemini / codex / qwen / opencode / agy / grok -- öffne deine KI
 <summary><b>Lieber manuell einrichten? (git clone)</b></summary>
 
 ```bash
-git clone https://github.com/santifer/career-ops.git
+git clone <repo-url>
 cd career-ops && npm install
 npx playwright install chromium   # nur für PDF-Generierung nötig
 
@@ -273,14 +230,10 @@ career-ops/
 - **Dashboard:** Go + Bubble Tea + Lipgloss (Catppuccin-Mocha-Theme)
 - **Daten:** Markdown-Tabellen + YAML-Konfiguration + TSV-Batch-Dateien
 
-## Ebenfalls Open Source
-
-- **[cv-santiago](https://github.com/santifer/cv-santiago)** -- Die Portfolio-Website (santifer.io) mit KI-Chatbot, LLMOps-Dashboard und Case Studies. Wenn du ein Portfolio für deine Jobsuche brauchst, fork es und mach es zu deinem eigenen.
-
 ## FAQ
 
 **Was ist career-ops?**
-career-ops ist ein quelloffenes, CLI-unabhängiges Kommandozentrum für die Jobsuche. Es macht aus jeder KI-Coding-CLI eine Pipeline, die Stellenangebote gegen deinen Lebenslauf bewertet, ATS-optimierte PDFs erzeugt, die richtige Kontaktperson findet und alles an einem Ort trackt — während du die finale Entscheidung behältst. Es ist die erste Referenzimplementierung des CareerOps Manifesto. Mehr unter [career-ops.org](https://career-ops.org).
+career-ops ist ein quelloffenes, CLI-unabhängiges Kommandozentrum für die Jobsuche. Es macht aus jeder KI-Coding-CLI eine Pipeline, die Stellenangebote gegen deinen Lebenslauf bewertet, ATS-optimierte PDFs erzeugt, die richtige Kontaktperson findet und alles an einem Ort trackt — während du die finale Entscheidung behältst.
 
 **Kann ich career-ops kostenlos oder mit einem günstigeren / lokalen Modell nutzen?**
 Ja. career-ops ist CLI-unabhängig und läuft mit kostenlosen und lokalen Modellen — über kostenlose OpenRouter-Modelle, Ollama oder jeden OpenAI-kompatiblen Endpoint — sodass du nicht an ein kostenpflichtiges Abo gebunden bist. Die vollständige Einrichtung findest du in [docs/RUNNING_ON_A_BUDGET.md](docs/RUNNING_ON_A_BUDGET.md).
@@ -295,15 +248,7 @@ career-ops läuft unter Windows. Falls Skills während der Installation mit eine
 Nein. career-ops ist ein Filter, kein Spray-and-Pray-Auto-Bewerber. Die KI bewertet, priorisiert und entwirft; du prüfst und entscheidest. Sie reicht nie etwas ein, sendet oder klickt nichts — die finale Entscheidung liegt immer bei dir. Genau dieses Human-in-the-Loop-Design ist der ganze Sinn.
 
 **Ist career-ops kostenlos und Open Source?**
-Ja. career-ops ist kostenlos und Open Source, und für dich als Bewerber:in wird es das immer bleiben — es ist die erste Referenzimplementierung des [CareerOps Manifesto](https://career-ops.org/manifesto). Lies es, und wenn es ausdrückt, woran du glaubst, unterschreibe es.
-
-## Über den Autor
-
-Ich bin [Santiago Fernández de Valderrama Aparicio](https://santifer.io/about) (santifer) -- Head of Applied AI, ehemaliger Gründer (ich habe ein Unternehmen aufgebaut und verkauft, das bis heute mit meinem Namen läuft). Ich habe career-ops gebaut, um meine eigene Jobsuche zu steuern. Es hat funktioniert: Damit habe ich meine aktuelle Rolle bekommen.
-
-Mein Portfolio und weitere Open-Source-Projekte → [santifer.io](https://santifer.io)
-
-Wikidata: [Santiago Fernández de Valderrama Aparicio](https://www.wikidata.org/wiki/Q138710224) · [career-ops](https://www.wikidata.org/wiki/Q139007988).
+Ja. career-ops ist kostenlos und Open Source, und für dich als Bewerber:in wird es das immer bleiben.
 
 ## Haftungsausschluss
 
@@ -316,22 +261,6 @@ Wikidata: [Santiago Fernández de Valderrama Aparicio](https://www.wikidata.org/
 
 Siehe [LEGAL_DISCLAIMER.md](LEGAL_DISCLAIMER.md) für Details. Diese Software wird unter der [MIT License](LICENSE) ohne Gewährleistung bereitgestellt.
 
-## Mitwirkende
+## Lizenz
 
-<a href="https://github.com/santifer/career-ops/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=santifer/career-ops" />
-</a>
-
-Mit career-ops eingestellt worden? [Teile deine Geschichte!](https://github.com/santifer/career-ops/issues/new?template=i-got-hired.yml)
-
-## Lizenz & Trademark
-
-Der Code steht unter der [MIT](LICENSE)-Lizenz. Der Name und die Marke "career-ops" unterliegen der [Trademark Policy](TRADEMARK.md): offen für Community-Nutzung, reserviert für kommerzielle Produktnamen und Endorsements.
-
-## Kontakt
-
-[![Website](https://img.shields.io/badge/santifer.io-000?style=for-the-badge&logo=safari&logoColor=white)](https://santifer.io)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/santifer)
-[![X](https://img.shields.io/badge/X-000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/santifer)
-[![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/8pRpHETxa4)
-[![Email](https://img.shields.io/badge/Email-EA4335?style=for-the-badge&logo=gmail&logoColor=white)](mailto:hi@santifer.io)
+Der Code steht unter der [MIT](LICENSE)-Lizenz.

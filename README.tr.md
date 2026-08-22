@@ -7,54 +7,14 @@
 </div>
 
 <p align="center">
-  <a href="https://x.com/santifer"><img src="docs/hero-banner.jpg" alt="career-ops Multi-Agent Job Search System" width="800"></a>
-</p>
-
-<p align="center">
-  <em>Aylarca zor yoldan iş başvurusu yaptım. Bu yüzden keşke olsun dediğim sistemi kendim inşa ettim.</em><br>
-  Şirketler adayları elemek için yapay zekâ kullanıyor. <strong>Ben de adaylara şirket <em>seçmek</em> için yapay zekâ verdim.</strong><br>
-  <em>Artık açık kaynak.</em>
-</p>
-
-<p align="center">
-  <a href="https://trendshift.io/repositories/25195" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/25195" alt="santifer%2Fcareer-ops | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-</p>
-
-<p align="center">
-  <a href="https://www.producthunt.com/products/santifer-io?utm_source=badge-featured&utm_medium=badge" target="_blank" rel="noopener noreferrer"><img src="docs/press/producthunt.svg" alt="career-ops on Claude | Product Hunt" style="width: 206px; height: 54px; vertical-align: middle;" width="206" height="54"/></a>
-</p>
-
-<p align="center"><sub>BASINDA</sub></p>
-
-<p align="center">
-  <a href="https://wired.com.gr/article/to-ai-ergaleio-pou-fernei-epanastasi-ston-tropo-pou-psachnoume-douleia/" rel="noopener noreferrer nofollow"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/press/wired-dark.svg"><img src="docs/press/wired.svg" alt="WIRED" height="32"></picture></a>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="https://www.businessinsider.com/how-i-built-tool-filter-job-listings-landed-head-ai-2026-4" rel="noopener noreferrer nofollow"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/press/business-insider-dark.svg"><img src="docs/press/business-insider.svg" alt="Business Insider" height="32"></picture></a>
+  <em>Yapay zekâ destekli iş arama otomasyonu — ilanları değerlendirin, kişiselleştirilmiş CV'ler üretin ve hattınızı baştan sona izleyin.</em><br>
+  Bu, açık kaynaklı <a href="https://github.com/santifer/career-ops">career-ops</a> projesinin kişisel bir çatalıdır (fork); projeyi ilk oluşturan Santiago Fernández de Valderrama'dır.
 </p>
 
 ---
 
 <p align="center">
   <img src="docs/demo.gif" alt="career-ops Demo" width="800">
-</p>
-
-<p align="center"><strong>740+ ilan değerlendirildi · 100+ kişiselleştirilmiş CV · 1 hayalindeki iş bulundu</strong></p>
-
-<p align="center">
-  <a href="https://warpchart.dev/hq">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://warpchart.dev/api/chart?theme=dark&v=3">
-      <img alt="Live star telemetry of santifer/career-ops" src="https://warpchart.dev/api/chart?theme=light&v=3" loading="lazy">
-    </picture>
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://discord.gg/8pRpHETxa4"><img src="https://img.shields.io/badge/Join_the_community-Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
-</p>
-
-<p align="center">
-  <a href="https://github.com/santifer/career-ops/releases/latest"><img src="https://img.shields.io/npm/v/%40santifer%2Fcareer-ops?style=for-the-badge&labelColor=2b3137&color=2ea44f&label=release" alt="Latest release"></a>
 </p>
 
 <p align="center">
@@ -77,12 +37,11 @@
   <img src="https://img.shields.io/badge/Playwright-2EAD33?style=flat&logo=playwright&logoColor=white" alt="Playwright">
   <img src="https://img.shields.io/badge/Bubble_Tea-FF75B5?style=flat&logo=go&logoColor=white" alt="Bubble Tea">
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT">
-  <a href="TRADEMARK.md"><img src="https://img.shields.io/badge/Trademark-Policy-blue.svg" alt="Trademark Policy"></a>
 </p>
 
 ## Bu Nedir
 
-career-ops ([career-ops.org](https://career-ops.org), diğer adıyla **careerops**), herhangi bir yapay zekâ kodlama CLI'sini eksiksiz bir iş arama komuta merkezine dönüştürür. Başvurularınızı elle bir tabloda takip etmek yerine, şunları yapan yapay zekâ destekli bir hattınız olur:
+career-ops, herhangi bir yapay zekâ kodlama CLI'sini eksiksiz bir iş arama komuta merkezine dönüştürür. Başvurularınızı elle bir tabloda takip etmek yerine, şunları yapan yapay zekâ destekli bir hattınız olur:
 
 - **İlanları değerlendirir** -- yapılandırılmış A-F değerlendirmesiyle (bütüncül 1.0-5.0 puana giden beş puanlama boyutu)
 - **Kişiselleştirilmiş PDF'ler üretir** -- her iş ilanına özel, ATS uyumlu CV'ler
@@ -96,12 +55,6 @@ career-ops ([career-ops.org](https://career-ops.org), diğer adıyla **careerops
 career-ops agentiktir: seçtiğiniz yapay zekâ kodlama CLI'si Playwright ile kariyer sayfalarında gezinir, CV'nizle iş ilanını karşılaştırarak uygunluğu değerlendirir (anahtar kelime eşleştirmesi değil) ve özgeçmişinizi her ilana göre uyarlar.
 
 > **Not: ilk değerlendirmeler mükemmel olmayacak.** Sistem sizi henüz tanımıyor. Ona bağlam verin -- CV'niz, kariyer hikayeniz, kanıt noktalarınız, tercihleriniz, iyi olduğunuz ve kaçınmak istediğiniz şeyler. Ne kadar besleyip geliştirirseniz o kadar iyileşir. Yeni bir işe alım uzmanını işe alıştırmak gibi düşünün: ilk hafta sizi tanıması gerekir, sonra vazgeçilmez hale gelir.
-
-740+ iş ilanını değerlendirmek, 100+ özel CV üretmek ve bir Head of Applied AI (Uygulamalı Yapay Zekâ Direktörü) rolüne ulaşmak için bu sistemi kullanan biri tarafından geliştirildi. [Tam vaka çalışmasını okuyun](https://santifer.io/career-ops-system).
-
-## CareerOps Manifestosu
-
-career-ops, [CareerOps Manifestosu](https://career-ops.org/manifesto?utm_source=readme)'nun ilk referans uygulamasıdır. okuyun. inandıklarınızı yansıtıyorsa imzalayın. imzanız bir commit olur.
 
 ## Özellikler
 
@@ -146,7 +99,7 @@ claude   # veya codex / qwen / opencode / agy / grok — yapay zekâ CLI'nizi bu
 <summary><b>Elle kurmayı mı tercih edersiniz? (git clone)</b></summary>
 
 ```bash
-git clone https://github.com/santifer/career-ops.git
+git clone <repo-url>
 cd career-ops && npm install
 npx playwright install chromium   # yalnızca PDF üretimi için gerekli
 
@@ -416,14 +369,10 @@ career-ops/
 - **Dashboard**: Go + Bubble Tea + Lipgloss (Catppuccin Mocha teması)
 - **Veri**: Markdown tabloları + YAML yapılandırma + TSV toplu iş dosyaları
 
-## Ayrıca Açık Kaynak
-
-- **[cv-santiago](https://github.com/santifer/cv-santiago)** -- Yapay zekâ sohbet botu, LLMOps panosu ve vaka çalışmalarıyla portföy web sitesi (santifer.io). İş aramanızın yanında sergileyecek bir portföye ihtiyacınız varsa, çatallayıp kendinize göre uyarlayın.
-
 ## SSS
 
 **career-ops nedir?**
-career-ops, açık kaynaklı, CLI'den bağımsız bir iş arama komuta merkezidir. Herhangi bir yapay zekâ kodlama CLI'sini, iş ilanlarını CV'nizle karşılaştırarak değerlendiren, ATS uyumlu PDF'ler üreten, doğru kişiyi bulan ve her şeyi tek bir yerde izleyen -- son kararı sizde bırakan -- bir hatta dönüştürür. CareerOps Manifestosu'nun ilk referans uygulamasıdır. Daha fazlası için [career-ops.org](https://career-ops.org).
+career-ops, açık kaynaklı, CLI'den bağımsız bir iş arama komuta merkezidir. Herhangi bir yapay zekâ kodlama CLI'sini, iş ilanlarını CV'nizle karşılaştırarak değerlendiren, ATS uyumlu PDF'ler üreten, doğru kişiyi bulan ve her şeyi tek bir yerde izleyen -- son kararı sizde bırakan -- bir hatta dönüştürür.
 
 **career-ops'u ücretsiz veya daha ucuz/yerel bir modelle çalıştırabilir miyim?**
 Evet. career-ops CLI'den bağımsızdır ve ücretsiz ile yerel modellerde çalışır -- OpenRouter ücretsiz modelleri, Ollama veya herhangi bir OpenAI uyumlu uç nokta üzerinden -- bu yüzden ücretli bir aboneliğe bağlı değilsiniz. Tam kurulum için bkz. [docs/RUNNING_ON_A_BUDGET.md](docs/RUNNING_ON_A_BUDGET.md).
@@ -438,17 +387,7 @@ career-ops Windows'ta çalışır. Kurulum sırasında skill'ler bir sembolik ba
 Hayır. career-ops bir filtredir, gelişigüzel her yere başvuran bir araç değil. Yapay zekâ değerlendirir, sıralar ve taslak hazırlar; siz gözden geçirir ve karar verirsiniz. Hiçbir şeyi göndermez, iletmez veya tıklamaz -- son söz her zaman sizindir. Bu insan-onaylı-döngü tasarımı işin tam da özüdür.
 
 **career-ops ücretsiz ve açık kaynak mı?**
-Evet. career-ops ücretsiz ve açık kaynaktır ve aday için her zaman öyle kalacaktır -- [CareerOps Manifestosu](https://career-ops.org/manifesto)'nun ilk referans uygulamasıdır. Okuyun ve inandıklarınızı yansıtıyorsa imzalayın.
-
-## Yazar Hakkında
-
-Ben [Santiago Fernández de Valderrama Aparicio](https://santifer.io/about) (santifer) -- Head of Applied AI, eski girişimci (hâlâ adımla çalışan bir işi kurup sattım). career-ops'u kendi iş aramamı yönetmek için inşa ettim. İşe yaradı: mevcut rolüme ulaşmak için onu kullandım.
-
-Bu deponun haftada ~4 saatle nasıl sürdürüldüğünü merak ediyorsanız [Agentic maintenance: how career-ops is run by a fleet of AI agents](https://santifer.io/ai-agent-fleet) yazısını okuyun.
-
-Portföyüm ve diğer açık kaynak projelerim → [santifer.io](https://santifer.io)
-
-Wikidata: [Santiago Fernández de Valderrama Aparicio](https://www.wikidata.org/wiki/Q138710224) · [career-ops](https://www.wikidata.org/wiki/Q139007988).
+Evet. career-ops ücretsiz ve açık kaynaktır ve aday için her zaman öyle kalacaktır.
 
 ## Sorumluluk Reddi
 
@@ -461,25 +400,6 @@ Wikidata: [Santiago Fernández de Valderrama Aparicio](https://www.wikidata.org/
 
 Tüm ayrıntılar için bkz. [LEGAL_DISCLAIMER.md](LEGAL_DISCLAIMER.md). Bu yazılım, herhangi bir garanti olmaksızın "olduğu gibi" [MIT Lisansı](LICENSE) altında sağlanmaktadır.
 
-## Katkıda Bulunanlar
+## Lisans
 
-<a href="https://github.com/santifer/career-ops/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=santifer/career-ops" />
-</a>
-
-career-ops kullanarak işe mi girdiniz? [Hikayenizi paylaşın!](https://github.com/santifer/career-ops/issues/new?template=i-got-hired.yml)
-
-## Lisans ve Ticari Marka
-
-Kod [MIT](LICENSE) altında lisanslanmıştır. "career-ops" adı ve
-markası, topluluk kullanımı için serbestçe uygulanan ancak ticari ürün
-adlandırma ve onayı için saklı tutulan [Ticari Marka Politikası](TRADEMARK.md)
-tarafından yönetilir.
-
-## Bize Ulaşın
-
-[![Website](https://img.shields.io/badge/santifer.io-000?style=for-the-badge&logo=safari&logoColor=white)](https://santifer.io)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/santifer)
-[![X](https://img.shields.io/badge/X-000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/santifer)
-[![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/8pRpHETxa4)
-[![Email](https://img.shields.io/badge/Email-EA4335?style=for-the-badge&logo=gmail&logoColor=white)](mailto:hi@santifer.io)
+Kod [MIT](LICENSE) altında lisanslanmıştır.

@@ -7,25 +7,8 @@
 </div>
 
 <p align="center">
-  <a href="https://x.com/santifer"><img src="docs/hero-banner.jpg" alt="career-ops — Multi-agent jobsøgningssystem" width="800"></a>
-</p>
-
-<p align="center">
-  <em>I månedsvis søgte jeg job på den gammeldags måde. Så byggede jeg det system, jeg ønskede, jeg havde haft fra start.</em><br>
-  Virksomheder bruger AI til at filtrere kandidater. <strong>Jeg gav kandidaterne AI, så de kan <em>vælge</em> virksomhederne.</strong><br>
-  <em>Nu er det open source.</em>
-</p>
-
-<p align="center">
-  <a href="https://trendshift.io/repositories/25195" target="_blank"><img src="https://trendshift.io/api/badge/repositories/25195" alt="santifer%2Fcareer-ops | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-</p>
-
-<p align="center"><sub>OMTALT I MEDIERNE</sub></p>
-
-<p align="center">
-  <a href="https://wired.com.gr/article/to-ai-ergaleio-pou-fernei-epanastasi-ston-tropo-pou-psachnoume-douleia/" rel="noopener noreferrer nofollow"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/press/wired-dark.svg"><img src="docs/press/wired.svg" alt="WIRED" height="32"></picture></a>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="https://www.businessinsider.com/how-i-built-tool-filter-job-listings-landed-head-ai-2026-4" rel="noopener noreferrer nofollow"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/press/business-insider-dark.svg"><img src="docs/press/business-insider.svg" alt="Business Insider" height="32"></picture></a>
+  <em>AI-drevet automatisering af jobsøgning — vurdér stillinger, generér skræddersyede CV'er, og hold styr på hele din pipeline ét sted.</em><br>
+  Dette er en personlig fork af open source-projektet <a href="https://github.com/santifer/career-ops">career-ops</a>, oprindeligt skabt af Santiago Fernández de Valderrama.
 </p>
 
 ---
@@ -33,10 +16,6 @@
 <p align="center">
   <img src="docs/demo.gif" alt="career-ops Demo" width="800">
 </p>
-
-<p align="center"><strong>740+ vurderede stillinger · 100+ skræddersyede CV'er · 1 drømmerolle landet</strong></p>
-
-<p align="center"><a href="https://discord.gg/8pRpHETxa4"><img src="https://img.shields.io/badge/Bliv_en_del_af_fællesskabet-Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a></p>
 
 <p align="center">
   <a href="https://claude.com/claude-code"><img src="https://img.shields.io/badge/Built_with-Claude_Code-000?style=for-the-badge&logo=anthropic&logoColor=white" alt="Built with Claude Code"></a>
@@ -56,12 +35,11 @@
   <img src="https://img.shields.io/badge/Playwright-2EAD33?style=flat&logo=playwright&logoColor=white" alt="Playwright">
   <img src="https://img.shields.io/badge/Bubble_Tea-FF75B5?style=flat&logo=go&logoColor=white" alt="Bubble Tea">
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT">
-  <a href="TRADEMARK.md"><img src="https://img.shields.io/badge/Trademark-Policy-blue.svg" alt="Trademark Policy"></a>
 </p>
 
 ## Hvad er det
 
-career-ops ([career-ops.org](https://career-ops.org), også kendt som **careerops**) forvandler et hvilket som helst AI-CLI til en komplet kommandocentral for jobsøgning. I stedet for manuelt at spore ansøgninger i et regneark får du en AI-drevet pipeline, der:
+career-ops forvandler et hvilket som helst AI-CLI til en komplet kommandocentral for jobsøgning. I stedet for manuelt at spore ansøgninger i et regneark får du en AI-drevet pipeline, der:
 
 - **Vurderer stillinger** med et struktureret A–F-system (fem dimensioner, der giver en score på 1,0-5,0)
 - **Genererer skræddersyede PDF'er** — ATS-optimerede CV'er tilpasset hver stilling
@@ -74,8 +52,6 @@ career-ops ([career-ops.org](https://career-ops.org), også kendt som **careerop
 career-ops arbejder agentisk: Claude Code navigerer karrieresider med Playwright, vurderer match ved at ræsonnere over dit CV kontra stillingsopslaget (ikke via søgeordsmatchning) og tilpasser CV'et til hvert opslag.
 
 > **Bemærk: de første vurderinger bliver ikke perfekte.** Systemet kender dig endnu ikke. Giv det kontekst — dit CV, din karrierehistorik, eksempler på resultater, præferencer, styrker, hvad du vil undgå. Jo mere du giver det, jo bedre virker det. Betragt det som onboarding af en ny rekrutter: i den første uge skal den lære, hvem du er — derefter bliver den uvurderlig.
-
-Bygget af en, der brugte det til at vurdere 740+ stillinger, generere 100+ skræddersyede CV'er og lande en rolle som Head of Applied AI. [Læs hele case-studiet](https://santifer.io/career-ops-system).
 
 ## Funktioner
 
@@ -116,7 +92,7 @@ claude   # eller gemini / codex / qwen / opencode — åbn dit AI-CLI her
 <summary><b>Foretrækker du manuel opsætning? (git clone)</b></summary>
 
 ```bash
-git clone https://github.com/santifer/career-ops.git
+git clone <repo-url>
 cd career-ops && npm install
 npx playwright install chromium   # kun nødvendigt til PDF-generering
 claude   # åbn dit AI-CLI — første kørsel guider dig gennem onboarding
@@ -253,26 +229,6 @@ career-ops/
 - **Dashboard**: Go + Bubble Tea + Lipgloss (Catppuccin Mocha-tema)
 - **Data**: Markdown-tabeller + YAML-konfiguration + TSV-filer til batches
 
-## Også open source
-
-- **[cv-santiago](https://github.com/santifer/cv-santiago)** — Porteføljeside (santifer.io) med AI-chatbot, LLMOps-dashboard og case-studier. Har du brug for en portefølje til din jobsøgning, så fork den og tilpas den til dig selv.
-
-## Om forfatteren
-
-Jeg hedder Santiago — Head of Applied AI, tidligere founder (jeg byggede og solgte en virksomhed, der stadig kører med mit navn). Jeg byggede career-ops til at styre min egen jobsøgning. Det virkede: jeg brugte det til at lande min nuværende rolle.
-
-Min portefølje og andre open source-projekter → [santifer.io](https://santifer.io)
-
-## Stjernehistorik
-
-<a href="https://www.star-history.com/?repos=santifer%2Fcareer-ops&type=timeline&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=santifer/career-ops&type=timeline&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=santifer/career-ops&type=timeline&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=santifer/career-ops&type=timeline&legend=top-left" />
- </picture>
-</a>
-
 ## Juridisk ansvarsfraskrivelse
 
 **career-ops er et lokalt open source-værktøj, IKKE en hostingtjeneste.** Ved at bruge denne software anerkender du:
@@ -284,22 +240,6 @@ Min portefølje og andre open source-projekter → [santifer.io](https://santife
 
 Detaljer: [LEGAL_DISCLAIMER.md](LEGAL_DISCLAIMER.md). Softwaren leveres under [MIT-licensen](LICENSE) "som den er", uden nogen form for garanti.
 
-## Bidragydere
+## Licens
 
-<a href="https://github.com/santifer/career-ops/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=santifer/career-ops" alt="Bidragydere" />
-</a>
-
-Fandt du job med career-ops? [Del din historie!](https://github.com/santifer/career-ops/issues/new?template=i-got-hired.yml)
-
-## Licens og varemærke
-
-Koden er licenseret under [MIT](LICENSE). Navnet og brandet "career-ops" er reguleret af [Varemærkepolitikken](TRADEMARK.md) — tilladt til fællesskabsbrug, forbeholdt kommerciel produktnavngivning og endorsement.
-
-## Lad os forbinde
-
-[![Website](https://img.shields.io/badge/santifer.io-000?style=for-the-badge&logo=safari&logoColor=white)](https://santifer.io)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/santifer)
-[![X](https://img.shields.io/badge/X-000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/santifer)
-[![Discord](https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/8pRpHETxa4)
-[![Email](https://img.shields.io/badge/Email-EA4335?style=for-the-badge&logo=gmail&logoColor=white)](mailto:hi@santifer.io)
+Koden er licenseret under [MIT](LICENSE).
