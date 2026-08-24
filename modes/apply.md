@@ -58,6 +58,8 @@ This is a reminder, not a gate — surface it and continue drafting immediately;
    - They skip this application for now; nothing is lost, and the tailored resume (already built and approved before the form was ever touched, per `modes/telegram.md` Step 3b) is unaffected.
 3. This check is a hard gate, not a warning — unlike Step 5b/5c/5d below, which surface information and let the candidate decide how to proceed, a login/CAPTCHA wall means there is nothing real yet to generate content from, so there is no "proceed anyway" option here.
 
+Once reachability is confirmed, the rest of the preflight runs:
+
 1. Read the visible URL, page title, company, role, and any closed/expired signals.
 2. If a URL is available, verify liveness with Playwright:
    - active posting evidence: title/role + job description or form fields + submit/apply path

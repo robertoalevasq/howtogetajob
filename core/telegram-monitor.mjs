@@ -503,20 +503,36 @@ const DAEMON_LONGPOLL_SECONDS = 25;
  * Non-blocking dispatch for BOUND chats (changed 2026-08-15): the loop never
  * awaits a `routing` dispatch — it fires each bound chat's batch of messages
  * and immediately goes back to polling, so a `cycle` run in flight
- * (potentially hours) doesn't stop the daemon from seeing and answering the
- * next message, e.g.
- * `/status` sent while a run is active. Concurrent claude -p invocations
- * are safe to fire because the real guards against duplicate/conflicting
- * work live elsewhere, not in this loop's blocking: cycle-lock.mjs is the
- * single source of truth for cycle concurrency (modes/cycle.md Step 0
- * acquires it and refuses cleanly if already held, regardless of how many
- * `/run` messages triggered concurrent routing calls), and apply/apply-batch
- * never auto-submit without an explicit human confirmation step (AGENTS.md →
- * Ethical Use), so a doubled `/apply` invocation produces redundant form-fill
- * work at worst, never a duplicate submission. The one accepted trade-off:
- * two concurrent routing calls both appending to data/telegram-state.md's
- * Recent Actions log can race and drop one line — cosmetic (it's a log, not
- * tracker state), not worth a locking layer for a single-user tool.
+ * (potentially hours) doesn't stop the daemon from seeing and dispatching
+ * the next message for a DIFFERENT chat while that cycle is still running.
+ * Concurrent claude -p invocations are safe to fire because the real guards
+ * against duplicate/conflicting work live elsewhere, not in this loop's
+ * blocking: cycle-lock.mjs is the single source of truth for cycle
+ * concurrency (modes/cycle.md Step 0 acquires it and refuses cleanly if
+ * already held, regardless of how many `/run` messages triggered concurrent
+ * routing calls), and apply/apply-batch never auto-submit without an
+ * explicit human confirmation step (AGENTS.md → Ethical Use), so a doubled
+ * `/apply` invocation produces redundant form-fill work at worst, never a
+ * duplicate submission.
+ *
+ * This non-blocking property is now scoped to CROSS-chat dispatch only
+ * (changed 2026-08-24 by createRoutingQueue(), constructed once below and
+ * passed as this loop's dispatch function): SAME-chat routing is serialized.
+ * A `/status` sent to a chat while that same chat's own `cycle` is still
+ * running no longer gets an immediate answer — it is queued behind the
+ * in-flight dispatch and fires as a follow-up call once that dispatch
+ * settles. A different chat's messages are unaffected and still dispatch
+ * immediately, so a multi-hour `cycle` in one chat still doesn't stop the
+ * daemon from answering another chat right away. The accepted trade-off is
+ * now this same-chat wait, not a data race: it is silent (no acknowledgment
+ * is sent for the queued message while it waits) and its length is bounded
+ * by however long the in-flight dispatch takes — potentially the same
+ * multi-hour `cycle` window described above. The previously accepted
+ * trade-off — two concurrent routing calls both appending to
+ * data/telegram-state.md's Recent Actions log and racing to drop a line —
+ * no longer exists: it was only ever reachable same-chat (each chat has its
+ * own workspace `cwd`), and createRoutingQueue() closes exactly that race
+ * by construction.
  *
  * (Previously this loop awaited a single flat routing call, single-flighting
  * all commands the same way the scheduled/non-daemon mode below still does —
