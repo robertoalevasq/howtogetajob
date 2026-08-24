@@ -188,9 +188,9 @@ For each field, preserve the application form contract:
 - `required`: `yes`, `no`, or `unknown`
 - `limit`: exact character/word limit if visible; otherwise `unknown`
 - `options`: visible options for select/radio/checkbox fields
-- `needs_candidate_confirmation`: `yes` for legal, demographic, work authorization, visa, relocation, salary, disability, veteran, sponsorship, background-check, or self-identification questions unless the answer is explicitly present in `config/profile.yml` **or already cached as a boilerplate default in `data/application-defaults.md`** (see Step 6b — administrivia categories only; salary and anything role-specific are never cached)
+- `needs_candidate_confirmation`: `yes` for legal, demographic, work authorization, visa, relocation, salary, disability, veteran, sponsorship, background-check, or self-identification questions unless the answer is explicitly present in `config/profile.yml`, already cached as a boilerplate default in `data/application-defaults.md` (see Step 6b — administrivia categories only; salary and anything role-specific are never cached), or already answered earlier in this same conversation (e.g. the same field surfaced twice via an edit-loop or a re-scan — reuse that answer, never ask twice in one run)
 
-Never invent answers for legal, demographic, work-authorization, visa/sponsorship, salary, disability, veteran, background-check, relocation, or self-identification fields. If the answer is not present in `config/profile.yml`, not already cached per Step 6b, or not in visible context, mark it as needing candidate confirmation and provide the safest question to ask the candidate.
+Never invent answers for legal, demographic, work-authorization, visa/sponsorship, salary, disability, veteran, background-check, relocation, or self-identification fields. Every field marked `needs_candidate_confirmation: yes` here goes to Step 6c, one at a time — never batched into a single bulk question, and never answered on the candidate's behalf.
 
 ## Step 6b — Boilerplate defaults cache (`data/application-defaults.md`)
 
@@ -226,10 +226,25 @@ Non-substantive answers reused across applications. Edit or delete any line anyt
 <!-- appended as new recurring boilerplate fields are confirmed -->
 ```
 
+## Step 6c — One-at-a-time question collection
+
+Every field Step 6 marked `needs_candidate_confirmation: yes` and Step 6b couldn't resolve from the cache reaches this step. Ask about them one at a time — never as a batch, never folded into Step 7's summary output. This is the same "stop, ask, resume from exactly this point" pattern this mode already uses for a Step 5/5b/5c/5d/5e preflight question; `modes/telegram.md` routes each one through its existing `stage: question` pending confirmation, with no special handling needed beyond what that mechanism already does.
+
+1. Take the next unresolved field marked `needs_candidate_confirmation: yes` (skip any already resolved by Step 6's cache/profile/session-answered checks — this step only ever sees what's left after those).
+2. **If the field has visible `options` (select/radio/checkbox)**: present them as a numbered pick-list — e.g. "1) Option A  2) Option B  3) Option C — reply with a number, or 'skip'." Never ask this kind of field as open-ended free text when the real options are already known; a pick-list answer is faster for the candidate and guaranteed to be a value the form accepts.
+3. **If the field has no fixed options** (free text, a number, a yes/no with no visible option list): ask it directly, in plain language, the safest phrasing for what's actually being asked — same tone this mode already uses for a Step 5b knock-out warning or a Step 5e freshness question.
+4. Stop and wait for the reply (Telegram: this is a `stage: question` pending confirmation; interactively: a normal conversational pause).
+5. **On a "skip" reply** (or a clear equivalent — "skip this," "not now," "n/a"): mark this field as missed, do not ask again this run, move to the next unresolved field. This is not treated as an ambiguous or rejected reply — it is a deliberate, explicit skip.
+6. **On any other reply**: treat it as the answer. If the field is a boilerplate category (per Step 6b's list), cache it immediately per Step 6b #3 so it's never asked again on a future application. If the reply doesn't clearly answer the question asked (e.g. it reads as a question back, or an unrelated comment), ask one clarifying follow-up for this same field before moving on — never guess, never silently skip an unclear reply.
+7. Repeat from step 1 until every field Step 6 flagged has been resolved (answered or explicitly skipped). Then continue to Step 7.
+
+Never re-ask a field already resolved earlier in this same run, including one resolved by an answer to a *different* field's clarifying follow-up if that answer happens to also cover it (e.g. a candidate volunteering their veteran status while answering a different demographic question) — Step 6's "already answered earlier in this conversation" check applies here too, checked fresh before every question in this loop, not just once at the start.
 
 ## Step 7 — Generate responses
 
-For each question, generate the response following:
+By this point, every field Step 6 flagged as needing candidate confirmation has already been resolved — answered or explicitly skipped — by Step 6c. This step generates everything else (JD- and role-specific content Step 6c never touches: motivation/fit free text, salary within the profile's target range, anything else generated fresh from the report) and then produces ONE consolidated summary of the whole form, combining every source: cache/profile auto-fills, Step 6c's freshly-collected answers, this step's own fresh generation, and Step 6c's missed list. This summary is the review checkpoint — nothing gets filled (Step 7b) until it's approved.
+
+For each JD-/role-specific question, generate the response following:
 
 1. **Report context**: Use proof points from block B, STAR stories from block F
 2. **Previous Section H / Application Answers**: If a draft or final response exists, use it as a base and refine
@@ -248,13 +263,18 @@ Based on: Report #NNN | Score: X.X/5 | Archetype: [type]
 
 ---
 
-### 1. [Exact form question]
-> [Response ready for copy-paste, or "Ask candidate: ..." if the field needs confirmation]
+### Auto-filled (cache / profile)
+- [Field]: [value]
 
-### 2. [Next question]
-> [Response]
+### Collected this run
+- [Field]: [value confirmed via Step 6c]
 
-...
+### Generated
+- [Exact form question]
+  > [Response ready for copy-paste]
+
+### Missed
+- [Field] — skipped in Step 6c; leave blank, finish manually before submitting.
 
 ---
 
@@ -262,6 +282,8 @@ Notes:
 - [Any observations about the role, changes, etc.]
 - [Personalization suggestions the candidate should review]
 ```
+
+Omit any of the four categories entirely (heading and all) if it has no entries this run — an application with nothing missed should not show an empty "Missed" heading.
 
 ### Field Matching Reference
 
