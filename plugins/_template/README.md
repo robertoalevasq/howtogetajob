@@ -1,6 +1,6 @@
 # career-ops-plugin-{{NAME}}
 
-A community plugin for [career-ops](https://github.com/santifer/career-ops).
+A plugin for career-ops.
 
 ## What it does
 
@@ -27,11 +27,6 @@ node core/plugins.mjs enable {{NAME}} --confirm  # grants it
 
 - Secrets go in your `.env` (the names are in `manifest.json` → `requiredEnv`).
 - Non-secret options go in `config/plugins.yml` under `plugins.{{NAME}}`.
-
-## Get it listed as approved
-
-Open a registry PR against career-ops (see
-[docs/PLUGINS.md](https://github.com/santifer/career-ops/blob/main/docs/PLUGINS.md)).
 
 ## License
 

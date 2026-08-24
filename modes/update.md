@@ -9,14 +9,17 @@ Run `node core/update-system.mjs check` and parse the JSON output.
 - If `up-to-date`: Tell the user "career-ops is up to date (v{version})." and stop.
 - If `offline`: Tell the user "Cannot reach GitHub to check for updates. Try again later." and stop.
 - If `dismissed`: Tell the user "Update check was previously dismissed. Clearing the dismissal and re-checking now." Remove `.update-dismissed`, then re-run `node core/update-system.mjs check` and branch on the new status.
+- If `disabled`: Tell the user "Auto-update is disabled for this fork (no upstream repo configured to update from). See `core/AGENTS.md` for how this fork relates to the original project." and stop — do not proceed to Step 2.
 - If `update-available`: Continue to Step 2.
 
 ## Step 2 — Show What Changed
 
+Unreachable on this fork today (`check()` only ever returns `dismissed` or `disabled` — see Step 1's new `disabled` branch above). Kept for a fork that later configures its own upstream remote to update from; if that ever applies, replace the URL below with that remote before running it.
+
 Show the user what will change. Run:
 
 ```bash
-git fetch https://github.com/santifer/career-ops.git main || {
+git fetch <your-configured-upstream-remote> main || {
   echo "Failed to fetch latest changes. Cannot generate an accurate diff preview."
   exit 1
 }
