@@ -1,9 +1,8 @@
-import { ChevronDown, ExternalLink } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 
-// Transparency = our differentiator ("why it's a 4.0 for YOU"). The wording is
-// the CANONICAL public text from career-ops.org/methodology + /docs — rendered
-// verbatim, NOT a web reinterpretation of the rubric (whose weights live in the
-// core, modes/_shared.md). Native <details> → no client JS.
+// Transparency = our differentiator ("why it's a 4.0 for YOU"). The wording
+// mirrors the scoring rubric that lives in the core (modes/_shared.md), not a
+// web reinterpretation of it. Native <details> → no client JS.
 
 const DIMENSIONS: [string, string][] = [
   ["Match", "how well your CV maps to the role's requirements"],
@@ -60,14 +59,6 @@ export function ScoreMethodology() {
             ))}
           </ul>
         </div>
-        <a
-          href="https://career-ops.org/methodology"
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 text-xs text-brand transition-colors hover:underline"
-        >
-          Full methodology <ExternalLink className="size-3" />
-        </a>
       </div>
     </details>
   );
