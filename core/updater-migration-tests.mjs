@@ -172,13 +172,6 @@ const twoPassManifestChecks = [
     pattern: /git\('commit',\s*'-m',[^)]+'--',\s*\.\.\.rollbackPaths\)/,
   },
   {
-    // existsSync on a pre-existing directory (docs/) would call it materialized
-    // even when the target added files under it — the verification must recurse
-    // into directory entries against FETCH_HEAD (#1998 CodeRabbit review).
-    name: 'manifest verification recurses into directory entries via ls-tree (#1998)',
-    pattern: /ls-tree', '-r', '--name-only', 'FETCH_HEAD'[\s\S]{0,400}?treeFiles\.some\(f => !existsSync/,
-  },
-  {
     // `git checkout HEAD -- docs/` restores tracked content but never removes
     // paths HEAD lacks, so files the update introduced under a directory
     // pathspec survived the rollback as staged additions (#2015).

@@ -17,7 +17,7 @@
 
 import { execFileSync, execSync } from 'child_process';
 import { readFileSync, writeFileSync, existsSync, unlinkSync, rmSync, realpathSync } from 'fs';
-import { join, dirname, posix as pathPosix } from 'path';
+import { join, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 
 // Deliberately NOT `import { isMainModule } from './is-main.mjs'` — this file
@@ -228,7 +228,6 @@ export const SYSTEM_PATHS = [
   'README.zh-TW.md',
   'README.tr.md',
   'CHANGELOG.md',
-  '.all-contributorsrc',
   'LEGAL_DISCLAIMER.md',
   'LICENSE',
   '.editorconfig',
@@ -326,16 +325,6 @@ function parseVersionFile(raw) {
 function localVersion() {
   const vPath = join(ROOT, 'VERSION');
   return existsSync(vPath) ? parseVersionFile(readFileSync(vPath, 'utf-8')) : '0.0.0';
-}
-
-function compareVersions(a, b) {
-  const pa = a.split('.').map(Number);
-  const pb = b.split('.').map(Number);
-  for (let i = 0; i < 3; i++) {
-    if ((pa[i] || 0) < (pb[i] || 0)) return -1;
-    if ((pa[i] || 0) > (pb[i] || 0)) return 1;
-  }
-  return 0;
 }
 
 function updateBackupBranchName(version, date = new Date()) {
@@ -446,51 +435,6 @@ function gitQuiet(...args) {
   }
 }
 
-/**
- * Paths the target manifest ships that did not materialize on disk.
- *
- * apply() reports success without checking that the checkout loop actually
- * produced a coherent install, so a client whose local manifest predates the
- * target's silently ends up missing every path added since — and only finds
- * out when the next script crashes with ERR_MODULE_NOT_FOUND (#1998).
- *
- * @param {string[]} targetPaths - SYSTEM_PATHS read from the target updater.
- * @returns {string[]} Entries present in FETCH_HEAD but absent locally.
- */
-function missingFromTargetManifest(targetPaths) {
-  const missing = [];
-  for (const path of targetPaths) {
-    const spec = path.endsWith('/') ? path.slice(0, -1) : path;
-
-    // Directory entries need a RECURSIVE check: a pre-existing directory
-    // (`.gemini/commands/`, `docs/`) can still be missing files the target
-    // added under it, and `existsSync` on the directory would wrongly call it
-    // materialized — masking the very partial update this verification exists
-    // to catch. Compare the target tree's files beneath the entry against disk.
-    if (path.endsWith('/')) {
-      let treeFiles = [];
-      try {
-        treeFiles = gitQuiet('ls-tree', '-r', '--name-only', 'FETCH_HEAD', '--', spec)
-          .split('\n').map(s => s.trim()).filter(Boolean);
-      } catch {
-        continue; // FETCH_HEAD unreadable for this spec — treat as stale, not missing
-      }
-      // Empty tree ⇒ the target ships nothing here (stale manifest entry).
-      if (treeFiles.some(f => !existsSync(join(ROOT, f)))) missing.push(path);
-      continue;
-    }
-
-    if (existsSync(join(ROOT, spec))) continue;
-    // Only count it as missing when the target actually ships it — a manifest
-    // entry the target no longer carries is a stale entry, not a failed update.
-    try {
-      gitQuiet('cat-file', '-e', `FETCH_HEAD:${spec}`);
-      missing.push(path);
-    } catch { /* absent upstream too — nothing to materialize */ }
-  }
-  return missing;
-}
-
 function gitStatusEntries() {
   const status = git('status', '--porcelain');
   if (!status) return [];
@@ -509,23 +453,11 @@ export function extractArrayFromSource(source, name) {
   return Array.from(match[1].matchAll(/['"]([^'"]+)['"]/g), (entry) => entry[1]);
 }
 
-function mergePathLists(...lists) {
-  const merged = [];
-  const seen = new Set();
-  for (const list of lists) {
-    for (const path of list) {
-      if (seen.has(path)) continue;
-      seen.add(path);
-      merged.push(path);
-    }
-  }
-  return merged;
-}
-
 // Files the self-reexec stage must check out so the TARGET update-system.mjs
-// loads without a missing-module crash. Today this is the entry plus its only
-// local import; resolveReexecCheckout derives the real set from the fetched
-// source, so this is only a defensive fallback if parsing ever misses one.
+// loads without a missing-module crash. This is the entry plus its only known
+// local import — a defensive fallback list, kept and covered by a dedicated
+// test (updater-migration-tests.mjs) even though apply()'s self-reexec that
+// once consumed it was gutted by de-brand-personal-fork Task 1.
 const REEXEC_FALLBACK_FILES = ['core/update-system.mjs', 'scaffolder/bin/skill-entrypoints.mjs'];
 
 // Extracts static relative import/export specifiers ('./x.mjs', '../y.mjs')
@@ -539,47 +471,6 @@ export function relativeImportSpecifiers(source) {
   while ((match = fromRe.exec(source))) specs.add(match[1]);
   while ((match = bareRe.exec(source))) specs.add(match[1]);
   return [...specs].filter((spec) => spec.startsWith('.'));
-}
-
-// Resolves the relative-import closure of `entry` within a git ref and returns
-// the repo-relative paths (forward-slash, Windows-safe) the re-exec stage must
-// check out. Only files actually present in the ref are returned; the known
-// fallback files are appended defensively. This generalizes the previously
-// hardcoded checkout list so a future new top-level import can't reintroduce
-// the self-reexec ERR_MODULE_NOT_FOUND crash (issue #1245).
-function resolveReexecCheckout(ref, entry) {
-  const visited = new Set();
-  const present = new Set();
-  const order = [];
-  const stack = [entry];
-  while (stack.length) {
-    const file = stack.pop();
-    if (visited.has(file)) continue;
-    visited.add(file);
-    let source;
-    try {
-      source = git('show', `${ref}:${file}`);
-    } catch {
-      continue; // absent in this ref — leave it to the normal update stage
-    }
-    present.add(file);
-    order.push(file);
-    const dir = pathPosix.dirname(file);
-    for (const spec of relativeImportSpecifiers(source)) {
-      stack.push(pathPosix.join(dir, spec));
-    }
-  }
-  for (const file of REEXEC_FALLBACK_FILES) {
-    if (present.has(file)) continue;
-    try {
-      git('show', `${ref}:${file}`);
-      order.push(file);
-      present.add(file);
-    } catch {
-      // Not in the target tree (older version) — nothing to check out.
-    }
-  }
-  return order;
 }
 
 function repoPath(root, path) {
