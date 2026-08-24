@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  buildRoutingPrompt, buildOnboardingPrompt, dispatchOne, sendCannedReply, fanOutDispatches,
+  buildRoutingPrompt, buildOnboardingPrompt, dispatchOne, sendCannedReply, fanOutDispatches, createRoutingQueue,
 } from '../core/telegram-monitor.mjs';
 
 /** Run `fn` with console.error muted (these paths log deliberately). */
@@ -170,4 +170,121 @@ test('fanOutDispatches logs and continues when an onboarding dispatch rejects', 
     if (d.chatId === 'a') throw new Error('claude exited 1');
   }));
   assert.deepEqual(seen, ['a', 'b']);
+});
+
+test('createRoutingQueue: a second routing dispatch for the SAME chat while the first is in flight gets queued, not fired concurrently', async () => {
+  const calls = [];
+  let releaseFirst;
+  const firstHeld = new Promise(r => { releaseFirst = r; });
+  const fakeDispatch = async (d) => {
+    calls.push({ chatId: d.chatId, messages: d.messages });
+    if (calls.length === 1) await firstHeld;
+  };
+
+  const wrapped = createRoutingQueue();
+  const first = wrapped({ chatId: 'alice', kind: 'routing', messages: ['m1'], cwd: '/repo/workspaces/alice', state: null }, fakeDispatch);
+  // Second dispatch for the SAME chat arrives while the first is still in flight.
+  const second = wrapped({ chatId: 'alice', kind: 'routing', messages: ['m2'], cwd: '/repo/workspaces/alice', state: null }, fakeDispatch);
+
+  // Only one real dispatch call happened so far — the second was queued, not fired.
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].messages, ['m1']);
+
+  releaseFirst();
+  await first;
+  await second; // resolves once the queued follow-up dispatch (fired internally) settles
+
+  // The queued messages arrived as their own follow-up dispatch once the first settled.
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[1].messages, ['m2']);
+});
+
+test('createRoutingQueue: messages queued during the first dispatch are NOT lost — they fire as one follow-up call, not dropped', async () => {
+  const calls = [];
+  let releaseFirst;
+  const firstHeld = new Promise(r => { releaseFirst = r; });
+  const fakeDispatch = async (d) => {
+    calls.push([...d.messages]);
+    if (calls.length === 1) await firstHeld;
+  };
+
+  const wrapped = createRoutingQueue();
+  const first = wrapped({ chatId: 'bob', kind: 'routing', messages: ['m1'], cwd: '/repo/workspaces/bob', state: null }, fakeDispatch);
+  // Three more batches arrive in quick succession while the first is still running.
+  wrapped({ chatId: 'bob', kind: 'routing', messages: ['m2'], cwd: '/repo/workspaces/bob', state: null }, fakeDispatch);
+  wrapped({ chatId: 'bob', kind: 'routing', messages: ['m3'], cwd: '/repo/workspaces/bob', state: null }, fakeDispatch);
+  const fourth = wrapped({ chatId: 'bob', kind: 'routing', messages: ['m4'], cwd: '/repo/workspaces/bob', state: null }, fakeDispatch);
+
+  releaseFirst();
+  await first;
+  await fourth;
+
+  // Exactly 2 real dispatch calls: the first (m1), then ONE follow-up carrying
+  // every message that queued up while the first was running (m2, m3, m4) —
+  // never more than one extra call, never dropped.
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[0], ['m1']);
+  assert.deepEqual(calls[1], ['m2', 'm3', 'm4']);
+});
+
+test('createRoutingQueue: a DIFFERENT chat is never held up by another chat\'s in-flight dispatch', async () => {
+  const events = [];
+  let releaseAlice;
+  const aliceHeld = new Promise(r => { releaseAlice = r; });
+  const fakeDispatch = async (d) => {
+    events.push(`start:${d.chatId}`);
+    if (d.chatId === 'alice') await aliceHeld;
+    events.push(`end:${d.chatId}`);
+  };
+
+  const wrapped = createRoutingQueue();
+  const aliceDispatch = wrapped({ chatId: 'alice', kind: 'routing', messages: [], cwd: '/repo/workspaces/alice', state: null }, fakeDispatch);
+  const bobDispatch = wrapped({ chatId: 'bob', kind: 'routing', messages: [], cwd: '/repo/workspaces/bob', state: null }, fakeDispatch);
+
+  await bobDispatch;
+  // Bob's dispatch fired and completed while Alice's is still held open — proves
+  // the queue is per-chat, not a global serialization point.
+  assert.deepEqual(events, ['start:alice', 'start:bob', 'end:bob']);
+
+  releaseAlice();
+  await aliceDispatch;
+  assert.deepEqual(events, ['start:alice', 'start:bob', 'end:bob', 'end:alice']);
+});
+
+test('createRoutingQueue: onboarding-kind dispatches pass straight through, untouched by the queue', async () => {
+  const calls = [];
+  const fakeDispatch = async (d) => { calls.push(d.chatId); };
+  const wrapped = createRoutingQueue();
+
+  // Two onboarding dispatches for the SAME chatId, back to back — must both
+  // fire immediately (no queueing), matching fanOutDispatches's own existing
+  // sequential-await behavior for onboarding.
+  await wrapped({ chatId: 'newbie', kind: 'onboarding', messages: [], cwd: '/repo', state: {} }, fakeDispatch);
+  await wrapped({ chatId: 'newbie', kind: 'onboarding', messages: [], cwd: '/repo', state: {} }, fakeDispatch);
+
+  assert.deepEqual(calls, ['newbie', 'newbie']);
+});
+
+test('createRoutingQueue: a rejected in-flight dispatch still drains its queued follow-up (queue state is not stuck on error)', async () => {
+  const calls = [];
+  let releaseFirst;
+  const firstHeld = new Promise(r => { releaseFirst = r; });
+  const fakeDispatch = async (d) => {
+    calls.push([...d.messages]);
+    if (calls.length === 1) {
+      await firstHeld;
+      throw new Error('claude exited 1');
+    }
+  };
+
+  const wrapped = createRoutingQueue();
+  const first = wrapped({ chatId: 'carol', kind: 'routing', messages: ['m1'], cwd: '/repo/workspaces/carol', state: null }, fakeDispatch);
+  const second = wrapped({ chatId: 'carol', kind: 'routing', messages: ['m2'], cwd: '/repo/workspaces/carol', state: null }, fakeDispatch);
+
+  releaseFirst();
+  await assert.rejects(first, /claude exited 1/);
+  await second; // the queued follow-up still fires despite the first rejecting
+
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[1], ['m2']);
 });

@@ -444,6 +444,57 @@ export async function fanOutDispatches(dispatches, dispatch = dispatchOne) {
   }
 }
 
+/**
+ * Per-chat routing-dispatch queue. Wraps a real dispatch function (normally
+ * `dispatchOne`) so that a chat already mid-dispatch never gets a second,
+ * concurrent `claude -p` process fired for it — closing the same-chat
+ * concurrency gap `fanOutDispatches()`'s own non-blocking design left open
+ * (see its block comment on `daemonLoop()`). A new message for a chat
+ * already in flight is queued instead of dispatched immediately; once the
+ * in-flight call settles (resolve OR reject), any queued messages fire as
+ * exactly one follow-up dispatch, carrying every message that queued up in
+ * the meantime — never more than one extra call per settle, never dropped.
+ *
+ * Call this ONCE, outside the daemon's poll loop, and pass the returned
+ * function as `fanOutDispatches`'s `dispatch` argument on every iteration —
+ * its state (which chats are in flight, what's queued) must survive across
+ * poll cycles to do anything, which is exactly why this can't live inside
+ * `fanOutDispatches()` itself (a fresh call each iteration would have no
+ * memory of the previous one).
+ *
+ * `onboarding`-kind dispatches pass straight through untouched — they're
+ * already serialized across the whole daemon by `fanOutDispatches()`'s own
+ * sequential-await loop, which has no same-chat race to close.
+ *
+ * @returns {(dispatch: {chatId: string, kind: 'routing'|'onboarding', messages: any[], cwd: string, state: object|null}, realDispatch?: (d: any) => Promise<void>) => Promise<void>}
+ */
+export function createRoutingQueue() {
+  const inFlight = new Set();
+  const queued = new Map(); // chatId -> messages[] accumulated while in flight
+
+  return function wrappedDispatch(dispatch, realDispatch = dispatchOne) {
+    if (dispatch.kind !== 'routing') return realDispatch(dispatch);
+
+    const { chatId } = dispatch;
+    if (inFlight.has(chatId)) {
+      const existing = queued.get(chatId) || [];
+      queued.set(chatId, existing.concat(dispatch.messages));
+      return Promise.resolve();
+    }
+
+    inFlight.add(chatId);
+    const run = d => realDispatch(d).finally(() => {
+      const pending = queued.get(chatId);
+      if (pending && pending.length > 0) {
+        queued.delete(chatId);
+        return run({ ...d, messages: pending });
+      }
+      inFlight.delete(chatId);
+    });
+    return run(dispatch);
+  };
+}
+
 const DAEMON_LONGPOLL_SECONDS = 25;
 
 /**
@@ -509,6 +560,11 @@ async function daemonLoop() {
 
   console.log(`[${new Date().toISOString()}] [telegram-monitor daemon] Started — long-polling every ${DAEMON_LONGPOLL_SECONDS}s.`);
 
+  // Constructed once, outside the loop, so its per-chat in-flight/queued
+  // state survives across poll iterations — see createRoutingQueue()'s own
+  // doc comment for why this can't be recreated each iteration.
+  const routeDispatch = createRoutingQueue();
+
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
@@ -519,7 +575,9 @@ async function daemonLoop() {
         const dispatches = await routeMessages(messages, { repoRoot: REPO_ROOT, sendReply: sendCannedReply });
         // Routing fired non-blocking, onboarding awaited one at a time —
         // see fanOutDispatches() and this function's block comment above.
-        await fanOutDispatches(dispatches);
+        // routeDispatch additionally serializes same-chat routing dispatches
+        // across poll iterations — see createRoutingQueue().
+        await fanOutDispatches(dispatches, routeDispatch);
       }
       // No sleep between iterations: the long-poll itself already paced
       // this call out over up to DAEMON_LONGPOLL_SECONDS.
