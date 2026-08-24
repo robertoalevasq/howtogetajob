@@ -1,0 +1,47 @@
+# Apply Mode — One-at-a-Time Question Collection and Cache-First Guardrails
+
+**Status:** Approved, pending implementation plan
+**Date:** 2026-08-24
+**Author:** Roberto Alevás Vásquez (via Claude)
+
+## Context
+
+`modes/apply.md`'s Step 6b already caches boilerplate/administrivia answers (`data/application-defaults.md`) so they're reused across applications instead of re-asked every time. But the surrounding flow (Step 6 Analyze → Step 7 Generate) still presents everything — auto-filled, generated, and genuinely-new-needs-input fields — as one bulk block (Step 7's `PRESENT` output), with unresolved fields marked inline as `"Ask candidate: ..."` rather than actually stopping to ask. The candidate has to parse a wall of text and answer several things at once in one reply, which is awkward in a Telegram-mediated conversation and easy to answer incompletely.
+
+The user wants this restructured: known fields (cache, profile, JD-derived) stay auto-filled and reviewable in bulk as today. Genuinely new fields — the ones that actually need the candidate's input — get asked **one at a time**, prioritizing a pick-list when the field has real options over open-ended free text. Once every question has been asked-and-answered-or-explicitly-skipped, one consolidated summary (answered / missed) becomes the review checkpoint before the form is actually filled. And the whole flow should consistently check what's already known before ever asking, to avoid wasting tokens re-deriving something already resolved.
+
+**A key finding from exploring the existing code before designing this:** `modes/telegram.md` already has exactly the mechanism this needs. Its `stage: question` pending-confirmation type is documented as firing at "**Any point where `apply` mode would stop and ask the candidate something**... send the question text to Telegram, store it, and end this poll cycle. Resume from the same point once a reply arrives." One-at-a-time collection doesn't need a new pending-confirmation type — each individual question in the loop is just another instance of this existing pattern. This keeps the change mostly contained to `modes/apply.md`'s own internal Step 6/6b/7 flow, with only a small clarifying note needed in `modes/telegram.md`.
+
+## Goals
+
+1. **Cache-first ordering, applied to every question, not just boilerplate categories.** Before ever asking about a field: check `data/application-defaults.md`'s cache (Step 6b, existing) → check `config/profile.yml` directly (existing Field Matching Reference table) → check whether this exact question was already answered earlier in the *same* conversation/session (new — session-local memoization, distinct from the persistent cache) → only then ask.
+2. **One-at-a-time collection for genuinely new questions.** Replace the current "dump everything as one PRESENT block, mark unresolved fields as `Ask candidate: ...`" behavior with an actual stop-ask-resume loop: each unresolved question is presented on its own, the flow waits for an answer, then moves to the next unresolved question. In Telegram, each stop is a `stage: question` round-trip (existing mechanism, reused verbatim). In an interactive session, this is just normal one-question-at-a-time conversation.
+3. **Pick-list presentation when the field has real options.** If a question is backed by a select/dropdown/radio/checkbox with visible options, present those options as a numbered/lettered pick-list instead of open-ended free text — faster to answer, and guarantees the answer is a value the form actually accepts.
+4. **Explicit skip handling.** A "skip" (or clear equivalent) reply during one-at-a-time collection marks that field as missed and moves on — it is not treated as an ambiguous/rejected reply the way an unclear reply to a resume/field/submit-approval gate would be.
+5. **A consolidated end-of-loop summary as the review checkpoint.** Once every question has been asked-and-resolved-or-skipped, build one summary — answered fields (grouped by source: cached, profile, JD-generated, freshly collected) and missed fields — and use it as the existing `field-approval` message's content. The existing "reply yes to continue" gate and the existing Step 7b mechanical fill are otherwise unchanged; this only changes *what's in the message* and *when it's built* (after the one-at-a-time loop finishes, not before it starts).
+
+## Non-goals
+
+- **No new `data/telegram-state.md` pending-confirmation stage type.** Every one-at-a-time question reuses the existing `stage: question` pattern verbatim.
+- **No change to the three-gate approval model** (resume-approval → field-approval → submit-approval). This restructures what happens *before* field-approval fires (how the candidate gets asked about individual fields), not the gates themselves or their ordering.
+- **No new cacheable categories added to Step 6b's Field Matching Reference table.** The categories that can be cached don't change — only the interaction pattern for asking about (and confirming into the cache) an uncached one.
+- **No rewrite of Step 7b's mechanical Playwright-fill logic.** Untouched — it still fills the approved field→value mapping field-by-field exactly as it does today.
+- **Not applied to Step 5's preflight gates** (blacklist, cross-channel, repeat-application, reachability, freshness). Those are individual stop-and-ask checkpoints already, not a *set* of questions to loop over — the one-at-a-time restructuring is specific to Step 6/6b/7's form-question collection.
+- **No change to `apply-batch` mode's own batching/queueing** (which report gets processed next) — only to how a single report's own field questions get collected once that report is being processed.
+
+## Architecture
+
+`modes/apply.md`'s Step 6 (Analyze) and Step 6b (Boilerplate cache) stay conceptually the same but get restructured into an explicit ordered pass over every visible question:
+
+1. **Classify and resolve what's already known.** For each question: cache hit (Step 6b) → use it. Not cached but directly derivable from `config/profile.yml` (name/email/phone/location/etc., per the existing Field Matching Reference table) → use it. Not cached, not in profile, but already answered earlier in *this* conversation (e.g., the same field surfaced twice because of an edit-loop or a re-scan) → reuse that answer. Anything JD- or role-specific that Step 7 would generate fresh (motivation, fit, salary) → leave for Step 7's existing generation logic, unchanged.
+2. **Collect the rest, one at a time.** Whatever's left after step 1 needs the candidate's input. Instead of batching these into Step 7's `PRESENT` output as `Ask candidate: ...` placeholders, stop and ask about exactly one, in this shape: the question's label/context, and — if it's a select/dropdown/radio/checkbox with visible options — those options as a numbered pick-list. Wait for the reply. A boilerplate-category answer gets cached immediately (Step 6b #3, existing). A "skip" reply marks the field missed and moves to the next unresolved question. Continue until nothing is left unresolved (answered or skipped).
+3. **Summarize, then gate.** Once the loop above finishes, build one summary: every field with a value (labeled by source — cached / profile / JD-generated / freshly collected this run) and every missed field. This summary *is* the content of the existing field-approval checkpoint (in Telegram: the `stage: field-approval` message; interactively: Step 7's `PRESENT` output) — same "reply yes to continue" gate as today, just built from the loop's results instead of a single bulk pass.
+4. **Fill, unchanged.** Once field-approval is granted, Step 7b's existing mechanical fill runs exactly as it does today — a missed field is simply left blank in the form (matching the existing `skip {field}` convention already documented for submit-approval edits), noted for the candidate to finish manually.
+
+In Telegram specifically: each stop in step 2 above is exactly one `stage: question` pending confirmation, using the mechanism `modes/telegram.md` already documents — no schema change, no new stage type. The loop's own position (which questions are resolved, which remain) lives in `apply.md`'s own resumed-step logic, the same way any other paused-and-resumed step in this mode already works; `modes/telegram.md` needs only a short clarifying note that a sequence of `stage: question` round-trips is exactly how this loop looks from the Telegram side, so a reader of that file understands why several `stage: question` confirmations might fire in a row for one application.
+
+## Testing
+
+- `modes/apply.md` and `modes/telegram.md` are agent-instruction files, not executable code — verified via careful reading and a manual walkthrough (does the restructured Step 6/6b/7 text actually describe a coherent, resumable, one-at-a-time loop; does the Telegram clarifying note accurately describe how it maps onto the existing `stage: question` mechanism), the same discipline used for the prior plan's `modes/apply.md` edits this session.
+- Confirm `node core/test-all.mjs` shows no new failures after the edits (checking first whether any existing test asserts specific content/structure in either file).
+- Re-check the 2026-08-21 incident transcript one more time: would the new one-at-a-time flow have changed anything about how the Workday login-gate was discovered or communicated? (It shouldn't — that's Step 5's Reachability check, already fixed separately and unaffected by this change, which only restructures Step 6/6b/7.)
