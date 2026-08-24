@@ -78,7 +78,7 @@ No. Everything is files in your checkout, and there is no cloud component. Peopl
 
 ## How do I get an issue assigned to me?
 
-Comment on it and we'll assign it (this is in CONTRIBUTING.md). A PR with no prior issue is welcome for bug fixes, zero-auth scanner providers, docs and translations. Issue-first applies only to new features, new modes and architecture changes.
+Comment on it and we'll assign it. A PR with no prior issue is welcome for bug fixes, zero-auth scanner providers, docs and translations. Issue-first applies only to new features, new modes and architecture changes.
 
 ## Can I use career-ops without a terminal?
 

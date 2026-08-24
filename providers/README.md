@@ -99,4 +99,4 @@ pattern). A shared regression test enforces this across providers:
 
 Core providers must be zero-auth against public endpoints; auth-gated or
 login-required sources belong in the plugin layer instead (see
-[ARCHITECTURE.md](../ARCHITECTURE.md) and `CONTRIBUTING.md`).
+[ARCHITECTURE.md](../ARCHITECTURE.md)).

@@ -31,7 +31,7 @@ career-ops interacts with career portals and job boards (Greenhouse, Lever, Ashb
 - Do not use this tool to scrape platforms that prohibit automated access.
 - Do not use this tool to spam employers, overwhelm ATS systems, or submit mass applications.
 - Any consequences from ToS violations — including IP bans, account restrictions, or legal action from platforms — are solely the responsibility of the user.
-- The maintainers actively reject contributions that facilitate ToS violations (see CONTRIBUTING.md).
+- The maintainers actively reject contributions that facilitate ToS violations.
 
 ## 5. Acceptable Use
 
@@ -74,10 +74,6 @@ license that governs the source code. The MIT license grants broad
 rights to use, modify, and redistribute the code; it does not grant
 rights to use the project name in commercial product naming,
 endorsement claims, or affiliation messaging.
-
-See [TRADEMARK.md](TRADEMARK.md) for permitted uses, restricted uses,
-and how to request written permission for commercial naming or
-endorsement.
 
 ## 11. Changes
 
