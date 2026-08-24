@@ -17,6 +17,9 @@ Usage:
 
 After setup, open your AI coding tool inside the folder and paste a job offer.
 Docs: https://github.com/santifer/career-ops`;
+// ^ Intentional, same reasoning as the disabled-install message below: this
+// installer has nothing of its own to point at, so --help still tells the
+// user where the original project lives rather than going silent on it.
 
 function die(msg) {
   console.error(`\n✗ ${msg}\n`);
