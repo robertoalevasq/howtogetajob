@@ -88,6 +88,16 @@ Only reachable from the Reachability check above, and only when a create-account
     - **No verification required** (the account is immediately usable — some tenants allow this): proceed directly to Step 6, exactly as if the Reachability check had found the form reachable from the start.
     - **Verification required** (the typical case — a "check your email to verify your account" message appears): continue to "Step 5-alt — Resuming after email verification" below.
 
+### Step 5-alt — Resuming after email verification
+
+1. Tell the candidate: "Check your email for {ATS name}'s verification link, click it, then reply here when done." Stop and wait for the reply — Telegram: `stage: question` pending confirmation, `data: "awaiting verification"`; interactively: a normal conversational pause. This pause can span a real gap (minutes to hours) while the candidate checks their inbox — the same kind of gap Step 6c's collection loop already has to survive across a Telegram poll-cycle boundary.
+2. On a reply that reads as "done" (or a clear equivalent — "verified," "clicked it," "ready"): ask the candidate to paste the password back from the earlier message (the bot never stored it — see Step 5-alt item 8 above). Update the pending confirmation to `data: "awaiting password paste-back"` if this needs its own turn boundary (Telegram); interactively, this is just the next line of the same conversation.
+3. On receiving the pasted password: sign in to the ATS with the confirmed email and this password via Playwright.
+   - **Sign-in succeeds** → proceed to Step 6, exactly as if the Reachability check had found the form reachable from the start.
+   - **Sign-in fails** (wrong/mistyped password) → ask the candidate to re-paste it; no retry cap here, this is ordinary back-and-forth with the candidate, not a self-correction loop (same convention `modes/telegram-onboarding.md` Step 4b already uses for its own correction handling).
+4. On a reply that doesn't clearly read as "done" or a password (e.g. "still waiting," "having trouble," a question) — ask one clarifying follow-up rather than guessing which state the candidate is in, and stay on the same `data` marker until it's resolved.
+5. If the candidate abandons this pause (never replies) — no special timeout handling; this is the same indefinite wait every other `stage: question` pause in this mode already has. The tailored resume was already built and approved before any of this started (Step 5-alt item 1 onward), so nothing is lost by an abandoned pause.
+
 Once reachability is confirmed, the rest of the preflight runs:
 
 1. Read the visible URL, page title, company, role, and any closed/expired signals.

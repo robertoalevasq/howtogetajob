@@ -31,7 +31,7 @@ Run once, before the first poll:
 [msg_id: X] stage: resume-approval|field-approval|submit-approval|batch-approval|question|edit-intent — <short description> — waiting since <date>
   report: NNN
   job_url: https://...
-  data: <stage-specific JSON — swapped-bullet list + candidate JSON path for resume-approval, field_mapping for field-approval, filled-form summary for submit-approval, question text for question (a Step 6c one-at-a-time field question additionally carries the loop's resolved/missed field list so far, so a resume knows what's already settled without re-deriving it), eligible/excluded lists for batch-approval, empty for edit-intent>
+  data: <stage-specific JSON — swapped-bullet list + candidate JSON path for resume-approval, field_mapping for field-approval, filled-form summary for submit-approval, question text for question (a Step 6c one-at-a-time field question additionally carries the loop's resolved/missed field list so far, so a resume knows what's already settled without re-deriving it; a Step 5-alt account-creation question instead carries a short marker — "awaiting account-creation consent", "awaiting verification", or "awaiting password paste-back" — so a resume lands on the right sub-step of that flow), eligible/excluded lists for batch-approval, empty for edit-intent>
   edit_count: <optional, omitted/0 by default — how many edit-loop rounds this item has been through, for audit only>
 -->
 (none)
