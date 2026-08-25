@@ -78,6 +78,16 @@ Only reachable from the Reachability check above, and only when a create-account
 5. **"skip"** (or a clear equivalent) → fall back to path 3 (skip this application).
 6. Any other reply that isn't a clear match to one of the three → ask one clarifying follow-up ("Sorry, did you want me to create the account, would you rather sign in yourself, or skip this one?") rather than guessing which path was meant.
 
+7. **Generate the password.** 16 characters, mixed upper/lower/digit/symbol — a default that clears most ATS password-complexity policies without the candidate needing to specify anything.
+8. **Send the password to the candidate exactly once**, folded into the confirmation of the consent-gate reply (e.g. "Got it — creating your account now. Your generated password is: `{password}` — save this, I won't show it again.") or, if signup takes a moment, immediately after step 9 succeeds. Either way, exactly once, in this turn.
+9. **Drive the real signup form via Playwright** with the confirmed email and generated password — the same subagent-delegated mechanical-fill approach Step 7b already uses for the main application form (pin `model` to the resolved `spend_tier`), reusing whatever ATS-specific quirk handling from `## Known ATS Quirks` below applies to the signup form's own fields (e.g. the Workday React-field quirk applies here too, since Workday's signup form is the same React stack as its application form).
+10. **Password-policy rejection.** If the signup form shows a visible validation error naming its password policy (e.g. "must include a special character," "minimum 10 characters"), regenerate a new 16-character password honoring the stated policy and retry step 9 once. A second rejection falls back to the Reachability check's existing hard-stop (tell the candidate account creation isn't working automatically, offer "sign in yourself" / "skip" — do not attempt a third generation).
+11. **Email-already-registered.** If the signup form reports the email is already in use, tell the candidate plainly: "Looks like an account may already exist for {candidate.email} at {ATS name} — I don't have that account's password, so I can't sign in either." Then fall back to the same hard-stop as step 10 (sign in yourself / skip).
+12. **CAPTCHA on the signup form itself.** If a CAPTCHA blocks the signup form (distinct from the login wall this whole flow exists to get past), this feature cannot proceed — fall back to the same hard-stop as step 10. This feature only ever gets past a login *wall*, never a CAPTCHA.
+13. **Post-signup branch**, once step 9 succeeds without a policy rejection or CAPTCHA block:
+    - **No verification required** (the account is immediately usable — some tenants allow this): proceed directly to Step 6, exactly as if the Reachability check had found the form reachable from the start.
+    - **Verification required** (the typical case — a "check your email to verify your account" message appears): continue to "Step 5-alt — Resuming after email verification" below.
+
 Once reachability is confirmed, the rest of the preflight runs:
 
 1. Read the visible URL, page title, company, role, and any closed/expired signals.
