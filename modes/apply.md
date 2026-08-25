@@ -54,10 +54,29 @@ This is a reminder, not a gate — surface it and continue drafting immediately;
 **Reachability check (form gated behind login/CAPTCHA):** before generating any field content (Step 6 onward), confirm the real application form is actually visible — not hidden behind a "sign in," "create an account," CAPTCHA, or equivalent wall that blocks reading the actual fields. This check runs as part of Step 1 (DETECT)'s own page read, and its result gates everything from here forward:
 
 1. If the page/form IS reachable (no gate detected, or the candidate has already signed in and shared what they see), proceed with the rest of this preflight and Steps 6-7 as normal.
-2. If the page/form is NOT reachable — an authentication wall, CAPTCHA, or similar blocks the real fields — **stop immediately, in this same turn, before Step 6 runs.** Do not construct a field-approval preview from the JD text plus generic ATS-category guesses; a preview built from guesses and presented as something to approve is misleading even when labeled speculative, since the candidate has no way to tell which parts are real without the actual form in front of them. Instead, tell the candidate plainly what's blocking access and offer exactly two paths forward:
-   - They sign in (or create an account) themselves, in their own browser, then share the real questions — screenshot or paste — the same way Step 1's "Without Playwright" branch already works.
-   - They skip this application for now; nothing is lost, and the tailored resume (already built and approved before the form was ever touched, per `modes/telegram.md` Step 3b) is unaffected.
+2. If the page/form is NOT reachable — an authentication wall, CAPTCHA, or similar blocks the real fields — **stop immediately, in this same turn, before Step 6 runs.** Do not construct a field-approval preview from the JD text plus generic ATS-category guesses; a preview built from guesses and presented as something to approve is misleading even when labeled speculative, since the candidate has no way to tell which parts are real without the actual form in front of them. Instead, tell the candidate plainly what's blocking access and check whether the same page shows a "create account" / "sign up" affordance alongside sign-in (Playwright can see this in the same page read that found the gate):
+   - **If a create-account affordance IS visible**, offer three paths — see "Step 5-alt — Offer account creation" below for the third:
+     1. Let the bot create an account for them.
+     2. They sign in (or create an account) themselves, in their own browser, then share the real questions — screenshot or paste — the same way Step 1's "Without Playwright" branch already works.
+     3. They skip this application for now; nothing is lost, and the tailored resume (already built and approved before the form was ever touched, per `modes/telegram.md` Step 3b) is unaffected.
+   - **If no create-account affordance is visible** (a pure sign-in-only wall — e.g. an existing-employee portal), offer only paths 2 and 3 above, exactly as before this feature existed.
 3. This check is a hard gate, not a warning — unlike Step 5b/5c/5d below, which surface information and let the candidate decide how to proceed, a login/CAPTCHA wall means there is nothing real yet to generate content from, so there is no "proceed anyway" option here.
+
+### Step 5-alt — Offer account creation
+
+Only reachable from the Reachability check above, and only when a create-account affordance was visible on the gated page. On the candidate choosing "let the bot create an account for me":
+
+1. Read `config/profile.yml` → `candidate.email`. Send the consent-gate message:
+
+   > "This role's application is gated behind a {ATS name} account. I can create one for you: I'd sign up using **{candidate.email}** and a randomly-generated password, which I'll send you once — this means agreeing to {ATS name}'s Terms of Service on your behalf. I won't store the password anywhere after sending it, so save it somewhere. Reply 'yes, create it' to continue, 'sign in myself' to do it yourself instead, or 'skip'."
+
+   `{ATS name}` is the platform detected during Step 1/Step 5 preflight (e.g. "Workday"). `{candidate.email}` is shown, never silently assumed — if the candidate wants a different email for this signup, treat their reply as a correction and re-send the consent message with the corrected address before proceeding.
+
+2. Stop and wait for the reply (Telegram: `stage: question` pending confirmation, `data: "awaiting account-creation consent"`; interactively: a normal conversational pause).
+3. **"yes, create it"** (this exact phrase — a bare "yes" here does not count, since it must never collide with a different gate's generic "yes" reply) → continue to Task 2's signup flow.
+4. **"sign in myself"** (or a clear equivalent) → fall back to path 2 of the Reachability check's item 2 above (candidate signs in themselves, shares the real questions).
+5. **"skip"** (or a clear equivalent) → fall back to path 3 (skip this application).
+6. Any other reply that isn't a clear match to one of the three → ask one clarifying follow-up ("Sorry, did you want me to create the account, would you rather sign in yourself, or skip this one?") rather than guessing which path was meant.
 
 Once reachability is confirmed, the rest of the preflight runs:
 
