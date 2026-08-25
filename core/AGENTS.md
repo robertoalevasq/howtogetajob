@@ -179,6 +179,15 @@ If `portals.yml` is missing:
 
 Copy `templates/portals.example.yml` → `portals.yml`; if they gave target roles in Step 2, update `title_filter.positive`.
 
+**The example template's `tracked_companies` and `search_queries` are scaffolded around one demo archetype (AI/Forward-Deployed/DevRel-heavy, US+EU+global breadth) — most target roles won't match most of it.** `title_filter` alone doesn't fix this: a mismatched `tracked_companies`/`search_queries` entry still pays its real scan cost (a WebSearch call, or a Playwright/websearch company fetch) every run even when it can never pass the filter, which is exactly what makes a scan slow. After setting `title_filter.positive`, also prune the scan universe to match:
+
+- For each `tracked_companies` entry: if its `scan_method: websearch` carries a hardcoded `scan_query` whose keywords don't overlap the user's `target_roles` (e.g. a query locked to `"AI Engineer" OR "Forward Deployed"` when the user targets Data Analyst roles), set `enabled: false` — that query structurally can never surface a matching title, so keeping it on only burns a WebSearch call every run for zero possible yield.
+- If the user's `location.country`/`location_flexibility` (Step 2) names a specific country and a bounded relocation list (not "anywhere"/"global remote"), set `enabled: false` on `tracked_companies` entries clearly outside that geography (a company's `notes:` field usually states its HQ/region) and uncomment + configure `location_filter` (`always_allow`/`allow`/`block`) to match their real policy.
+- In `search_queries`, disable any entry whose `query:` keywords don't overlap `target_roles` — same reasoning as above, one real WebSearch call per enabled entry regardless of hit rate.
+- Never delete entries — `enabled: false` keeps them available to re-enable later if the user's targeting changes. Don't hand-pick a curated "better" company list to add in their place unless the user asks; that requires verifying real ATS URLs (`discover` mode exists for that), which is separate work from pruning the scaffold.
+
+This keeps first-scan cost proportional to what the user is actually targeting instead of the demo default. Skip this pruning pass only if the user's target roles genuinely are AI/ML/DevRel-adjacent and global-remote — in that case the scaffold is already a reasonable fit.
+
 #### Step 4: Tracker
 If `data/applications.md` doesn't exist, create it:
 ```markdown
