@@ -26,11 +26,18 @@ import {
   looksLikeScoreCell, isSeparatorRow, isHeaderRow, resolveColumns,
   normalizeTextKey, normalizeVia,
 } from './tracker-parse.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
-// This script now lives in core/, one directory below the repo root;
-// CAREER_OPS is the actual repo root that data/, batch/, reports/, and
-// templates/ live under (see #workspace-multitenancy Task 1).
-const CAREER_OPS = dirname(dirname(fileURLToPath(import.meta.url)));
+// This script now lives in core/, one directory below the repo root.
+// SYSTEM_ROOT is where templates/ (System Layer) lives — always this
+// script's own location, even when invoked with a workspace as cwd.
+// CAREER_OPS is the USER-LAYER root that data/, batch/, and reports/ live
+// under — workspace-aware via workspaceRoot() (see #workspace-multitenancy
+// Task 1; found live 2026-08-26 this file bypassed workspaceRoot()
+// entirely, so a run from inside workspaces/{slug} still wrote/read
+// data/applications.md at the repo root instead of the workspace's own).
+const SYSTEM_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const CAREER_OPS = workspaceRoot();
 // Support both layouts: data/applications.md (boilerplate) and applications.md (original).
 // CAREER_OPS_TRACKER overrides the path (used by tests and non-standard layouts).
 const APPS_FILE = process.env.CAREER_OPS_TRACKER
@@ -41,9 +48,12 @@ const APPS_FILE = process.env.CAREER_OPS_TRACKER
 const ADDITIONS_DIR = join(CAREER_OPS, 'data/tracker-additions'); // relocated from batch/ — see Task 9
 // CAREER_OPS_REPORTS overrides the reports dir (used by tests, mirrors CAREER_OPS_TRACKER).
 const REPORTS_DIR = process.env.CAREER_OPS_REPORTS || join(CAREER_OPS, 'reports');
-const STATES_FILE = existsSync(join(CAREER_OPS, 'templates/states.yml'))
-  ? join(CAREER_OPS, 'templates/states.yml')
-  : join(CAREER_OPS, 'states.yml');
+// templates/ is System Layer — a symlink inside every workspace pointing
+// back to the real repo root, so resolving it off SYSTEM_ROOT works
+// identically whether cwd is the repo root or a workspace.
+const STATES_FILE = existsSync(join(SYSTEM_ROOT, 'templates/states.yml'))
+  ? join(SYSTEM_ROOT, 'templates/states.yml')
+  : join(SYSTEM_ROOT, 'states.yml');
 
 // Ensure required directories exist (fresh setup)
 mkdirSync(join(CAREER_OPS, 'data'), { recursive: true });

@@ -14,13 +14,15 @@
  */
 
 import { readFileSync, existsSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 import { extractTrackerReportNumbers, resolveColumns, parseTrackerRow } from './tracker-parse.mjs';
 import { rebuildRow, resolveTrackerPath, resolvePdfIndexPath, openTrackerTransaction } from './tracker-utils.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
-const CAREER_OPS = dirname(fileURLToPath(import.meta.url));
-const APPS_FILE = resolveTrackerPath(dirname(CAREER_OPS));
+// Found live 2026-08-26: resolving the tracker root off this script's own
+// import.meta.url (core/, one level below the real repo root) bypassed
+// workspace context entirely, so a run from inside workspaces/{slug} still
+// targeted the repo root's data/applications.md instead of the workspace's.
+const APPS_FILE = resolveTrackerPath(workspaceRoot());
 // Derived from the TRACKER, not from this script's location, so a redirected
 // CAREER_OPS_TRACKER moves the whole workspace together (#2471).
 const PDF_MANIFEST = resolvePdfIndexPath(APPS_FILE);
