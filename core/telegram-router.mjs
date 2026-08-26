@@ -180,7 +180,17 @@ export async function routeMessages(messages, opts = {}) {
           currentStep: 'name', startedAt: now, lastMessageAt: now,
         };
         writeOnboardingState(chatId, newState, opts);
-        dispatches.push({ chatId, cwd: repoRoot, kind: 'onboarding', messages: [m], state: newState });
+        // messages: [] — NOT [m]. The message that redeemed the code is the
+        // trigger, not a reply to a question that hasn't been asked yet.
+        // Passing it through here (found live 2026-08-25) let the spawned
+        // onboarding process see "currentStep: name, no answers.name yet"
+        // (Step 1's condition) alongside a "new message" in the same turn
+        // and treat the access-code text itself as the candidate's name —
+        // corrupting answers.name, deriving a garbage slug from it, and
+        // skipping the welcome prompt entirely. Step 1 only needs the
+        // state to decide to send the welcome; it has nothing to reply to
+        // on this first dispatch.
+        dispatches.push({ chatId, cwd: repoRoot, kind: 'onboarding', messages: [], state: newState });
       } else {
         recordWrongAttempt(chatId, opts);
         if (opts.sendReply) {
