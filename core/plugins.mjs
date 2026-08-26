@@ -261,14 +261,46 @@ async function cmdRun(args) {
     if (filePaths.length) payload.filePaths = filePaths;
     if (editMessageId) payload.editMessageId = editMessageId;
     if (chatIdOverride) payload.chatId = chatIdOverride;
+    // `only: id` is unconditional -- `run <id> notify` names one specific
+    // plugin, and every mode file's own convention (`run telegram notify
+    // "<HTML-formatted text>"`, `run discord notify "<...>"`) assumes that
+    // exact scoping. Found live 2026-08-25: without it, `run telegram
+    // notify` silently broadcast to every OTHER enabled notify plugin too
+    // (e.g. discord), which received the same Telegram-HTML-tagged text
+    // verbatim and rendered the literal `<b>...</b>` tags as garbage --
+    // each platform's own formatting convention is exactly what `only`
+    // exists to keep separate. `forceEnabled` stays conditional on
+    // `chatIdOverride`: that flag is specifically about bypassing the
+    // enabled-gate for one explicitly-targeted chat, a separate concern
+    // from which plugin(s) the call reaches.
     const results = await runHook('notify', payload, {
-      root: ROOT, workspaceRoot: WS_ROOT, dryRun,
-      ...(chatIdOverride ? { only: id, forceEnabled: true } : {}),
+      root: ROOT, workspaceRoot: WS_ROOT, dryRun, only: id,
+      ...(chatIdOverride ? { forceEnabled: true } : {}),
     });
     for (const r of results) {
       if (!r.ok) { console.log(`${r.id} notify: failed — ${r.error}`); continue; }
-      const id = r.result && r.result.messageId;
-      console.log(`${r.id} notify: sent.${id ? ` message id: ${id}` : ''}`);
+      // `r.ok` only means the hook ran without throwing — the actual
+      // delivery outcome is `r.result.sent`. messageId lives per-chat under
+      // `r.result.chats[]` for both the text and file-upload paths, never
+      // at the top level, so reading r.result.messageId directly always
+      // came back undefined here regardless of real delivery success.
+      // Text-path chat entries carry a boolean `sent` + single `error`;
+      // file-upload chat entries carry a numeric `sent` (count) + a `failed`
+      // array of per-file errors instead — a bare `c.sent === false` filter
+      // only matches the text shape, so a partial file-upload failure (some
+      // attachments sent, one rejected) would otherwise report as a clean
+      // "sent" with the per-file error silently dropped from this output.
+      const chatErrors = (r.result && r.result.chats || []).flatMap(c => {
+        if (c.sent === false) return [c.error || 'unknown error'];
+        if (Array.isArray(c.failed) && c.failed.length) return c.failed.map(f => `${f.path}: ${f.error || 'unknown error'}`);
+        return [];
+      });
+      if (r.result && r.result.sent === false) {
+        console.log(`${r.id} notify: failed — ${chatErrors.length ? chatErrors.join('; ') : (r.result.error || 'not sent')}`);
+        continue;
+      }
+      const ids = (r.result && r.result.chats || []).map(c => c.messageId).filter(Boolean);
+      console.log(`${r.id} notify: sent.${ids.length ? ` message id: ${ids.join(', ')}` : ''}${chatErrors.length ? ` (partial failure: ${chatErrors.join('; ')})` : ''}`);
       const urls = r.result && r.result.attachmentUrls;
       if (urls && Object.keys(urls).length) {
         console.log('attachment urls:');
