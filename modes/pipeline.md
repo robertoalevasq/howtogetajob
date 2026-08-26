@@ -88,6 +88,12 @@ Read `spend_tier` from `config/profile.yml` (see `modes/_shared.md` -- Spend Tie
 | # | Company | Role | Score | PDF | Recommended action |
 ```
 
+5. **PDF completion gate — mandatory, unconditional, not a scope cut.** A pipeline run is not finished when the summary table is shown; it is finished once every qualifying match actually has a PDF on disk and that PDF has reached the user. Do this every time, regardless of how many URLs were processed, how long the run has taken, or how much of the session's budget the per-URL loop already used — **"the run got large, so I'll skip PDF generation and mention it as a follow-up" is exactly the failure this step exists to catch** (found live 2026-08-26: a full backlog run wrote 7 real matches to the tracker with PDF ❌ and the completion message treated PDF generation as optional future work; it took the user pointing out the run's own design — generate and send a PDF for every match — before it happened).
+   - a. Run `node core/sync-pdf-flags.mjs` to reconcile the tracker's PDF column against `data/pdf-index.tsv` — a race between "PDF file written" and "tracker cell updated" during the loop above can leave a stale ❌ next to a PDF that already exists.
+   - b. For every tracker row from this run scoring `>= auto_pdf_score_threshold` that still shows PDF ❌ after reconciliation, generate it now via the full `modes/pdf.md` flow (fact gate and JD-coverage check included, same as Step 2.f) — do not defer it to "on demand via `/career-ops pdf {slug}`" for a row that already qualified. The on-demand path exists for below-threshold rows the user asks about later, not as a fallback for skipped in-scope work.
+   - c. Once every qualifying PDF exists, deliver all of them to the user before ending the turn: attach the files directly in an interactive session, or send them through the configured Telegram/Discord channel (`node core/plugins.mjs run telegram notify ... --file {path}`) when running headlessly or via the bot — mirroring `cycle.md`'s Step 5, which treats delivery as unconditional ("attempt it no matter what happened" in the earlier steps). A text summary table naming a PDF's path is not delivery.
+   - d. If a PDF generation genuinely fails (fact-gate rejection with no fixable evidence, Playwright unavailable, etc.), say so explicitly in the completion message with the specific row and reason — silence and quiet deferral are the two failure modes this step forbids, not honest reporting of a real blocker.
+
 ## Format of pipeline.md
 
 ```markdown
