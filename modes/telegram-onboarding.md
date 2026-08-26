@@ -106,14 +106,14 @@ On receiving the `profile_narrative` reply:
 
 1. If it's "skip" (or equivalent): leave `workspaces/{slug}/config/profile.yml`'s `narrative.headline` (`""`) and `narrative.superpowers` (`[]`) as Step 4b left them — this is still correct, not a gap, exactly like the Discord webhook being skippable.
 2. Otherwise, write the reply to those fields **lightly polished, not verbatim and not embellished**: fix grammar/phrasing/conciseness for a professional tone, but preserve every factual claim exactly as given and never add a claim, metric, or descriptor the candidate didn't state — the same "keywords get reformulated, never fabricated" discipline `core/AGENTS.md`'s Source-of-Truth Boundary already requires everywhere else in this system (CV tailoring, cover letters), applied here to the candidate's own self-description instead of CV bullets. A single strength becomes a one-item `narrative.superpowers` list; multiple strengths in one reply split into separate list items, each polished the same way. The "how would you pitch yourself" half of the reply goes to `narrative.headline`.
-3. Send: `Last setup choice — how much do you want to spend on model usage per evaluation?\n💰 economy — cheapest/fastest, good for scanning lots of offers\n⚖️ standard — balanced (most people pick this)\n💎 premium — most capable, best for offers you really care about\n\nReply with one word.`
+3. Send: `Last setup choice — how much do you want to spend on model usage per evaluation?\n💰 economy — cheapest/fastest, good for scanning lots of offers\n⚖️ standard — balanced (most people pick this)\n💎 premium — most capable, best for offers you really care about\n\nReply with one word, or "skip" for economy (the default).`
 4. Advance `currentStep` to `discord`, save state (the spend-tier reply is handled inline in Step 5, since it's the same logical question set — `currentStep` only needs to distinguish "waiting on the headline/skip reply" from "waiting on discord/skip").
 
 ## Step 5 — Spend tier + Discord webhook (optional)
 
 On receiving the spend-tier reply:
 
-1. Set `workspaces/{slug}/config/profile.yml`'s `spend_tier` to the matched value (default `economy` if the reply doesn't clearly match one of the three — compute is shared across every tenant on one account, and `economy` is the safer default as more people onboard onto it).
+1. Set `workspaces/{slug}/config/profile.yml`'s `spend_tier` to the matched value — `economy` for "skip" (or any reply that doesn't clearly match one of the three; found live 2026-08-25, worth surfacing as an explicit option rather than an unstated fallback — compute is shared across every tenant on one account, and `economy` is the safer default as more people onboard onto it).
 2. Send: `One more optional thing — want progress updates in Discord too? Paste a webhook URL, or reply "skip".`
 
 On receiving the Discord reply:
