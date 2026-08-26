@@ -13,9 +13,16 @@
 import { readFileSync, existsSync, statSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { workspaceRoot } from './workspace-root.mjs';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const projectRoot = __dirname;
+// Found live 2026-08-26 alongside the identical bug in verify-pipeline.mjs
+// and sync-pdf-flags.mjs: this resolved cv.md/config/profile.yml off the
+// script's own core/ location (not even one level up to the repo root),
+// so the check always failed — both at the repo root and inside a
+// workspace. SYSTEM_ROOT covers System Layer paths (modes/, batch/);
+// projectRoot covers User Layer paths (cv.md, config/, article-digest.md).
+const SYSTEM_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const projectRoot = workspaceRoot();
 
 const warnings = [];
 const errors = [];
@@ -48,9 +55,9 @@ if (!existsSync(profilePath)) {
 
 // 3. Check for hardcoded metrics in prompt files
 const filesToCheck = [
-  { path: join(projectRoot, 'modes', '_shared.md'), name: '_shared.md' },
-  { path: join(projectRoot, 'modes', '_writing.md'), name: '_writing.md' },
-  { path: join(projectRoot, 'batch', 'batch-prompt.md'), name: 'batch-prompt.md' },
+  { path: join(SYSTEM_ROOT, 'modes', '_shared.md'), name: '_shared.md' },
+  { path: join(SYSTEM_ROOT, 'modes', '_writing.md'), name: '_writing.md' },
+  { path: join(SYSTEM_ROOT, 'batch', 'batch-prompt.md'), name: 'batch-prompt.md' },
 ];
 
 // Pattern: numbers that look like hardcoded metrics (e.g., "170+ hours", "90% self-service")
