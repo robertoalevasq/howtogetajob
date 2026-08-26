@@ -92,6 +92,13 @@ Three cheap, zero-token checks before spending any time on Step 1:
 per checkpoint, so neither can go permanently silent the way the old hand-built Discord convention
 did:
 
+**This section is Discord-only supplementary reporting — it is not where Telegram's initial kickoff
+message comes from.** When `cycle` runs via `modes/telegram.md`'s Step 3a, that step's own item 1
+(a standalone `telegram notify` call, sent before this file is even read) is Telegram's entire
+presence until Step 5's final delivery — nothing here sends anything to Telegram mid-run, by design.
+If invoking `cycle` from `modes/telegram.md`, confirm that step 1 already ran before treating the
+run as started.
+
 - **`data/cache/cycle-status.json`, via `cycle-status.mjs`** — the fine-grained, always-on record.
   Updated at *every* checkpoint below with no throttling (it's a local file write behind a short
   lock, effectively free — no network, no rate limit exposure). Check it anytime from the terminal

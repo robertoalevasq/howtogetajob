@@ -76,8 +76,12 @@ If a standalone confirm word or free-text reply arrives with **multiple** pendin
 
 ### Step 3a — Run full cycle
 
-1. Acknowledge immediately: `🚀 Starting a full search cycle — scanning every portal + the full ATS universe, then evaluating every match. This can take hours (a full ATS sweep is a multi-hour operation by design). I'll message you when it's done.`
-2. Run `cycle` mode's complete workflow (`modes/cycle.md`, Steps 0 through 5) exactly as if invoked interactively. This changes nothing about how `cycle` runs internally — its own guardrails, Discord progress reporting, `cycle-status.mjs` checkpoints, and integrity passes all still apply unchanged.
+1. **Before doing anything else — before even reading `modes/cycle.md` — actually run this command, right now, as its own standalone tool call:**
+   ```bash
+   node core/plugins.mjs run telegram notify "🚀 Starting a full search cycle — scanning every portal + the full ATS universe, then evaluating every match. This can take hours (a full ATS sweep is a multi-hour operation by design). I'll message you when it's done."
+   ```
+   This is a real, mandatory, first action — not a description of what will happen, and not something `cycle` mode's own Progress Reporting section (Discord-only) substitutes for (found live 2026-08-26: a real `/run` produced Discord ticks throughout via `cycle.md`'s own reporting, but Telegram received nothing at all until the run finished, hours later — because this step 1 send never actually happened as a distinct action before `cycle.md` was read). Send it, confirm the CLI reports success, *then* proceed to step 2.
+2. Run `cycle` mode's complete workflow (`modes/cycle.md`, Steps 0 through 5) exactly as if invoked interactively. This changes nothing about how `cycle` runs internally — its own guardrails, Discord progress reporting, `cycle-status.mjs` checkpoints, and integrity passes all still apply unchanged. `cycle.md`'s own Progress Reporting section is Discord-only supplementary detail throughout the run — it is not a substitute for this step's one-time Telegram kickoff message, which must already be sent before `cycle.md` is even opened.
 3. This is a long-running turn by design, matching `cycle`'s own nature. Subsequent Telegram polls simply queue behind it — `CronCreate` only fires while idle — that's expected, not a bug.
 4. **Auto-generate PDFs for all keepers (≥threshold):** `cycle` mode (Step 2 + Step 3 above) already handles this inline, respecting `config/profile.yml`'s `cv.output_format` setting. PDFs are generated in LaTeX or HTML format as configured, following the same format branch as every other run. This step is already part of the normal `cycle` flow — no additional PDF work is needed here.
 
