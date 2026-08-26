@@ -34,13 +34,21 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { randomUUID } from 'node:crypto';
 import { readStyleTokens, injectThemeStyle } from './theme-style.mjs';
 import { isMainModule } from './is-main.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-// This script now lives in core/, one directory below the repo root; ROOT is
-// the actual repo root that output/, data/, reports/, cv.md, and fonts/ live
-// under (all the repo-root anchoring below used to rely on __dirname itself
-// before the core/ move — see #workspace-multitenancy Task 1).
-const ROOT = dirname(__dirname);
+// This script now lives in core/, one directory below the repo root.
+// SYSTEM_ROOT is where fonts/ (System Layer, symlinked identically into every
+// workspace) lives — always this script's own location. ROOT is the
+// USER-LAYER root that output/, data/, reports/, and cv.md live under —
+// workspace-aware via workspaceRoot() (see #workspace-multitenancy Task 1;
+// found live 2026-08-26 this file bypassed workspaceRoot() entirely, the
+// same pattern already found and fixed in verify-pipeline.mjs,
+// sync-pdf-flags.mjs, and cv-sync-check.mjs — so a PDF generated from inside
+// a workspace still wrote data/pdf-index.tsv and read cv.md at the repo
+// root instead of the workspace's own).
+const SYSTEM_ROOT = dirname(__dirname);
+const ROOT = workspaceRoot();
 const PDF_PAGE_MARGIN = '0.6in';
 
 // Ensure output directory exists (fresh setup)
@@ -558,7 +566,7 @@ async function generatePDF() {
 export async function inlineLocalFonts(html) {
   const FONT_REF = /url\(\s*(['"]?)\.\/fonts\/([^'")\s]+)\1\s*\)/g;
   const MIME = { woff2: 'font/woff2', woff: 'font/woff', otf: 'font/otf', ttf: 'font/ttf' };
-  const fontsDir = resolve(ROOT, 'fonts');
+  const fontsDir = resolve(SYSTEM_ROOT, 'fonts');
   const names = [...new Set([...html.matchAll(FONT_REF)].map((m) => m[2]))];
   const dataUrls = new Map();
   for (const name of names) {
