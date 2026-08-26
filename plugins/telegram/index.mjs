@@ -151,9 +151,17 @@ export default {
           body: JSON.stringify(body),
         });
         const result = await res.json();
-        results.push({ chatId, sent: true, messageId: result?.result?.message_id });
+        // Was unconditionally `sent: true` regardless of Telegram's actual
+        // response (found 2026-08-25 during live testing: a bad HTML send
+        // was reported as delivered) — the file-upload path below already
+        // gates on `result.ok`, this just brings the text path in line.
+        if (result && result.ok) {
+          results.push({ chatId, sent: true, messageId: result.result?.message_id });
+        } else {
+          results.push({ chatId, sent: false, error: (result && result.description) || `HTTP ${res.status}` });
+        }
       }
-      return { sent: true, chats: results };
+      return { sent: results.some(r => r.sent), chats: results };
     }
 
     // File path(s) — split out anything over Telegram's 50MB direct-upload
