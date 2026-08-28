@@ -56,6 +56,7 @@
  * @property {Readonly<Object<string,unknown>>} settings  Frozen non-secret settings block for this plugin from config/plugins.yml (e.g. { label, days_back, actor }). Secrets never live here — they go in .env via requiredEnv.
  * @property {(...args: unknown[]) => void} log  Console logger that redacts declared env values from output (accidental-leak hygiene, not an exfiltration control).
  * @property {boolean} dryRun  True when invoked with --dry-run; side-effecting hooks must honor it.
+ * @property {Set<string>} foreignBoundChatIds  Chat/recipient ids (as strings) bound to a DIFFERENT workspace than this call is running for, per workspaces/*\/workspace.json — always present, empty when not applicable (e.g. a `search`/`export`/`ingest` hook, or a plain non-multi-tenant checkout). A `notify`-hook plugin resolving its own recipient list from config (telegram's chat_id/chat_ids) MUST check every target against this set and refuse to send to any match — see plugins/telegram/index.mjs for the enforcement (added 2026-08-28 after a real cross-tenant delivery: one candidate's `chat_ids` array contained another candidate's real chat_id).
  */
 
 /**

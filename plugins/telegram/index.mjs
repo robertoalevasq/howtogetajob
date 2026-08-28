@@ -114,11 +114,29 @@ export default {
     // message a chat that isn't (yet) any workspace's configured chat_id.
     // Every existing caller that doesn't pass this keeps the original
     // ctx.settings-based resolution unchanged.
-    const chatIds = (payload && payload.chatIds)
+    const requestedChatIds = (payload && payload.chatIds)
       || (payload && payload.chatId ? [payload.chatId] : null)
       || ctx.settings.chat_ids
       || (ctx.settings.chat_id ? [ctx.settings.chat_id] : null);
-    if (!chatIds || chatIds.length === 0) return { sent: false, error: 'telegram.chat_id or chat_ids not set in config/plugins.yml, and no payload.chatId/chatIds override given' };
+    if (!requestedChatIds || requestedChatIds.length === 0) return { sent: false, error: 'telegram.chat_id or chat_ids not set in config/plugins.yml, and no payload.chatId/chatIds override given' };
+
+    // Cross-tenant guard (added 2026-08-28, see PluginContext.foreignBoundChatIds
+    // in ../_types.js): a real candidate's own config/plugins.yml chat_ids
+    // array — an intentional multi-device broadcast list, the loop below
+    // sends to every entry — contained a DIFFERENT candidate's chat_id, and
+    // one person's /run results were delivered straight into someone else's
+    // chat. Every target is checked here, once, regardless of whether it
+    // came from config or an explicit payload override, before either send
+    // path below ever runs.
+    const foreign = ctx.foreignBoundChatIds instanceof Set ? ctx.foreignBoundChatIds : new Set();
+    const blockedChatIds = requestedChatIds.filter(id => foreign.has(String(id)));
+    const chatIds = requestedChatIds.filter(id => !foreign.has(String(id)));
+    if (blockedChatIds.length > 0) {
+      ctx.log(`⛔ telegram notify: refused to send to chat_id(s) bound to a different workspace: ${blockedChatIds.join(', ')}`);
+    }
+    if (chatIds.length === 0) {
+      return { sent: false, error: `all target chat_id(s) belong to a different workspace, refused: ${blockedChatIds.join(', ')}` };
+    }
 
     const message = (payload && payload.message) || '';
     // filePath (single, legacy) and filePaths (array) both accepted, same

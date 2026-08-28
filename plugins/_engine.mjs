@@ -30,6 +30,14 @@ import { pathToFileURL, fileURLToPath } from 'url';
 import { resolveAndValidate } from './_net.mjs';
 import { readLock, writeLockEntry, diffPlugin, hashPluginTree, consentSurface } from './_lock.mjs';
 import { loadRegistry } from './_registry.mjs';
+// Import-time only pulls in a function reference — buildBoundChatMap() itself
+// isn't CALLED until loadPlugins() runs, so this doesn't touch the "zero
+// module-level side effects" invariant above (asserted by test-all.mjs
+// section 49): importing this file still reads no config/env/disk on its own.
+// _engine.mjs is the trusted orchestration layer (unlike an individual plugin
+// file under plugins/*, which may be third-party via plugins.local/), so it
+// is the one place in plugins/ that may reach into core/ directly.
+import { buildBoundChatMap } from '../core/telegram-router.mjs';
 
 /** The complete, closed set of hook kinds. Anything else (apply/submit/…) is rejected. */
 export const HOOK_KINDS = ['provider', 'ingest', 'search', 'notify', 'export'];
@@ -476,6 +484,11 @@ export function buildCtx(manifest, opts = {}) {
     settings: Object.freeze({ ...(opts.settings || {}) }),
     log,
     dryRun: opts.dryRun === true,
+    // Chat/recipient ids bound to a DIFFERENT workspace than this call is
+    // running for — see computeForeignBoundChatIds() above. Always present
+    // (empty Set when not applicable) so a plugin can check it unconditionally
+    // rather than needing an existence check first.
+    foreignBoundChatIds: opts.foreignBoundChatIds instanceof Set ? opts.foreignBoundChatIds : new Set(),
   });
 }
 
@@ -621,9 +634,39 @@ export function lockGate(manifest, systemRoot, userRoot = systemRoot) {
   }
 }
 
+// Chat/recipient identifiers that belong to a DIFFERENT workspace than the
+// one this call is running for — computed once per loadPlugins() call so a
+// notify-capable plugin (currently: telegram) can refuse to send to them.
+//
+// Found live 2026-08-28: a real candidate's workspace had another tenant's
+// chat_id sitting in its own config/plugins.yml `chat_ids` array (a genuine,
+// intentional multi-device broadcast list — plugins/telegram/index.mjs sends
+// to every entry). One candidate's /run results were delivered straight into
+// a different candidate's chat. Computed here, in the trusted engine, rather
+// than left to each caller of runHook()/loadPlugins() to remember — a
+// safety guard that depends on every call site opting in isn't a guard.
+//
+// Fails open to an empty set (no restriction) when workspaces/ doesn't exist
+// at all — a plain, non-multi-tenant checkout has nothing to be foreign to.
+export function computeForeignBoundChatIds(root, workspaceRoot) {
+  try {
+    const bound = buildBoundChatMap({ repoRoot: root });
+    const here = path.resolve(workspaceRoot);
+    const foreign = new Set();
+    for (const [chatId, dir] of bound) {
+      if (path.resolve(dir) !== here) foreign.add(String(chatId));
+    }
+    return foreign;
+  } catch {
+    // Never let a guard computation break the run it's protecting.
+    return new Set();
+  }
+}
+
 export async function loadPlugins(kind, { root, workspaceRoot = root, dryRun = false, only, forceEnabled = false }) {
   const cfg = await loadPluginConfig(workspaceRoot);
   const manifests = discoverPlugins(pluginRoots(root, workspaceRoot), resolveSuccessorIds(root, workspaceRoot)).filter(m => m.hooks.includes(kind) && (!only || m.id === only));
+  const foreignBoundChatIds = kind === 'notify' ? computeForeignBoundChatIds(root, workspaceRoot) : new Set();
   const out = [];
   for (const manifest of manifests) {
     // forceEnabled bypasses the enabled-gate ONLY for the single manifest
@@ -637,7 +680,7 @@ export async function loadPlugins(kind, { root, workspaceRoot = root, dryRun = f
     if (!lockGate(manifest, root, workspaceRoot).load) continue;
     const hook = await importHook(manifest, kind);
     if (!hook) continue;
-    out.push({ id: manifest.id, manifest, hook, ctx: buildCtx(manifest, { dryRun, settings: pluginSettings(manifest.id, cfg) }) });
+    out.push({ id: manifest.id, manifest, hook, ctx: buildCtx(manifest, { dryRun, settings: pluginSettings(manifest.id, cfg), foreignBoundChatIds }) });
   }
   return out;
 }
