@@ -38,6 +38,27 @@ const REAL_EMPTY_DIRS = [
   'config',
 ];
 
+// System Layer files that must be visible from inside a workspace but can't
+// join JUNCTION_DIRS because Windows only allows unelevated junctions on
+// DIRECTORIES — a file-level symlink needs Administrator/Developer Mode
+// (confirmed live 2026-08-27: fs.symlinkSync(..., 'file') threw EPERM on a
+// normal, non-elevated session). Copied instead, seed-once like SEEDED_FILES
+// below — but semantically these are shared system config, not a per-user
+// customization target, so a future permissions change in the source file
+// needs this list re-applied to existing workspaces by hand (or via a repair
+// pass) rather than relying on this seeding to pick it up automatically.
+//
+// .claude/settings.json specifically: without it, `claude -p` spawned with
+// cwd set to a workspace directory (every headless daemon dispatch) resolves
+// permissions relative to that cwd, never finds the repo root's settings,
+// and runs with nothing pre-approved — silently blocking tools like
+// WebSearch that need approval no headless session can ever give. This is
+// why Pass A's WebSearch has been reporting "blocked" on every /run despite
+// WebSearch already being allow-listed at the repo root the whole time.
+const SYSTEM_FILE_COPIES = [
+  { target: '.claude/settings.json', template: '.claude/settings.json' },
+];
+
 // { destination relative to workspace root, template relative to repo root }
 const SEEDED_FILES = [
   { target: 'config/profile.yml', template: 'config/profile.example.yml' },
@@ -115,6 +136,7 @@ export function provisionWorkspace(slug, opts = {}) {
     if (!existsSync(p)) mkdirSync(p, { recursive: true });
   }
 
+  for (const { target, template } of SYSTEM_FILE_COPIES) seedFile(ROOT, wsDir, target, template);
   for (const { target, template } of SEEDED_FILES) seedFile(ROOT, wsDir, target, template);
 
   const pipelinePath = join(wsDir, 'data', 'pipeline.md');
