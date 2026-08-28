@@ -154,12 +154,44 @@ function formatDuration(ms) {
   return `${Math.floor(mins / 60)}h ${mins % 60}m ago`;
 }
 
+// A run that hasn't checkpointed in this long is treated as dead, not slow.
+// Deliberately LONGER than cycle-lock.mjs's own 30-minute STALE_MS, so by the
+// time anything reports "stalled" the lock is already reclaimable — i.e. the
+// advice "send /run to resume" is always actually true when we give it.
+// Progress checkpoints fire far more often than this during a healthy run.
+export const STALL_AFTER_MS = 40 * 60_000;
+
+/**
+ * Liveness verdict for a status record — the single source of truth shared by
+ * `render()` and `--json`.
+ *
+ * Added 2026-08-27: `render()` had carried this stall check since it was
+ * written, but `--json` emitted the raw file with no liveness field at all.
+ * `modes/telegram.md` Step 3f reads the JSON path and so told the candidate a
+ * cycle was "actively running" for seven hours after the process had died —
+ * faithfully, because `step.id` was still `pass_b`. Both paths now answer from
+ * this one function so they can never disagree again.
+ *
+ * @param {{step?: {id?: string}, savedAt?: string}} state
+ * @param {number} [now] - injectable clock for tests.
+ * @returns {{state: 'no_run'|'running'|'stalled'|'done', staleMs: number|null, lastUpdateAgo: string|null}}
+ */
+export function computeLiveness(state, now = Date.now()) {
+  if (!state || !state.savedAt) return { state: 'no_run', staleMs: null, lastUpdateAgo: null };
+  const savedMs = new Date(state.savedAt).getTime();
+  if (!Number.isFinite(savedMs)) return { state: 'no_run', staleMs: null, lastUpdateAgo: null };
+  const staleMs = now - savedMs;
+  const lastUpdateAgo = formatDuration(staleMs);
+  if (state.step?.id === 'done') return { state: 'done', staleMs, lastUpdateAgo };
+  return { state: staleMs > STALL_AFTER_MS ? 'stalled' : 'running', staleMs, lastUpdateAgo };
+}
+
 /** Human-readable render of the current status (or "no run" if the file is absent). */
 export function render() {
   if (!existsSync(STATUS_PATH)) return 'No cycle run has recorded status yet.';
   const state = loadState();
   const staleMs = Date.now() - new Date(state.savedAt).getTime();
-  const stalled = state.step.id !== 'done' && staleMs > 40 * 60_000;
+  const stalled = computeLiveness(state).state === 'stalled';
   const lines = [
     `cycle run ${state.runId}`,
     `step: ${state.step.label || state.step.id} (updated ${formatDuration(staleMs)})${stalled ? '  ⚠️  stalled? no update in 40m+' : ''}`,
@@ -200,7 +232,16 @@ async function main() {
     console.log('cycle-status: updated.');
   } else if (!cmd || cmd === '--json') {
     if (cmd === '--json') {
-      console.log(existsSync(STATUS_PATH) ? readFileSync(STATUS_PATH, 'utf8').trim() : '{}');
+      // Emit the stored record PLUS a computed `liveness` block. Consumers
+      // (modes/telegram.md Step 3f) must branch on liveness.state, never infer
+      // "running" from step.id alone — a dead run's step.id stays frozen at
+      // whatever it was when the process died (found live 2026-08-27).
+      if (!existsSync(STATUS_PATH)) {
+        console.log(JSON.stringify({ liveness: computeLiveness(null) }, null, 2));
+      } else {
+        const state = loadState();
+        console.log(JSON.stringify({ ...state, liveness: computeLiveness(state) }, null, 2));
+      }
     } else {
       console.log(render());
     }

@@ -38,6 +38,13 @@ copyFileSync(join(ROOT, 'core', 'theme-style.mjs'), join(scriptDir, 'theme-style
 // ./is-main.mjs helper (#workspace-multitenancy final-review Critical 2 —
 // realpath-based isMainModule() so a junctioned invocation still runs).
 copyFileSync(join(ROOT, 'core', 'is-main.mjs'), join(scriptDir, 'is-main.mjs'));
+// Same reason again: generate-pdf.mjs now resolves its user-layer root through
+// ./workspace-root.mjs rather than its own dirname (found live 2026-08-26 — it
+// was writing data/pdf-index.tsv to the repo root instead of the active
+// workspace). runPdf() spawns with cwd: sandbox, and workspaceRoot() falls back
+// to process.cwd(), so the script's ROOT still resolves to `sandbox` exactly as
+// the old dirname(__dirname) did — this copy only keeps the import resolvable.
+copyFileSync(join(ROOT, 'core', 'workspace-root.mjs'), join(scriptDir, 'workspace-root.mjs'));
 mkdirSync(playwrightStub, { recursive: true });
 writeFileSync(join(playwrightStub, 'package.json'), JSON.stringify({
   name: 'playwright',
