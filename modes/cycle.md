@@ -220,6 +220,27 @@ close it.)
    the rest of a multi-hour run (confirmed 2026-08-15: a live run swept
    3,000+ companies with zero cycle-status or Discord updates because this
    loop never called back to it).
+
+   **"Poll it periodically" means repeated tool calls inside this same,
+   still-open turn — never a sent response you expect to "come back to."**
+   In a headless dispatch (`[HEADLESS]` present — see AGENTS.md's Headless
+   Invocation Signal, which every `/run` through `telegram.md` Step 3a is)
+   there is no next turn: a `claude -p` invocation ends the process the
+   moment a response is sent, and whatever the background sweep was doing
+   ends with it, whether or not it finished. Confirmed live 2026-08-28: a
+   real `/run` did everything else in this section correctly — right ATS,
+   right checkpoint cadence, real Discord ticks — then, mid-sweep, sent a
+   response reading *"Ticked. Continuing to wait for the next Pass B
+   checkpoint or completion notification."* That sentence is itself the
+   bug: it is a promise to come back that a one-shot process cannot keep.
+   The sweep never checkpointed again; `/status` reported it dead an hour
+   later; nothing else in this run ever ran. **Do not send a response,
+   partial summary, or "still working" message while Pass B is
+   incomplete.** If a tick or a progress narration is worth recording, say
+   it via `discord-ticker.mjs`/`cycle-status.mjs` (files, not your own
+   response) and immediately make the next polling tool call in the same
+   turn — the turn stays open until step 4's exit condition or full
+   completion, full stop.
 4. **The only early-exit condition:** if two consecutive resumes land on the
    exact same checkpoint position (genuinely zero forward progress, not
    merely "still running"), give up on Pass B gracefully. Log the last error
