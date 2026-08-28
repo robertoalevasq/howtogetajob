@@ -85,6 +85,20 @@ location:
   needs_sponsorship: false
   # For remote roles outside your country:
   # onsite_availability: "1 week/month in any city"
+  # How strictly you want the Remote/work-mode dimension evaluated. Distinct
+  # from `city`/`country` (WHERE you are) and from `compensation.location_flexibility`
+  # (whether you'd relocate) — this is about work ARRANGEMENT: remote vs.
+  # hybrid vs. onsite. Drives modes/oferta.md Block A's Remote row, in
+  # particular how a JD that never states remote/onsite at all gets scored.
+  #   remote_only      -- a JD silent on remote/onsite is capped, not assumed
+  #                        best-case (see _profile.md "Your Location Policy")
+  #   remote_preferred -- same cap, softer: a strong non-remote fit can still
+  #                        score well elsewhere
+  #   hybrid_ok         -- no cap from this field; hybrid roles score normally
+  #   onsite_ok         -- no cap; onsite roles are fully in scope
+  #   no_preference     -- default when this key is absent; today's behavior,
+  #                        unchanged
+  work_mode: "no_preference"
 
 language:
   # Human-facing output language for reports, tracker notes, PDFs, cover

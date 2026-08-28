@@ -60,6 +60,16 @@
 #   - `allow` empty → pass (already cleared block)
 #   - `allow` non-empty → must match at least one keyword
 #
+# Note for a remote-only candidate (config/profile.yml -> location.work_mode:
+# remote_only/remote_preferred): this filter's "empty location -> pass" rule
+# is deliberate — many ATS postings that ARE remote simply don't tag it, and
+# rejecting those here would silently lose real matches. This filter cannot
+# fully enforce a remote-only policy on its own; it only screens explicit
+# `block` keywords (e.g. a named onsite-only city). The actual enforcement
+# for "JD never says anything about remote at all" happens at evaluation time
+# in modes/oferta.md's Block A, which caps that posting's score instead of
+# passing/failing it outright — see modes/_profile.md "Your Location Policy".
+#
 # `always_allow` is optional. It rescues multi-location postings that name your
 # home region: with always_allow ["New York"] and block ["India"], a job listed
 # "Remote, New York or India" passes (New York wins), while "Remote, India" is

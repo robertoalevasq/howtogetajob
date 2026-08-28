@@ -100,3 +100,4 @@ If you have a live demo/dashboard (check profile.yml), offer access in applicati
 **In evaluations (scoring):**
 - Remote dimension for hybrid outside your country: score **3.0** (not 1.0)
 - Only score 1.0 if JD says "must be on-site 4-5 days/week, no exceptions"
+- **Work-mode preference (`config/profile.yml` → `location.work_mode`):** if you're `remote_only` or `remote_preferred` and a JD says nothing at all about remote/hybrid/onsite, `modes/oferta.md`'s Block A caps the Remote row (3.0 for `remote_only`, 3.5 for `remote_preferred`) rather than scoring an unconfirmed unknown as if it were a confirmed remote role. Set this field during onboarding, or directly in `config/profile.yml`, if you only want remote work — leaving it at `no_preference` keeps today's behavior (no cap).

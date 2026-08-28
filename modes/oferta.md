@@ -77,7 +77,7 @@ Table with:
 - Domain (platform/agentic/LLMOps/ML/enterprise)
 - Function (build/consult/manage/deploy)
 - Seniority
-- Remote (full/hybrid/onsite)
+- Remote (full/hybrid/onsite) — see "Unstated work mode" below when the JD says nothing about this at all
 - Team size (if mentioned)
 - **Culture screen** (see `_shared.md` § Scoring System): pass / caution / fail, with the specific evidence found or missing — not just a score, name what you saw
 - TL;DR in 1 sentence
@@ -96,6 +96,16 @@ On contradiction, add exactly one flag line at the top of Block B in the report,
 `⚠️ **Geo-mismatch:** location field says remote, but JD body says "{verbatim JD line}"`
 
 The flag is an additive line only — Block B's existing content stays unchanged below it, and no flag line appears when there is no contradiction.
+
+### Unstated work mode
+
+A JD that says nothing at all about remote/hybrid/onsite — no structured location field, no body-text mention — is not the same as a JD that confirms remote. Read `config/profile.yml` → `location.work_mode` (see `_profile.md` "Your Location Policy"):
+
+- `remote_only` — cap the Remote row at **3.0/5** when the work mode is genuinely unstated (both the structured field and the JD body are silent). An unconfirmed unknown cannot score as if it were a confirmed remote role for a candidate who will only accept remote. If the JD states or clearly implies onsite/hybrid, score normally per the existing scale (not this cap) — this rule only fires on true silence.
+- `remote_preferred` — same trigger, softer cap: **3.5/5**. A strong fit elsewhere can still carry the overall score.
+- `hybrid_ok`, `onsite_ok`, `no_preference`, or the key absent — no cap from this section; score the Remote row on the existing full/hybrid/onsite scale as usual.
+
+Note the cap in Block A's Remote row cell itself when it fires (e.g. "Onsite/hybrid/remote not stated — capped at 3.0 per remote_only preference") so the score is traceable, not a silent deduction.
 
 ### Work-authorization check
 
