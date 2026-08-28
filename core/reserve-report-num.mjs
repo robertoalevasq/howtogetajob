@@ -21,8 +21,7 @@ import {
   statSync, unlinkSync, writeFileSync,
 } from 'fs';
 import { randomUUID } from 'crypto';
-import { dirname, join, resolve } from 'path';
-import { fileURLToPath } from 'url';
+import { join, resolve } from 'path';
 import {
   extractTrackerReportNumbers, parseTrackerRow, resolveColumns,
 } from './tracker-parse.mjs';
@@ -30,8 +29,15 @@ import {
   acquireTrackerLock, canonicalizeTrackerPath, resolveTrackerPath, trackerLockDirFor,
 } from './tracker-utils.mjs';
 import { isMainModule } from './is-main.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
-const ROOT = dirname(fileURLToPath(import.meta.url));
+// Found live 2026-08-28: this resolved reports/ and the tracker off the
+// script's own core/ location (not even one level up to a repo root), the
+// same import.meta.url-vs-workspaceRoot() pattern already fixed in
+// verify-pipeline.mjs, sync-pdf-flags.mjs, cv-sync-check.mjs, and
+// generate-pdf.mjs — so a bare call from inside a workspace claimed the
+// wrong report number and left a stray NNN-RESERVED.md sentinel behind.
+const ROOT = workspaceRoot();
 const MAX_SENTINEL_AGE_MS = 4 * 60 * 60 * 1000;
 const MAX_RETRIES = 50;
 const MAX_COUNT = 50;
