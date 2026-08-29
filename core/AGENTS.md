@@ -83,6 +83,7 @@ AI-powered, CLI-agnostic job search automation: pipeline tracking, offer evaluat
 | `data/salary-observations.tsv` | Append-only salary observation log (user layer) |
 | `data/assessments.tsv` | Append-only skills-assessment log (user layer, created on first `add`) |
 | `data/application-defaults.md` | Boilerplate/EEO/administrivia answer cache reused by `apply` mode across applications (user layer, created on first confirmed answer — see `modes/apply.md` Step 6b) |
+| `data/.apply-secrets.json` | Temporary, per-report cache of a bot-created ATS account's email/password, so a fresh Playwright/Telegram-dispatch turn can re-authenticate without re-asking the candidate (user layer, gitignored, created on account creation, deleted on submit/abandon or after 24h — see `modes/apply.md` Step 5-alt items 7 and 15-16) |
 | `telegram-poll.mjs` | CLI wrapper around the `telegram` plugin's `ingest` hook — `poll` returns new bot messages as JSON, `reset` clears the stored offset (see `modes/telegram.md`) |
 | `data/telegram-state.md` | Pending confirmations, batch queue, and recent actions for `telegram` mode (user layer, gitignored, created on first-time setup) |
 | `portals.yml` | Query and company config |
