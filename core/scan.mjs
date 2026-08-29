@@ -820,13 +820,58 @@ export function loadReApplyWindows(profilePath = getProfilePath()) {
   }
 }
 
-// A company entry explicitly opts out of the global title_filter — used
-// exclusively by industry_companies entries (see resolveScanCompanies below),
+// Internal, code-set provenance marker stamped by resolveScanCompanies() (below)
+// on every entry it merges in from portals.yml's `industry_companies` block —
+// and by nothing else, anywhere.
+//
+// It is a module-private Symbol, defined non-enumerable, which makes the plan's
+// Global Constraint ("skip_title_filter: true must only ever originate from an
+// industry_companies-sourced entry — never appear on a hand-edited
+// tracked_companies entry undetected") true *by construction* instead of by
+// convention:
+//   - js-yaml can only ever produce enumerable string-keyed properties, so no
+//     hand-edited portals.yml entry can forge this marker, whatever it writes.
+//   - Being non-enumerable, it is invisible to JSON.stringify / yaml.dump /
+//     Object.keys / assert.deepStrictEqual, so it can never leak into any file
+//     this scanner writes.
+// The one cost of non-enumerability is that object spread does NOT copy it, so
+// the single place a company entry is re-materialized (resolveEntries() below)
+// carries it forward explicitly.
+const INDUSTRY_SOURCED = Symbol('industrySourced');
+
+function markIndustrySourced(company) {
+  Object.defineProperty(company, INDUSTRY_SOURCED, {
+    value: true,
+    enumerable: false,
+    writable: false,
+    configurable: false,
+  });
+  return company;
+}
+
+// True only for a company object resolveScanCompanies() itself merged in from
+// industry_companies. This is the gate for BOTH industry-targeting effects:
+// the title-filter bypass (shouldSkipTitleFilter, below) and the
+// `| source: industry` pipeline tag that routes a posting through
+// modes/pipeline.md's mandatory triage gate. A stray `skip_title_filter: true`
+// hand-added to a tracked_companies entry therefore does nothing at scan time —
+// validate-portals.mjs's warning is the only signal it produces, which is
+// exactly the "warn, don't silently honor" outcome the Global Constraint wants.
+export function isIndustrySourced(company) {
+  return company != null && company[INDUSTRY_SOURCED] === true;
+}
+
+// A company entry explicitly opts out of the global title_filter — honored
+// exclusively for industry_companies entries (see resolveScanCompanies below),
 // which cast a wider net on purpose and rely on full evaluation's CV-match
-// scoring instead of a title keyword match. A plain tracked_companies entry
-// should never set this; validate-portals.mjs warns if one does.
+// scoring instead of a title keyword match.
+//
+// Both halves are required: the entry must carry the code-set industry-sourced
+// marker AND set `skip_title_filter: true` in YAML. A plain tracked_companies
+// entry can satisfy the second half by hand-edit but never the first, so its
+// title filter still applies; validate-portals.mjs warns when it sees one.
 export function shouldSkipTitleFilter(company) {
-  return company != null && company.skip_title_filter === true;
+  return isIndustrySourced(company) && company.skip_title_filter === true;
 }
 
 // Reads config/profile.yml's targeting_mode/target_industries (#2026-08-28
@@ -862,8 +907,34 @@ export function resolveScanCompanies(portalsConfig, targetingConfig) {
   const industryCompanies = portalsConfig?.industry_companies;
   if (!industryCompanies || typeof industryCompanies !== 'object' || Array.isArray(industryCompanies)) return tracked;
   const slugs = Array.isArray(targetingConfig.targetIndustrySlugs) ? targetingConfig.targetIndustrySlugs : [];
-  const industryEntries = slugs.flatMap((slug) => (Array.isArray(industryCompanies[slug]) ? industryCompanies[slug] : []));
+  // Each merged entry is stamped with the code-set INDUSTRY_SOURCED marker on a
+  // shallow COPY — never on the parsed portals.yml object itself. YAML anchors
+  // (`&anchor`/`*ref`) can make one object appear under both tracked_companies
+  // and industry_companies, and marking in place would then silently promote the
+  // tracked_companies occurrence too. Non-object entries pass through untouched
+  // so resolveEntries() below still skips them exactly as it does today.
+  const industryEntries = slugs.flatMap((slug) => (
+    Array.isArray(industryCompanies[slug])
+      ? industryCompanies[slug].map((entry) => (
+        entry != null && typeof entry === 'object' ? markIndustrySourced({ ...entry }) : entry
+      ))
+      : []
+  ));
   return [...tracked, ...industryEntries];
+}
+
+// Formats one line of the end-of-run "Agent/WebSearch handoff" list — the
+// companies core/scan.mjs could not resolve to a zero-token provider, which
+// modes/scan.md's agent-driven Level 1/Level 3 workflow has to pick up by hand.
+// An industry_companies-sourced company is annotated, because the agent must
+// NOT apply portals.yml's title_filter to it (modes/scan.md Step 6) and must
+// write the `| source: industry` segment when it appends the offer to
+// data/pipeline.md (modes/scan.md Step 8) — neither of which is inferable from
+// the company name alone.
+export function formatAgentHandoffLine(item) {
+  const hint = item?.query ? ` — ${item.query}` : '';
+  const industry = item?.industrySourced ? ' [industry-sourced — skip title_filter, tag `source: industry`]' : '';
+  return `  • ${item?.company} (${item?.method})${hint}${industry}`;
 }
 
 export function buildCooldownFilter(windows, today) {
@@ -2153,6 +2224,27 @@ async function main() {
   const config = rawConfig && typeof rawConfig === 'object' ? rawConfig : {};
   const targetingConfig = loadTargetingConfig();
   const companies = resolveScanCompanies(config, targetingConfig);
+  // Observability only (never changes what gets scanned): a target_industries
+  // slug in config/profile.yml that matches no portals.yml industry_companies
+  // key otherwise fails completely silently — resolveScanCompanies() merges
+  // nothing for it, the run reports success, and the candidate scans zero
+  // companies for an industry they believe they are targeting. The candidate-
+  // facing industry name and the machine key are two different strings that
+  // round-trip through /settings and _portals-pruning.md, so a typo or casing
+  // mismatch anywhere in that path is invisible without this check.
+  if (targetingConfig.targetingMode === 'industry_based') {
+    const industryKeys = config.industry_companies && typeof config.industry_companies === 'object' && !Array.isArray(config.industry_companies)
+      ? config.industry_companies
+      : {};
+    for (const slug of targetingConfig.targetIndustrySlugs) {
+      const entries = industryKeys[slug];
+      if (!Array.isArray(entries) || entries.length === 0) {
+        const known = Object.keys(industryKeys);
+        const knownHint = known.length > 0 ? ` Known industry_companies keys: ${known.join(', ')}.` : ' portals.yml has no industry_companies block at all.';
+        console.warn(`⚠️  target_industries slug "${slug}" has no matching portals.yml industry_companies entry — 0 companies will be scanned for this industry.${knownHint}`);
+      }
+    }
+  }
   const boards = Array.isArray(config.job_boards) ? config.job_boards : [];
   const titleFilter = buildTitleFilter(config.title_filter);
 
@@ -2212,6 +2304,10 @@ async function main() {
             company: entry.name,
             method: 'websearch',
             query: entry.scan_query || entry.search_query || entry.careers_url || '',
+            // Carried so the printed handoff tells the agent picking this
+            // company up by hand (modes/scan.md Level 1/Level 3) that its
+            // title_filter must be skipped and its pipeline row tagged.
+            industrySourced: isIndustrySourced(entry),
           });
         }
         continue;
@@ -2222,7 +2318,14 @@ async function main() {
         continue;
       }
 
-      targets.push({ ...entry, _provider: resolved.provider, _isBoard: isBoard });
+      const target = { ...entry, _provider: resolved.provider, _isBoard: isBoard };
+      // INDUSTRY_SOURCED is deliberately non-enumerable (see markIndustrySourced
+      // above), so the spread just above does NOT copy it — carry it forward
+      // explicitly. This is the only place a company entry is re-materialized;
+      // dropping the marker here would silently re-apply the title filter to
+      // every industry_companies entry and strip their `| source: industry` tag.
+      if (isIndustrySourced(entry)) markIndustrySourced(target);
+      targets.push(target);
       if (isBoard) boardCount++;
     }
   }
@@ -2412,16 +2515,20 @@ async function main() {
           tracked: Boolean(careersUrlDomain),
           careersUrlDomain,
           // Industry-sourced flag (#2026-08-28 profile-settings-industry-targeting)
-          // — threads shouldSkipTitleFilter(company) (Task 2's already-available
-          // signal, re-derived here where `company` is still in scope) forward to
-          // the pipeline.md write below. Deliberately NOT stored as `source`
+          // — threads isIndustrySourced(company) (the code-set provenance marker
+          // resolveScanCompanies() stamps, re-derived here where `company` is
+          // still in scope) forward to the pipeline.md write below. It reads the
+          // marker rather than the raw `skip_title_filter` YAML key on purpose:
+          // a stray hand-added flag on a tracked_companies entry must not be
+          // able to route that company's postings through the mandatory triage
+          // gate. Deliberately NOT stored as `source`
           // here: this same object also feeds appendToScanHistory(), whose
           // scan-history.tsv `portal` column expects the real ATS provider
           // (`sourceName`, e.g. 'greenhouse-api') — overwriting it would corrupt
           // that column for every industry-sourced offer. The `source: industry`
           // label is materialized on a separate copy, only for the
           // appendToPipeline() call, right before that call (see below).
-          industrySourced: shouldSkipTitleFilter(company),
+          industrySourced: isIndustrySourced(company),
         });
       }
     } catch (err) {
@@ -2613,8 +2720,7 @@ async function main() {
   if (agentHandoff.length > 0) {
     console.log(`Agent/WebSearch handoff: ${agentHandoff.length} compan${agentHandoff.length === 1 ? 'y' : 'ies'} not handled by zero-token providers`);
     for (const item of agentHandoff.slice(0, 25)) {
-      const hint = item.query ? ` — ${item.query}` : '';
-      console.log(`  • ${item.company} (${item.method})${hint}`);
+      console.log(formatAgentHandoffLine(item));
     }
     if (agentHandoff.length > 25) {
       console.log(`  … ${agentHandoff.length - 25} more omitted; narrow with --company or inspect portals.yml`);
