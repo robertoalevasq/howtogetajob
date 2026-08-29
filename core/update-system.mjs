@@ -90,6 +90,7 @@ export const SYSTEM_PATHS = [
   'core/',
   'modes/README.md',
   'modes/_shared.md',
+  'modes/_portals-pruning.md',
   'modes/_writing.md',
   'modes/_profile.template.md',
   'modes/_custom.template.md',
