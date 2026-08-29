@@ -108,6 +108,7 @@ Read `spend_tier` from `config/profile.yml` (see `modes/_shared.md` -- Spend Tie
 - [ ] https://jobs.ashbyhq.com/acme/790 | Acme Corp | AI Engineer | Remote (US) | 180000-220000 USD
 - [ ] https://jobs.ashbyhq.com/acme/791 | Acme Corp | Staff PM | note: curated shortlist
 - [ ] https://boards.greenhouse.io/acme/jobs/792 | Acme Corp | Backend Engineer | Remote (US) | posted: 2026-06-18
+- [ ] https://boards.greenhouse.io/livenation/jobs/793 | Live Nation | Royalty Analyst | New York, NY | posted: 2026-06-20 | source: industry
 - [!] https://private.url/job — Error: login required
 
 ## Processed
@@ -128,7 +129,7 @@ read as having empty values for the missing trailing columns.
 
 Beyond the positional cells, rows may carry optional **labeled** segments —
 `| {label}: {value}` — that ride on any row shape (bare URL, 3-, 4-, or 5-column),
-because the `{label}:` prefix identifies them regardless of column position. Three
+because the `{label}:` prefix identifies them regardless of column position. Four
 are defined:
 
 - `| posted: {YYYY-MM-DD}` — the posting date, when the provider's API exposed one
