@@ -820,6 +820,52 @@ export function loadReApplyWindows(profilePath = getProfilePath()) {
   }
 }
 
+// A company entry explicitly opts out of the global title_filter — used
+// exclusively by industry_companies entries (see resolveScanCompanies below),
+// which cast a wider net on purpose and rely on full evaluation's CV-match
+// scoring instead of a title keyword match. A plain tracked_companies entry
+// should never set this; validate-portals.mjs warns if one does.
+export function shouldSkipTitleFilter(company) {
+  return company != null && company.skip_title_filter === true;
+}
+
+// Reads config/profile.yml's targeting_mode/target_industries (#2026-08-28
+// profile-settings-industry-targeting). Same fail-open convention as
+// loadCandidateCountry/loadReApplyWindows above: a missing file, missing
+// field, or malformed profile all resolve to today's default behavior
+// (title_based, no industries) rather than throwing.
+export function loadTargetingConfig(profilePath = getProfilePath()) {
+  if (!existsSync(profilePath)) return { targetingMode: 'title_based', targetIndustrySlugs: [] };
+  try {
+    const raw = yaml.load(readFileSync(profilePath, 'utf-8')) || {};
+    const targetingMode = raw.targeting_mode === 'industry_based' ? 'industry_based' : 'title_based';
+    const targetIndustrySlugs = Array.isArray(raw.target_industries)
+      ? raw.target_industries
+          .map((entry) => (entry && typeof entry.slug === 'string' ? entry.slug.trim() : ''))
+          .filter((slug) => slug.length > 0)
+      : [];
+    return { targetingMode, targetIndustrySlugs };
+  } catch {
+    return { targetingMode: 'title_based', targetIndustrySlugs: [] };
+  }
+}
+
+// Merges portals.yml's tracked_companies with any industry_companies groups
+// the candidate has opted into (targetingConfig.targetIndustrySlugs), per
+// docs/superpowers/specs/2026-08-28-profile-settings-industry-targeting-design.md.
+// Under title_based targeting (the default), this is byte-identical to
+// reading tracked_companies alone — zero behavior change for every existing
+// candidate who hasn't opted in.
+export function resolveScanCompanies(portalsConfig, targetingConfig) {
+  const tracked = Array.isArray(portalsConfig?.tracked_companies) ? portalsConfig.tracked_companies : [];
+  if (targetingConfig?.targetingMode !== 'industry_based') return tracked;
+  const industryCompanies = portalsConfig?.industry_companies;
+  if (!industryCompanies || typeof industryCompanies !== 'object' || Array.isArray(industryCompanies)) return tracked;
+  const slugs = Array.isArray(targetingConfig.targetIndustrySlugs) ? targetingConfig.targetIndustrySlugs : [];
+  const industryEntries = slugs.flatMap((slug) => (Array.isArray(industryCompanies[slug]) ? industryCompanies[slug] : []));
+  return [...tracked, ...industryEntries];
+}
+
 export function buildCooldownFilter(windows, today) {
   if (!windows || Object.keys(windows).length === 0) {
     return () => ({ skip: false });
@@ -2098,7 +2144,8 @@ async function main() {
     process.exit(1);
   }
   const config = rawConfig && typeof rawConfig === 'object' ? rawConfig : {};
-  const companies = Array.isArray(config.tracked_companies) ? config.tracked_companies : [];
+  const targetingConfig = loadTargetingConfig();
+  const companies = resolveScanCompanies(config, targetingConfig);
   const boards = Array.isArray(config.job_boards) ? config.job_boards : [];
   const titleFilter = buildTitleFilter(config.title_filter);
 
@@ -2288,7 +2335,7 @@ async function main() {
           }
         }
 
-        if (!titleFilter(job.title)) {
+        if (!shouldSkipTitleFilter(company) && !titleFilter(job.title)) {
           totalFilteredTitle++;
           continue;
         }
