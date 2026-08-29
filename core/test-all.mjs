@@ -3132,6 +3132,21 @@ try {
   } else {
     fail(`scan.mjs note segment wrong: "${noteFull}" / "${noteBare}" / "${noteEmpty}" / "${noteNonString}" / "${notePipe}"`);
   }
+
+  // pipeline.md source segment (#2026-08-28 industry targeting): formatPipelineOffer
+  // tags an offer that came through resolveScanCompanies()'s industry_companies
+  // merge, so modes/pipeline.md's per-URL loop knows to run triage before full
+  // evaluation. Absent source is byte-identical to today's output.
+  const sourceIndustry = formatPipelineOffer({ url: 'https://x/10', company: 'Live Nation', title: 'Royalty Accountant', source: 'industry' });
+  const sourceAbsent = formatPipelineOffer({ url: 'https://x/11', company: 'Acme', title: 'PM' });
+  if (
+    sourceIndustry === '- [ ] https://x/10 | Live Nation | Royalty Accountant | source: industry' &&
+    !sourceAbsent.includes('| source:')
+  ) {
+    pass('scan.mjs formatPipelineOffer appends source: industry when given, omits it otherwise (#2026-08-28 industry targeting)');
+  } else {
+    fail(`scan.mjs source segment wrong: "${sourceIndustry}" / "${sourceAbsent}"`);
+  }
 } catch (err) {
   fail(`scan.mjs formatPipelineOffer import failed: ${err.message}`);
 }

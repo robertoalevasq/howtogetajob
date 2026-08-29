@@ -1609,6 +1609,13 @@ export function formatPipelineOffer(offer) {
   // posted:, before note:, for a stable serialization.
   const trust = formatTrustSegment(offer);
   if (trust) line = `${line} | ${trust}`;
+  // Labeled industry-targeting source segment (#2026-08-28) — rides like
+  // posted:/trust:/note:, emitted only when this offer's company came from
+  // resolveScanCompanies()'s industry_companies merge (shouldSkipTitleFilter
+  // is true for exactly that set and false for every ordinary
+  // tracked_companies entry, so it doubles as the source-of-truth marker
+  // here without needing a second, parallel flag threaded through).
+  if (offer.source === 'industry') line = `${line} | source: industry`;
   // Optional free-text ranking signal (e.g. a curated-list flag an importer
   // attaches). Labeled — not positional like location/compensation — so it can
   // ride on any row shape (bare URL, 3-, 4-, or 5-column) without a reader
@@ -2404,6 +2411,17 @@ async function main() {
           source: sourceName,
           tracked: Boolean(careersUrlDomain),
           careersUrlDomain,
+          // Industry-sourced flag (#2026-08-28 profile-settings-industry-targeting)
+          // — threads shouldSkipTitleFilter(company) (Task 2's already-available
+          // signal, re-derived here where `company` is still in scope) forward to
+          // the pipeline.md write below. Deliberately NOT stored as `source`
+          // here: this same object also feeds appendToScanHistory(), whose
+          // scan-history.tsv `portal` column expects the real ATS provider
+          // (`sourceName`, e.g. 'greenhouse-api') — overwriting it would corrupt
+          // that column for every industry-sourced offer. The `source: industry`
+          // label is materialized on a separate copy, only for the
+          // appendToPipeline() call, right before that call (see below).
+          industrySourced: shouldSkipTitleFilter(company),
         });
       }
     } catch (err) {
@@ -2449,7 +2467,15 @@ async function main() {
 
   // 6. Write results
   if (!dryRun && verifiedOffers.length > 0) {
-    await appendToPipeline(verifiedOffers);
+    // Materialize the `source: industry` label (#2026-08-28 industry targeting)
+    // on a COPY, only for appendToPipeline(): overwriting `.source` on
+    // verifiedOffers itself would corrupt appendToScanHistory()'s `portal`
+    // column (which reads the same field for the real ATS provider name) for
+    // every industry-sourced offer. See the `industrySourced` flag set above.
+    const pipelineOffers = verifiedOffers.map((o) =>
+      o.industrySourced ? { ...o, source: 'industry' } : o
+    );
+    await appendToPipeline(pipelineOffers);
     appendToScanHistory(verifiedOffers, date);
   }
   if (!dryRun && cooldownOffers.length > 0) {
