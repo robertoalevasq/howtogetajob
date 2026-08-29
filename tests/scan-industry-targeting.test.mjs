@@ -27,6 +27,18 @@ test('shouldSkipTitleFilter requires BOTH the code-set industry marker and skip_
   // An industry_companies entry that never declared the flag does not bypass.
   assert.equal(shouldSkipTitleFilter(resolveOneIndustryCompany({ name: 'Live Nation' })), false);
 
+  // The `=== true` strictness is still load-bearing WITH the marker present: a
+  // legitimately industry-sourced entry whose YAML flag is a truthy non-boolean
+  // must not bypass either. The marker is a precondition, not a replacement for
+  // the strict check.
+  for (const truthyNonBoolean of ['true', 'yes', 1, [], {}]) {
+    assert.equal(
+      shouldSkipTitleFilter(resolveOneIndustryCompany({ name: 'Live Nation', skip_title_filter: truthyNonBoolean })),
+      false,
+      `skip_title_filter: ${JSON.stringify(truthyNonBoolean)} must not be coerced to true`,
+    );
+  }
+
   // Raw YAML-shaped objects that never went through resolveScanCompanies()
   // carry no marker, so none of them bypasses the title filter.
   assert.equal(shouldSkipTitleFilter({ name: 'Acme', skip_title_filter: true }), false);

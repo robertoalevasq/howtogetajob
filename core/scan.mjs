@@ -1682,10 +1682,15 @@ export function formatPipelineOffer(offer) {
   if (trust) line = `${line} | ${trust}`;
   // Labeled industry-targeting source segment (#2026-08-28) — rides like
   // posted:/trust:/note:, emitted only when this offer's company came from
-  // resolveScanCompanies()'s industry_companies merge (shouldSkipTitleFilter
-  // is true for exactly that set and false for every ordinary
-  // tracked_companies entry, so it doubles as the source-of-truth marker
-  // here without needing a second, parallel flag threaded through).
+  // resolveScanCompanies()'s industry_companies merge. The source of truth for
+  // "did it come from that merge" is isIndustrySourced(company) — the code-set
+  // provenance marker resolveScanCompanies() stamps — NOT shouldSkipTitleFilter(),
+  // which answers a narrower question (that marker AND an explicit
+  // skip_title_filter: true in YAML) and so would wrongly drop the tag for an
+  // industry_companies entry that omitted the flag. The caller sets
+  // offer.industrySourced from isIndustrySourced() and materializes `source:
+  // industry` on a copy just before appendToPipeline(); see there for why it
+  // isn't stored on `source` directly.
   if (offer.source === 'industry') line = `${line} | source: industry`;
   // Optional free-text ranking signal (e.g. a curated-list flag an importer
   // attaches). Labeled — not positional like location/compensation — so it can
@@ -2242,6 +2247,11 @@ async function main() {
         const known = Object.keys(industryKeys);
         const knownHint = known.length > 0 ? ` Known industry_companies keys: ${known.join(', ')}.` : ' portals.yml has no industry_companies block at all.';
         console.warn(`⚠️  target_industries slug "${slug}" has no matching portals.yml industry_companies entry — 0 companies will be scanned for this industry.${knownHint}`);
+      } else if (entries.every((e) => e == null || typeof e !== 'object' || e.enabled === false)) {
+        // Same invisible-zero failure, different cause: the slug matches and the
+        // list is non-empty, but every entry in it is disabled, so the industry
+        // still contributes nothing and the run still reports success.
+        console.warn(`⚠️  target_industries slug "${slug}" matched ${entries.length} portals.yml industry_companies entr${entries.length === 1 ? 'y' : 'ies'}, but every one is disabled (enabled: false) — 0 companies will be scanned for this industry.`);
       }
     }
   }
