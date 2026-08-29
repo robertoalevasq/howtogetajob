@@ -41,11 +41,15 @@ import { runHook } from '../plugins/_engine.mjs';
 import { isMainModule } from './is-main.mjs';
 
 // ROOT is this script's own directory (core/, after the #workspace-multitenancy
-// Task 1 move) — kept as the cwd for spawning sibling scripts below ('plugins.mjs',
-// 'telegram-poll.mjs') by their relative filename, since those scripts now live
-// alongside this one in core/. REPO_ROOT is the actual repo root one level up:
-// the anchor for data/ and the cwd the `claude`/AI-CLI invocation itself needs,
-// so it operates on the whole project (AGENTS.md, modes/, etc.), not just core/.
+// Task 1 move) — kept as the cwd for spawning 'telegram-poll.mjs' below by its
+// relative filename, since that script lives alongside this one in core/. It's
+// also used to build an absolute path to 'plugins.mjs' for notifyRoutingFailure's
+// spawns, which need a workspace-scoped cwd instead (see that function's own
+// comment) — a bare relative filename there resolved against the wrong
+// directory and crashed with MODULE_NOT_FOUND. REPO_ROOT is the actual repo
+// root one level up: the anchor for data/ and the cwd the `claude`/AI-CLI
+// invocation itself needs, so it operates on the whole project (AGENTS.md,
+// modes/, etc.), not just core/.
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = dirname(ROOT);
 // acquirePipelineLock derives its actual lock directory by appending
@@ -137,11 +141,23 @@ function notifyRoutingFailure(errorMessage, dispatch) {
     .join(' | ') || '(no message text)';
   const text = `⚠️ Telegram routing failed: ${errorMessage}\nMessage(s): ${summary}`;
 
-  const telegramProc = spawn('node', ['plugins.mjs', 'run', 'telegram', 'notify', text, '--chat-id', String(dispatch.chatId)], { cwd: ROOT, stdio: 'inherit' });
+  // Absolute script path (not a bare 'plugins.mjs') so this resolves correctly
+  // regardless of cwd; cwd is deliberately dispatch.cwd (the failed dispatch's
+  // own workspace), not ROOT, so plugins.mjs's own workspaceRoot()-based config
+  // and cross-tenant chat-id guard (computeForeignBoundChatIds) resolve against
+  // the correct workspace instead of falling back to core/ as a bogus "current
+  // workspace" — which previously made the guard treat every chat_id as foreign
+  // and silently swallow the emergency notification (found live 2026-08-28: a
+  // failed /apply resume-approval routing call left the candidate with zero
+  // feedback because both the Discord notify below, which also used a bare
+  // 'plugins.mjs' path against this same wrong cwd, and this Telegram notify
+  // failed at once).
+  const pluginsMjs = join(ROOT, 'plugins.mjs');
+  const telegramProc = spawn('node', [pluginsMjs, 'run', 'telegram', 'notify', text, '--chat-id', String(dispatch.chatId)], { cwd: dispatch.cwd, stdio: 'inherit' });
   telegramProc.on('error', err => console.error(`[telegram-monitor] Emergency notify to telegram also failed: ${err.message}`));
 
   if (dispatch.kind === 'routing') {
-    const discordProc = spawn('node', ['plugins.mjs', 'run', 'discord', 'notify', text], { cwd: dispatch.cwd, stdio: 'inherit' });
+    const discordProc = spawn('node', [pluginsMjs, 'run', 'discord', 'notify', text], { cwd: dispatch.cwd, stdio: 'inherit' });
     discordProc.on('error', err => console.error(`[telegram-monitor] Emergency notify to discord also failed: ${err.message}`));
   }
 }
