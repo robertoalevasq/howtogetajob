@@ -29,6 +29,55 @@ Read `portals.yml` which contains:
 - `tracked_companies`: Specific companies with `careers_url` for direct navigation
 - `tracked_companies[].parser`: Optional local parser for SSR pages or stable HTML
 - `title_filter`: Keywords (positive/negative/seniority_boost) for filtering job titles
+- `industry_companies`: Optional block of company lists **keyed by industry slug**, each entry the same shape as a `tracked_companies` entry (`name`, `scan_method`, `ats`, `careers_url`, `api`, `parser`, …) plus `skip_title_filter: true`
+
+### Industry-based targeting (`industry_companies`)
+
+`industry_companies` is read **only** when `config/profile.yml` sets
+`targeting_mode: industry_based` **and** lists one or more `target_industries`
+entries whose `slug` matches a key under `industry_companies`. Absent
+`targeting_mode`, or `targeting_mode: title_based`, this block is ignored
+entirely and everything below behaves exactly as it always has.
+
+```yaml
+# config/profile.yml
+targeting_mode: "industry_based"
+target_industries:
+  - name: "Music & Concert Industry"
+    slug: "music"          # ← matches the portals.yml key below
+
+# portals.yml
+industry_companies:
+  music:
+    - name: "Live Nation"
+      scan_method: api
+      ats: greenhouse
+      api: "https://boards-api.greenhouse.io/v1/boards/livenation/jobs"
+      skip_title_filter: true
+```
+
+The point of industry targeting is to cast a **wider net than an exact title
+match**: the candidate is betting on the employer, and evaluation-time CV-match
+scoring (`modes/oferta.md`) decides real fit instead of a title keyword. So
+every entry under `industry_companies` carries `skip_title_filter: true`, and
+two things follow for this mode's workflow below:
+
+- **Step 6's `title_filter` does not apply to these companies** (see Step 6).
+- **Step 8 writes an extra `| source: industry` segment** on their pipeline rows,
+  which is what makes `modes/pipeline.md` run its mandatory `triage` gate before
+  any full evaluation (see Step 8).
+
+`skip_title_filter` is only ever meaningful on an `industry_companies`-sourced
+entry. `core/scan.mjs` enforces this by construction — the flag is honored only
+on entries its own `resolveScanCompanies()` merged in from `industry_companies`
+— and `core/validate-portals.mjs` warns if one appears on a `tracked_companies`
+entry. Apply the same rule by hand: **never** skip the title filter for a
+`tracked_companies` entry, whatever flag it carries.
+
+Note the two blocks are additive, not exclusive: under `industry_based`
+targeting the scan universe is `tracked_companies` **plus** the
+`industry_companies` lists for the candidate's own slugs. `tracked_companies`
+entries keep their normal title filtering throughout.
 
 ## Discovery Strategy (4 Levels)
 
@@ -111,11 +160,13 @@ During the agent's scan, keep the **`local_parser_ok`** set in memory. This set 
 
 ### Level 1 — Direct Playwright (PRIMARY)
 
-**For each company in `tracked_companies` that is not in `local_parser_ok`:** Navigate to its `careers_url` with Playwright (`browser_navigate` + `browser_snapshot`), read ALL visible job listings, and extract the title + URL for each. This is the most reliable method because:
+**For each company in the scan universe that is not in `local_parser_ok`:** Navigate to its `careers_url` with Playwright (`browser_navigate` + `browser_snapshot`), read ALL visible job listings, and extract the title + URL for each. This is the most reliable method because:
 - It views the page in real time (not cached Google results)
 - It works with SPAs (Ashby, Lever, Workday)
 - It detects new offers instantly
 - It does not depend on Google indexing
+
+> **Scan universe = `tracked_companies` + the candidate's `industry_companies` slugs.** Under `targeting_mode: industry_based`, iterate `portals.yml`'s `industry_companies.<slug>` entries — for every `slug` in `config/profile.yml`'s `target_industries` — exactly the same way as `tracked_companies` entries: same `enabled: true` check, same `local_parser_ok` skip rule, same `careers_url` navigation, same accumulation into candidates. These companies are not structurally different; they just live under a different YAML key. (Under `title_based` targeting, or with no `targeting_mode` at all, the scan universe is `tracked_companies` alone — nothing here changes.) Carry each candidate's source company entry alongside it, so Steps 6 and 8 below can see whether it has `skip_title_filter: true`. If a `target_industries` slug has no matching `industry_companies` key, note it in the output summary rather than scanning nothing silently — the slug is almost certainly a typo or casing mismatch. `core/scan.mjs` prints the same warning for its own half of the run.
 
 **Every company MUST have a `careers_url` in portals.yml.** If it does not, search for it once, save it, and use it in future scans.
 
@@ -123,7 +174,7 @@ During the agent's scan, keep the **`local_parser_ok`** set in memory. This set 
 
 ### Level 2 — ATS APIs / Feeds (COMPLEMENTARY)
 
-For companies with a public API or structured feed **that are not in `local_parser_ok`**, use the JSON/XML response as a fast complement to Level 1. This is faster than Playwright and reduces visual scraping errors.
+For companies in the scan universe (see Level 1) with a public API or structured feed **that are not in `local_parser_ok`**, use the JSON/XML response as a fast complement to Level 1. This is faster than Playwright and reduces visual scraping errors.
 
 **Current Support (variables inside `{}`):**
 - Full provider table: [Supported job boards](../docs/SUPPORTED_JOB_BOARDS.md)
@@ -155,9 +206,11 @@ The `search_queries` with `site:` filters cover portals transversally (all Ashby
 
 **Execution Priority:**
 1. Level 0: Local Parser → companies with a configured `parser:` and existing script; build `local_parser_ok`
-2. Level 1: Playwright → `tracked_companies` with a `careers_url`, **except** `local_parser_ok`
-3. Level 2: API → `tracked_companies` with an `api:`, **except** `local_parser_ok`
+2. Level 1: Playwright → scan universe with a `careers_url`, **except** `local_parser_ok`
+3. Level 2: API → scan universe with an `api:`, **except** `local_parser_ok`
 4. Level 3: WebSearch → all `search_queries` with `enabled: true`; discard hits from companies in `local_parser_ok`
+
+"Scan universe" = `tracked_companies`, plus `industry_companies.<slug>` for every `slug` in `config/profile.yml`'s `target_industries` when `targeting_mode: industry_based` (see Level 1). Level 3 is unaffected by targeting mode — its `search_queries` discover *new* companies by query rather than iterating a company list.
 
 Levels are additive — they are executed in order, and results are merged and deduplicated. Companies in `local_parser_ok` **do not** go through Levels 1 or 2; in Level 3, they only contribute transversal discovery (other companies on the same portal).
 
@@ -180,17 +233,17 @@ Levels are additive — they are executed in order, and results are merged and d
    g. If the parser completes successfully (steps c–e without fatal error), add `entry.name` to `local_parser_ok` and accumulate jobs in candidates.
 
 4. **Level 1 — Playwright Scan** (parallel in batches of 3-5):
-   For each company in `tracked_companies` with `enabled: true`, a defined `careers_url`, and a **name not listed in `local_parser_ok`**:
+   For each company in the **scan universe** — `tracked_companies`, plus `industry_companies.<slug>` for every `slug` in `config/profile.yml`'s `target_industries` when `targeting_mode: industry_based` (see Level 1 above) — with `enabled: true`, a defined `careers_url`, and a **name not listed in `local_parser_ok`**:
    a. `browser_navigate` to `careers_url`.
    b. `browser_snapshot` to read all job listings.
    c. If the page has filters/departments, navigate the relevant sections.
    d. For each job listing, extract: `{title, url, company}`.
    e. If the page has pagination, navigate subsequent pages.
-   f. Accumulate in the candidates list.
+   f. Accumulate in the candidates list, keeping a reference to the source company entry (Steps 6 and 8 read its `skip_title_filter`).
    g. If `careers_url` fails (404, redirect), attempt `scan_query` as a fallback and note it to update the URL later.
 
 5. **Level 2 — ATS APIs / Feeds** (parallel):
-   For each company in `tracked_companies` with a defined `api:`, `enabled: true`, and a **name not listed in `local_parser_ok`**:
+   For each company in the **scan universe** (same definition as step 4) with a defined `api:`, `enabled: true`, and a **name not listed in `local_parser_ok`**:
    a. WebFetch the API/feed URL.
    b. If `api_provider` is defined, use its parser; if undefined, infer by domain (`boards-api.greenhouse.io`, `api.ashbyhq.com`, `api.(eu.)?lever.co`, `*.bamboohr.com`, `*.teamtailor.com`, `*.myworkdayjobs.com`, `*.breezy.hr`).
    c. For **Ashby**, send a GET request to `https://api.ashbyhq.com/posting-api/job-board/{slug}?includeCompensation=true` (slug from `careers_url`). Parse `jobs[]` → `title`, `jobUrl`, `location` (fold in `secondaryLocations[]`), `compensation`. No GraphQL needed.
@@ -210,9 +263,12 @@ Levels are additive — they are executed in order, and results are merged and d
    d. Accumulate the rest in the candidates list (deduplicated against Levels 0+1+2).
 
 6. **Filter by Title** using `title_filter` from `portals.yml`:
-   - At least 1 keyword from `positive` must appear in the title (case-insensitive).
-   - 0 keywords from `negative` must appear.
-   - `seniority_boost` keywords give priority but are not mandatory.
+   - **Skip this entire step** for any candidate whose source company entry has `skip_title_filter: true` — i.e. the value is the boolean `true`, strictly; a string `"true"`, `1`, `"yes"`, or any other truthy stand-in does **not** count and the filter still applies (this mirrors `core/scan.mjs`'s own `shouldSkipTitleFilter(company)`, which never coerces). The candidate passes this step untouched and goes on to 6b. In practice this is exactly the set of companies that came from `industry_companies` — a wider net is the whole point there, and full evaluation's CV-match scoring, gated by the mandatory `triage` pass Step 8 sets up, does the filtering instead.
+   - **Never honor `skip_title_filter` on a `tracked_companies` entry**, even if one carries it — that is a copy-paste mistake, not a targeting decision (`core/validate-portals.mjs` warns about it, and `core/scan.mjs` ignores it by construction). Flag it in the output summary and apply the title filter normally.
+   - Otherwise, apply the filter as usual:
+     - At least 1 keyword from `positive` must appear in the title (case-insensitive).
+     - 0 keywords from `negative` must appear.
+     - `seniority_boost` keywords give priority but are not mandatory.
 
 6b. **Filter by Location (Optional)** using `location_filter` from `portals.yml`:
    - If the `location_filter` block is absent, all locations pass (default behavior).
@@ -259,7 +315,10 @@ Levels are additive — they are executed in order, and results are merged and d
 
 8. **For each new verified offer that passes filters**:
    a. Add to the `pipeline.md` "Pending" section: `- [ ] {url} | {company} | {title}`
-   b. Record in `scan-history.tsv`: `{url}\t{date}\t{query_name}\t{title}\t{company}\tadded`
+      - **If the offer's source company entry has `skip_title_filter: true`** (i.e. it came from `industry_companies`), append the labeled segment `| source: industry` to the row — the same segment `core/scan.mjs`'s `formatPipelineOffer()` writes for the companies it handles itself. This is not cosmetic: `modes/pipeline.md`'s per-URL loop reads it and runs its **mandatory `triage` gate** before any full evaluation, which is what keeps a bypassed title filter from turning into a full A-F evaluation for every unrelated department a big employer has open. Omitting it silently sends those postings straight to full evaluation.
+      - Segment ordering is fixed (see `modes/pipeline.md` → "Format of pipeline.md"): `posted:` → `trust:` → `source:` → `note:`. So a row carrying a posting date and an industry source reads `- [ ] {url} | {company} | {title} | posted: {YYYY-MM-DD} | source: industry`.
+      - Never write this segment for a `tracked_companies`-sourced offer, whatever flag the entry carries (see Step 6).
+   b. Record in `scan-history.tsv`: `{url}\t{date}\t{query_name}\t{title}\t{company}\tadded` — the `portal`/`query_name` column keeps the real discovery source (query name or provider), **not** `industry`; the `source: industry` label lives only on the `pipeline.md` row.
 
 9. **Offers filtered by title**: record in `scan-history.tsv` with status `skipped_title`.
 10. **Duplicate offers**: record with status `skipped_dup`.
