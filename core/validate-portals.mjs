@@ -16,6 +16,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import yaml from 'js-yaml';
 import { flagValue, hasFlag } from '../lib/cli-flags.mjs';
 import { workspaceRoot } from './workspace-root.mjs';
+import { isMainModule } from './is-main.mjs';
 
 // This script now lives in core/, one directory below the repo root; ROOT is
 // the actual repo root that providers/ and plugins/ live under (see
@@ -353,7 +354,7 @@ async function main() {
 }
 
 // Only run main() when the script is directly invoked, not when imported as a module
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isMainModule(import.meta.url)) {
   main().catch((err) => {
     console.error(`validate-portals failed: ${err.message}`);
     process.exit(1);
