@@ -28,6 +28,7 @@ const COMMANDS = [
   { command: 'applyall', description: 'Batch-apply to everything eligible' },
   { command: 'pdf', description: 'Resend a generated resume (report # or company)' },
   { command: 'status', description: 'Cycle progress, pipeline stats, and pending approvals' },
+  { command: 'settings', description: 'View or change your profile settings' },
   { command: 'help', description: 'Show every command and how to reply' },
 ];
 

@@ -17,7 +17,7 @@ Run once, before the first poll:
    Once they paste the token, write it to `.env` as `TELEGRAM_BOT_TOKEN=...` — never echo it back in chat, never write it anywhere else.
 2. Look up the chat ID: `curl -s "https://api.telegram.org/bot{TOKEN}/getUpdates"`, extract `result[0].message.chat.id`. If empty, remind the candidate to message the bot first, then retry.
 3. Ensure `config/plugins.yml` exists (`cp config/plugins.example.yml config/plugins.yml` if not). Set `telegram.enabled: true` and `telegram.chat_id: "{chat_id}"`.
-4. Register the bot's "/" command menu: `node core/telegram-set-commands.mjs` — a curated list (`/run`, `/scan`, `/apply`, `/applyall`, `/pdf`, `/status`, `/help`), not the full recognized set (`/yes`/`/no`/`/skip`/`/cancel`/`/editpdf` still work typed, just aren't menu clutter). Safe/idempotent to re-run whenever the list changes.
+4. Register the bot's "/" command menu: `node core/telegram-set-commands.mjs` — a curated list (`/run`, `/scan`, `/apply`, `/applyall`, `/pdf`, `/status`, `/settings`, `/help`), not the full recognized set (`/yes`/`/no`/`/skip`/`/cancel`/`/editpdf` still work typed, just aren't menu clutter). Safe/idempotent to re-run whenever the list changes.
 5. Verify: `node core/plugins.mjs run telegram notify "👋 career-ops connected. Send /help to see everything I can do."` — confirm it arrives.
 6. Create `data/telegram-state.md` from the template below if it doesn't exist.
 
@@ -28,10 +28,10 @@ Run once, before the first poll:
 
 ## Pending Confirmations
 <!-- One block per pending item:
-[msg_id: X] stage: resume-approval|field-approval|submit-approval|batch-approval|question|edit-intent — <short description> — waiting since <date>
+[msg_id: X] stage: resume-approval|field-approval|submit-approval|batch-approval|question|edit-intent|settings-menu|settings-edit — <short description> — waiting since <date>
   report: NNN
   job_url: https://...
-  data: <stage-specific JSON — swapped-bullet list + candidate JSON path for resume-approval, field_mapping for field-approval, filled-form summary for submit-approval, question text for question (a Step 6c one-at-a-time field question additionally carries the loop's resolved/missed field list so far, so a resume knows what's already settled without re-deriving it; a Step 5-alt account-creation question instead carries a short marker — "awaiting account-creation consent", "awaiting verification", or "awaiting password paste-back" — so a resume lands on the right sub-step of that flow; for these three markers `data` is the marker string only, NEVER the generated password itself — the password is never written to this file, see `modes/apply.md` Step 5-alt item 7), eligible/excluded lists for batch-approval, empty for edit-intent>
+  data: <stage-specific JSON — swapped-bullet list + candidate JSON path for resume-approval, field_mapping for field-approval, filled-form summary for submit-approval, question text for question (a Step 6c one-at-a-time field question additionally carries the loop's resolved/missed field list so far, so a resume knows what's already settled without re-deriving it; a Step 5-alt account-creation question instead carries a short marker — "awaiting account-creation consent", "awaiting verification", or "awaiting password paste-back" — so a resume lands on the right sub-step of that flow; for these three markers `data` is the marker string only, NEVER the generated password itself — the password is never written to this file, see `modes/apply.md` Step 5-alt item 7), eligible/excluded lists for batch-approval, empty for edit-intent; for `settings-menu`, `data` is empty — the numbered menu itself is the message already sent, nothing further to carry; for `settings-edit`, `data` is the field key being edited (one of `location`, `work_mode`, `targeting`, `salary`, `sponsorship`) so a resumed session knows which field the reply is answering without re-parsing the menu>
   edit_count: <optional, omitted/0 by default — how many edit-loop rounds this item has been through, for audit only>
 -->
 (none)
@@ -66,10 +66,11 @@ Every task-starting row below requires a recognized `/command` (`parseCommand()`
 | `/pdf {report#\|company}` / `/pdf` (no args) | recognized command | Step 3d: retrieve & send PDF |
 | `/editpdf {report#\|company}` / `/editpdf` (no args) | recognized command | Step 3e: open an edit intent |
 | `/status` | recognized command | Step 3f: report status |
+| `/settings` | recognized command | Step 3h: view/edit profile settings |
 | `/help` | recognized command | Step 3g: show help |
 | `/yes` / `/no` / `/skip` / `/cancel` | recognized command | routes exactly like the equivalent standalone word in the Confirmation reply row below |
 | Job URL | contains a job-posting URL pattern (Greenhouse/Lever/Workday/Ashby/etc.) — **the one non-slash exception**, since it's a deterministic pattern match, not an interpreted phrase | Step 3b: start apply |
-| Confirmation reply | a **threaded reply** (`replyToMessageId` matches a pending confirmation's message id), OR a standalone `yes`/`y`/`go`/`no`/`skip`/`cancel` when exactly one confirmation is pending, OR **free text that isn't a job URL or a recognized command** when exactly one `resume-approval`/`field-approval`/`submit-approval`/`edit-intent`/`question` confirmation is pending — **the other non-slash exception**, since it's scoped to whatever's already open | Step 4: confirm |
+| Confirmation reply | a **threaded reply** (`replyToMessageId` matches a pending confirmation's message id), OR a standalone `yes`/`y`/`go`/`no`/`skip`/`cancel` when exactly one confirmation is pending, OR **free text that isn't a job URL or a recognized command** when exactly one `resume-approval`/`field-approval`/`submit-approval`/`edit-intent`/`question`/`settings-menu`/`settings-edit` confirmation is pending — **the other non-slash exception**, since it's scoped to whatever's already open | Step 4: confirm |
 | Anything else — including plain-English attempts like "search" or "apply all" | not a recognized `/command`, not a job URL, nothing pending to reply to | Step 5: note (nudges toward `/help`) |
 
 If a standalone confirm word or free-text reply arrives with **multiple** pending confirmations (of any stage, including `edit-intent`), don't guess — reply with a numbered list of what's pending and wait for a number in a future cycle. This is the only disambiguation needed now: since PDF edits open through `/editpdf` (a command) rather than matching on free text, there's no longer a routing collision between an in-flight apply confirmation and an out-of-band PDF edit request — each pending item is unambiguous once opened.
@@ -188,13 +189,43 @@ At <i>any</i> of these: "no" skips this application (nothing is lost — /apply 
 /pdf {report#} — resend an already-generated resume
 /editpdf {report#} — I'll ask what to change, then regenerate it (no approval needed — it's just a draft)
 
-<b>6. Quick replies</b>
+<b>6. Settings</b>
+/settings — view or change your location, work mode, targeting, salary target, or sponsorship status
+
+<b>7. Quick replies</b>
 Only usable when something's already waiting on you: "yes"/"y"/"go", "no"/"skip", "cancel". If more than one thing is pending, I'll ask you to pick by number.
 
 Send /help anytime to see this again.
 ```
 
 One-shot, no pending confirmation — log to Recent Actions same as Step 3d/3f.
+
+### Step 3h — View/edit profile settings
+
+1. Read `config/profile.yml`. Build the numbered menu from whichever of these fields are present (a field with no real value yet — e.g. a fresh onboard that skipped the optional narrative step — is still listed, showing its current default):
+
+   ```
+   ⚙️ <b>Your Settings</b>
+
+   1. Location: {location.city}, {location.country}
+   2. Work mode: {location.work_mode, or "not set" if absent}
+   3. Targeting: {"title-based — " + target_roles.primary.join(", ") if targeting_mode is title_based, else "industry-based — " + target_industries.map(i => i.name).join(", ")}
+   4. Salary target: {compensation.target_range}
+   5. Sponsorship: {"Needs sponsorship" if location.needs_sponsorship else "Not needed"}
+
+   Reply with a number to change it, or "done".
+   ```
+
+2. Send it, store a pending confirmation with `stage: settings-menu`, advance and wait.
+3. **On a numbered reply (1-5):**
+   - `1` (Location): ask `Where are you based now? (city, state/country)` — on reply, update `location.city`/`location.timezone`/`location.country` (same inference rule `telegram-onboarding.md` Step 4b already uses: infer `country` only from an unambiguous city/country name in the reply, never guess). Send a read-back (`Got it — location is now {city}, {country}. Confirm?`), store `stage: settings-edit` with `data: "location"`, wait for "yes"/correction exactly like `telegram-onboarding.md` Step 4's own confirm loop. On confirmation, run `modes/_portals-pruning.md`'s location-triggered steps (its section 3, `location_filter`) using the new location, then return to the Step 3h.1 menu.
+   - `2` (Work mode): ask `Remote only, remote preferred, hybrid ok, or onsite ok?` — parse into one of the four `location.work_mode` enum values (same mapping `telegram-onboarding.md` Step 4's `answers.workMode` parsing already uses). Read back, confirm, write `location.work_mode`. On confirmation, run `modes/_portals-pruning.md`'s work-mode-triggered steps (its section 3, `location_filter`) using the new value, then return to the menu.
+   - `3` (Targeting): if currently `title_based`, ask `Add more target roles, or switch to industry-based targeting instead?` — a reply naming roles updates `target_roles.primary` (read back, confirm, run `_portals-pruning.md` sections 1-2, `title_filter.positive` and `tracked_companies`/`search_queries` pruning); a reply indicating a switch to industry-based asks `What industry, and do you know specific companies in it? (name a few, or I can suggest some)` — on reply, set `targeting_mode: "industry_based"`, populate `target_industries` with the named industry (candidate supplies or confirms a `slug`), then run `_portals-pruning.md` section 4 (`industry_companies`) to resolve companies via `discover` mode. If currently `industry_based`, offer the symmetric choice: add companies/industries, or switch back to `title_based` (switching back only changes `targeting_mode` — per `_portals-pruning.md` section 4's own note, `industry_companies` is left in place, not deleted). Read back and confirm before any write, same as every other field. On confirmation, return to the Step 3h.1 menu.
+   - `4` (Salary): ask `What's your new target range?` — read back, confirm, write `compensation.target_range`/`compensation.minimum` (parse a walk-away floor from the reply if stated; otherwise leave `minimum` unchanged and say so in the read-back). On confirmation, return to the Step 3h.1 menu.
+   - `5` (Sponsorship): ask `Do you need visa sponsorship now, or are you authorized?` — same non-inference rule as onboarding (never infer from location — see `telegram-onboarding.md` Step 4's "Never infer `answers.needsSponsorship` from location alone" rule). Read back, confirm, write `location.visa_status`/`needs_sponsorship`/`authorized_in` exactly per `telegram-onboarding.md` Step 4b's existing instruction for this trio. On confirmation, return to the Step 3h.1 menu.
+4. **On "done" (or equivalent) with `stage: settings-menu` pending:** clear the pending confirmation, reply `Settings unchanged.` or, if any field was actually edited earlier in this session, a one-line summary of what changed. No `_portals-pruning.md` run needed here — each field edit above already ran it inline at the moment of confirmation, not batched to the end.
+5. **On a reply to `stage: settings-edit`:** resolve exactly like `telegram-onboarding.md` Step 4b's own confirm-or-correct loop — "yes"/equivalent proceeds with the write already described above per field; anything else is treated as a correction and re-asks the same field's question with the new input folded in, without advancing.
+6. Log every completed edit to `data/telegram-state.md`'s Recent Actions, same convention as every other step in this file.
 
 ### Step 4 — Confirm
 
@@ -209,6 +240,9 @@ Look up the pending confirmation the reply resolves (threaded match, or the sole
 - **`stage: question`** — feed the reply back into `apply` mode exactly as if the candidate had answered inline, then resume the paused step. This can re-enter Step 3b partway through (e.g., resume Step 6 after a Step 5e freshness question is answered "continue anyway").
 
 - **`stage: edit-intent`** — treat the reply as the edit instruction and run Step 3e steps 3-8. If too ambiguous to apply confidently, ask a clarifying question and stay in `stage: edit-intent` rather than advancing.
+
+- **`stage: settings-menu`** — a numbered reply (1-5) runs the matching branch in Step 3h #3; "done" (or equivalent) runs Step 3h #4. Anything else: re-send the menu with a reminder to reply with a number or "done", stay in `stage: settings-menu`.
+- **`stage: settings-edit`** — resolve per Step 3h #5 (the field key being edited is `data`).
 
 - **`stage: resume-approval`, approve** — continue Step 3b from step 3: scan the application form using the approved tailored resume.
 - **`stage: resume-approval`, edit request** — parse the request against `cv.md`'s Verified Bullet Variants (match by competency, e.g. "onboarding," "invoice processing"). If it maps to a specific pre-approved variant, swap it into the tailored payload; if it maps to a claim outside the verified library (e.g. Salesforce, VLOOKUP, anything on `modes/_profile.md`'s Accuracy Guardrails never-claim list), don't apply it — explain briefly why (which guardrail it hits) and offer to update `cv.md` out-of-band instead, so it's available for future applications. Either way, regenerate the preview, resend it with the same `📄 ... Reply "yes" to continue, or tell me what to change.` framing, bump `edit_count`, and stay in `stage: resume-approval` — do not advance until an explicit approval arrives. No cap on edit rounds.
