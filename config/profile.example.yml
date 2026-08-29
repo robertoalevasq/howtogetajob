@@ -100,6 +100,23 @@ location:
   #                        unchanged
   work_mode: "no_preference"
 
+# ── Targeting Mode ──────────────────────────────────────────────────────────
+#
+# "title_based" (default) — scan by target_roles.primary keywords, as today.
+# "industry_based" — scan a curated list of companies in target_industries
+# below (portals.yml's industry_companies block) regardless of exact job
+# title; modes/oferta.md's existing CV-match scoring decides real fit.
+# Absent or "title_based" is identical to today's behavior — no candidate's
+# scanning changes unless they explicitly opt into industry_based.
+targeting_mode: "title_based"
+
+# Only read when targeting_mode is "industry_based". Each slug must match a
+# key under portals.yml's industry_companies block.
+# target_industries:
+#   - name: "Music & Concert Industry"
+#     slug: "music"
+#     description: "Radio, concerts, event venues, record labels, music advertising, record stores"
+
 language:
   # Human-facing output language for reports, tracker notes, PDFs, cover
   # letters, outreach, and form answers. Use an ISO language code such as

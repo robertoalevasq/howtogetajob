@@ -101,6 +101,28 @@
 #     - "Brazil"
 #     - "Australia"
 
+# -- Industry-based company list (optional) --
+# Only scanned when config/profile.yml sets targeting_mode: "industry_based"
+# and lists this slug under target_industries. Every entry here bypasses
+# title_filter entirely (skip_title_filter: true) — evaluation-time CV-match
+# scoring in modes/oferta.md decides real fit, not the job title. Build this
+# list with `discover` mode (resolves real company names to real ATS boards,
+# zero-token) — never write a careers_url/api value here that discover
+# hasn't actually confirmed.
+#
+# industry_companies:
+#   music:
+#     - name: "Live Nation"
+#       scan_method: api
+#       ats: greenhouse
+#       api: "https://boards-api.greenhouse.io/v1/boards/livenation/jobs"
+#       skip_title_filter: true
+#     - name: "Sony Music Entertainment"
+#       scan_method: api
+#       ats: greenhouse
+#       api: "https://boards-api.greenhouse.io/v1/boards/sonymusic/jobs"
+#       skip_title_filter: true
+
 # -- Country-eligibility filter (optional, opt-in, #2093) --
 # location_filter only reads the ATS provider's STRUCTURED location field
 # (e.g. "Remote"). Many US companies tag every remote requisition "Remote"
