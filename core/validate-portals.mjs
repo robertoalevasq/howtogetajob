@@ -209,39 +209,75 @@ export async function validatePortalsConfig(config, { providerIds = new Set() } 
     add(errors, 'tracked_companies', 'tracked_companies must be an array when set');
   }
 
+  // Shared per-entry validation for both tracked_companies and each
+  // industry_companies[slug] array — same shape, same rules. seenEnabledNames
+  // is scoped per call so a company legitimately appearing once in
+  // tracked_companies and once under an industry slug isn't flagged as a
+  // duplicate of itself.
+  function validateCompanyEntry(company, base, seenEnabledNames) {
+    if (!isObject(company)) {
+      add(errors, base, 'company entry must be an object');
+      return;
+    }
+    if (company.enabled === false) return;
+
+    if (typeof company.name !== 'string' || company.name.trim() === '') {
+      add(errors, `${base}.name`, 'enabled company must have a non-empty string name');
+    } else {
+      const normalized = normalizeName(company.name);
+      if (seenEnabledNames.has(normalized)) {
+        add(warnings, `${base}.name`, `duplicate enabled company name also seen at ${seenEnabledNames.get(normalized)}`);
+      } else {
+        seenEnabledNames.set(normalized, `${base}.name`);
+      }
+    }
+
+    validateUrl(company.careers_url, `${base}.careers_url`, errors);
+    validateUrl(company.api, `${base}.api`, errors);
+
+    if (company.provider !== undefined) {
+      if (typeof company.provider !== 'string' || company.provider.trim() === '') {
+        add(errors, `${base}.provider`, 'provider must be a non-empty string when set');
+      } else if (!providerIds.has(company.provider)) {
+        add(errors, `${base}.provider`, `unknown provider "${company.provider}"`);
+      }
+    }
+
+    validateParser(company.parser, `${base}.parser`, errors);
+
+    // Found 2026-08-28: skip_title_filter is meant exclusively for
+    // industry_companies entries (see below) — a plain tracked_companies
+    // entry setting it is almost always a copy-paste mistake that silently
+    // widens what that one company scans, undetected. Warn, don't error:
+    // there's no way to be certain it's a mistake from structure alone.
+    if (base.startsWith('tracked_companies') && company.skip_title_filter === true) {
+      add(warnings, `${base}.skip_title_filter`, 'skip_title_filter is normally set only on an industry_companies-sourced entry — confirm this tracked_companies entry meant to bypass the title filter, not a copy-paste mistake');
+    }
+  }
+
   const seenEnabledNames = new Map();
   if (Array.isArray(companies)) {
     for (const [idx, company] of companies.entries()) {
-      const base = `tracked_companies[${idx}]`;
-      if (!isObject(company)) {
-        add(errors, base, 'company entry must be an object');
-        continue;
-      }
-      if (company.enabled === false) continue;
+      validateCompanyEntry(company, `tracked_companies[${idx}]`, seenEnabledNames);
+    }
+  }
 
-      if (typeof company.name !== 'string' || company.name.trim() === '') {
-        add(errors, `${base}.name`, 'enabled company must have a non-empty string name');
-      } else {
-        const normalized = normalizeName(company.name);
-        if (seenEnabledNames.has(normalized)) {
-          add(warnings, `${base}.name`, `duplicate enabled company name also seen at ${seenEnabledNames.get(normalized)}`);
-        } else {
-          seenEnabledNames.set(normalized, `${base}.name`);
+  const industryCompanies = config.industry_companies;
+  if (industryCompanies !== undefined) {
+    if (!isObject(industryCompanies)) {
+      add(errors, 'industry_companies', 'industry_companies must be an object keyed by industry slug when set');
+    } else {
+      for (const [slug, entries] of Object.entries(industryCompanies)) {
+        const slugBase = `industry_companies.${slug}`;
+        if (!Array.isArray(entries)) {
+          add(errors, slugBase, `${slugBase} must be an array of company entries`);
+          continue;
+        }
+        const seenForSlug = new Map();
+        for (const [idx, company] of entries.entries()) {
+          validateCompanyEntry(company, `${slugBase}[${idx}]`, seenForSlug);
         }
       }
-
-      validateUrl(company.careers_url, `${base}.careers_url`, errors);
-      validateUrl(company.api, `${base}.api`, errors);
-
-      if (company.provider !== undefined) {
-        if (typeof company.provider !== 'string' || company.provider.trim() === '') {
-          add(errors, `${base}.provider`, 'provider must be a non-empty string when set');
-        } else if (!providerIds.has(company.provider)) {
-          add(errors, `${base}.provider`, `unknown provider "${company.provider}"`);
-        }
-      }
-
-      validateParser(company.parser, `${base}.parser`, errors);
     }
   }
 
@@ -316,7 +352,10 @@ async function main() {
   if (result.errors.length > 0) process.exit(1);
 }
 
-main().catch((err) => {
-  console.error(`validate-portals failed: ${err.message}`);
-  process.exit(1);
-});
+// Only run main() when the script is directly invoked, not when imported as a module
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((err) => {
+    console.error(`validate-portals failed: ${err.message}`);
+    process.exit(1);
+  });
+}
