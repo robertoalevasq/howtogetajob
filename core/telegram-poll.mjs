@@ -47,7 +47,7 @@ function parseCommand(text) {
   // Recognized commands (zero-LLM routing). All task-starting actions require
   // one of these — no free-text phrase ever starts a task (2026-08-15); the
   // only exception is a pasted job URL (see modes/telegram.md Step 2).
-  const recognized = ['run', 'cycle', 'scan', 'search', 'applyall', 'apply', 'yes', 'no', 'skip', 'cancel', 'status', 'help', 'pdf', 'editpdf'];
+  const recognized = ['run', 'cycle', 'scan', 'search', 'applyall', 'apply', 'yes', 'no', 'skip', 'cancel', 'status', 'help', 'pdf', 'editpdf', 'settings'];
   const isRecognized = recognized.includes(commandRaw);
 
   return {
