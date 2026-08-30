@@ -512,6 +512,11 @@ export function createRoutingQueue() {
 }
 
 const DAEMON_LONGPOLL_SECONDS = 25;
+// Same magnitude as the exception-path backoff a few lines below (5s) — an
+// in-band poll error (409/502/abort) and a thrown one deserve the same
+// pacing, since both are "something went wrong, give it a moment" cases;
+// see the daemonLoop() call site's own comment for why this matters.
+const DAEMON_POLL_ERROR_BACKOFF_MS = 5000;
 
 /**
  * Persistent long-poll loop — never returns under normal operation.
@@ -603,6 +608,25 @@ async function daemonLoop() {
       const result = await pollTelegram(DAEMON_LONGPOLL_SECONDS);
       const messages = result.messages || [];
       logPollError(result);
+      if (result.error) {
+        // A poll that failed in-band (telegram-poll.mjs caught a 409/502/abort
+        // and reported it with exit code 0, per logPollError's own doc comment)
+        // returns near-instantly — none of the natural pacing a successful
+        // long-poll gets from Telegram holding the connection open. Without a
+        // backoff here, this loop retries with zero delay, which turns one
+        // transient Telegram-side blip into a self-inflicted hammering loop:
+        // found live 2026-08-29/2026-08-30, hundreds of consecutive "HTTP 409:
+        // Conflict... terminated by other getUpdates request" lines across two
+        // separate incidents, one of which coincided with a candidate's reply
+        // going unprocessed for an extended stretch. A 409 in particular is
+        // partly self-inflicted by this same zero-delay pattern: Telegram may
+        // not have fully released the aborted prior connection's "current
+        // holder" slot by the time the very next request lands, so retrying
+        // immediately just collides with it again. Back off before retrying,
+        // the same way the catch block below already does for a thrown error.
+        await new Promise(r => setTimeout(r, DAEMON_POLL_ERROR_BACKOFF_MS));
+        continue;
+      }
       if (messages.length > 0) {
         const dispatches = await routeMessages(messages, { repoRoot: REPO_ROOT, sendReply: sendCannedReply });
         // Routing fired non-blocking, onboarding awaited one at a time —
@@ -611,8 +635,8 @@ async function daemonLoop() {
         // across poll iterations — see createRoutingQueue().
         await fanOutDispatches(dispatches, routeDispatch);
       }
-      // No sleep between iterations: the long-poll itself already paced
-      // this call out over up to DAEMON_LONGPOLL_SECONDS.
+      // No sleep between iterations on a clean poll: the long-poll itself
+      // already paced this call out over up to DAEMON_LONGPOLL_SECONDS.
     } catch (err) {
       // Never let a transient error (network blip, a bad getUpdates
       // response) kill the loop — log it and back off briefly before the
