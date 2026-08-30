@@ -7,10 +7,18 @@
 
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
-import { accessCodesPath } from './hub-paths.mjs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import dotenv from 'dotenv';
+import { accessCodesPath, botIdentityCachePath } from './hub-paths.mjs';
 import { withPipelineLock } from './pipeline-lock.mjs';
 import { isMainModule } from './is-main.mjs';
+
+// This file lives in core/ (#workspace-multitenancy Task 1) — REPO_ROOT is
+// the actual repo root .env lives under, matching hub-paths.mjs's own
+// resolution for the same reason (a single shared bot token, never
+// workspace-scoped).
+const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
 const CODE_LENGTH = 24;
 // No ambiguous characters (0/O, 1/l/I) — a human occasionally has to
@@ -111,6 +119,48 @@ export async function redeemAccessCode(text, chatId, opts = {}) {
   });
 }
 
+/**
+ * Best-effort lookup of the bot's own @username, so `generate`'s CLI output
+ * can include a ready-to-forward message without the operator needing a
+ * separate manual getMe query every time (found live 2026-08-29: this was
+ * being done as an ad-hoc one-off script each time a code was generated).
+ * Cached indefinitely once fetched — a bot's username essentially never
+ * changes, and this avoids a network call on every `generate` invocation.
+ * Never throws: a missing token, network failure, or bad response all
+ * resolve to null, since a share message is a nice-to-have, never a reason
+ * to fail code generation itself.
+ *
+ * @param {{ repoRoot?: string }} [opts]
+ * @returns {Promise<string|null>}
+ */
+export async function getBotUsername(opts = {}) {
+  const cachePath = botIdentityCachePath(opts);
+  if (existsSync(cachePath)) {
+    try {
+      const cached = JSON.parse(readFileSync(cachePath, 'utf-8'));
+      if (cached && typeof cached.username === 'string' && cached.username) return cached.username;
+    } catch {
+      // fall through to a fresh fetch below
+    }
+  }
+  try {
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      dotenv.config({ path: join(opts.repoRoot || REPO_ROOT, '.env'), quiet: true });
+    }
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    if (!token) return null;
+    const res = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+    const data = await res.json();
+    const username = data?.result?.username;
+    if (typeof username !== 'string' || !username) return null;
+    mkdirSync(dirname(cachePath), { recursive: true });
+    writeFileSync(cachePath, JSON.stringify({ username, cachedAt: new Date().toISOString() }, null, 2));
+    return username;
+  } catch {
+    return null;
+  }
+}
+
 async function runCli() {
   const [, , cmd, ...rest] = process.argv;
 
@@ -121,6 +171,15 @@ async function runCli() {
     console.log(`Code:    ${entry.code}`);
     console.log(`Label:   ${entry.label || '(none)'}`);
     console.log(`Expires: ${entry.expiresAt}`);
+    const expiresDate = entry.expiresAt.slice(0, 10);
+    const username = await getBotUsername();
+    console.log('');
+    if (username) {
+      console.log('Share message:');
+      console.log(`Hey! Set up your job search bot on Telegram: message @${username} and send it the code ${entry.code} to get started. Code expires ${expiresDate}.`);
+    } else {
+      console.log(`(No share message — set TELEGRAM_BOT_TOKEN in .env to include a ready-to-forward message here.)`);
+    }
     return 0;
   }
 

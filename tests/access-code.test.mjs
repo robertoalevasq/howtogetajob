@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  generateAccessCode, listAccessCodes, revokeAccessCode, redeemAccessCode,
+  generateAccessCode, listAccessCodes, revokeAccessCode, redeemAccessCode, getBotUsername,
 } from '../core/access-code.mjs';
-import { accessCodesPath } from '../core/hub-paths.mjs';
+import { accessCodesPath, botIdentityCachePath } from '../core/hub-paths.mjs';
 
 function fakeRepo() {
   return mkdtempSync(join(tmpdir(), 'career-ops-codes-'));
@@ -107,6 +107,71 @@ test('redeemAccessCode returns null for an already-redeemed code, even for a dif
     const second = await redeemAccessCode(entry.code, 'chat2', { repoRoot });
     assert.equal(second, null);
   } finally {
+    rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test('getBotUsername returns the cached value without calling fetch', async () => {
+  const repoRoot = fakeRepo();
+  const originalFetch = global.fetch;
+  try {
+    mkdirSync(join(repoRoot, 'data'), { recursive: true });
+    writeFileSync(botIdentityCachePath({ repoRoot }), JSON.stringify({ username: 'CachedBot', cachedAt: new Date().toISOString() }));
+    global.fetch = async () => { throw new Error('fetch should not be called when the cache is warm'); };
+    const username = await getBotUsername({ repoRoot });
+    assert.equal(username, 'CachedBot');
+  } finally {
+    global.fetch = originalFetch;
+    rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test('getBotUsername fetches getMe, returns the username, and writes it to the cache', async () => {
+  const repoRoot = fakeRepo();
+  const originalFetch = global.fetch;
+  const originalToken = process.env.TELEGRAM_BOT_TOKEN;
+  try {
+    process.env.TELEGRAM_BOT_TOKEN = 'fake-token-for-test';
+    global.fetch = async (url) => {
+      assert.ok(String(url).includes('fake-token-for-test'), 'should call getMe with the configured token');
+      return { json: async () => ({ ok: true, result: { username: 'FreshBot', first_name: 'Job App Assistant' } }) };
+    };
+    const username = await getBotUsername({ repoRoot });
+    assert.equal(username, 'FreshBot');
+    const cached = JSON.parse(readFileSync(botIdentityCachePath({ repoRoot }), 'utf-8'));
+    assert.equal(cached.username, 'FreshBot');
+  } finally {
+    global.fetch = originalFetch;
+    if (originalToken === undefined) delete process.env.TELEGRAM_BOT_TOKEN; else process.env.TELEGRAM_BOT_TOKEN = originalToken;
+    rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test('getBotUsername returns null (never throws) when no token is configured and .env has none either', async () => {
+  const repoRoot = fakeRepo();
+  const originalToken = process.env.TELEGRAM_BOT_TOKEN;
+  try {
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    const username = await getBotUsername({ repoRoot });
+    assert.equal(username, null);
+  } finally {
+    if (originalToken === undefined) delete process.env.TELEGRAM_BOT_TOKEN; else process.env.TELEGRAM_BOT_TOKEN = originalToken;
+    rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test('getBotUsername returns null (never throws) when the getMe call fails', async () => {
+  const repoRoot = fakeRepo();
+  const originalFetch = global.fetch;
+  const originalToken = process.env.TELEGRAM_BOT_TOKEN;
+  try {
+    process.env.TELEGRAM_BOT_TOKEN = 'fake-token-for-test';
+    global.fetch = async () => { throw new Error('simulated network failure'); };
+    const username = await getBotUsername({ repoRoot });
+    assert.equal(username, null);
+  } finally {
+    global.fetch = originalFetch;
+    if (originalToken === undefined) delete process.env.TELEGRAM_BOT_TOKEN; else process.env.TELEGRAM_BOT_TOKEN = originalToken;
     rmSync(repoRoot, { recursive: true, force: true });
   }
 });

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-import { telegramOffsetPath, telegramDaemonLockPath, accessCodesPath, accessCodeAttemptsPath, onboardingDir, onboardingStatePath } from '../core/hub-paths.mjs';
+import { telegramOffsetPath, telegramDaemonLockPath, accessCodesPath, accessCodeAttemptsPath, onboardingDir, onboardingStatePath, botIdentityCachePath } from '../core/hub-paths.mjs';
 
 // REPO_ROOT, not core/ itself: hub-paths.mjs lives at core/hub-paths.mjs
 // (#workspace-multitenancy Task 1), and its two paths must land at the true
@@ -72,4 +72,16 @@ test('all four accept a repoRoot override for test isolation', () => {
   assert.equal(accessCodeAttemptsPath({ repoRoot: fakeRoot }), join(fakeRoot, 'data', 'access-code-attempts.json'));
   assert.equal(onboardingDir({ repoRoot: fakeRoot }), join(fakeRoot, 'data', 'onboarding'));
   assert.equal(onboardingStatePath('99', { repoRoot: fakeRoot }), join(fakeRoot, 'data', 'onboarding', '99.json'));
+});
+
+test('botIdentityCachePath resolves under the repo-root data/ regardless of cwd, and accepts a repoRoot override', () => {
+  const original = process.cwd();
+  process.chdir(AWAY_FROM_REPO);
+  try {
+    assert.equal(botIdentityCachePath(), join(REPO_ROOT, 'data', 'telegram-bot-identity.json'));
+  } finally {
+    process.chdir(original);
+  }
+  const fakeRoot = join(tmpdir(), 'fake-repo');
+  assert.equal(botIdentityCachePath({ repoRoot: fakeRoot }), join(fakeRoot, 'data', 'telegram-bot-identity.json'));
 });

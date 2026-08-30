@@ -41,3 +41,7 @@ export function onboardingDir(opts = {}) {
 export function onboardingStatePath(chatId, opts = {}) {
   return join(onboardingDir(opts), `${chatId}.json`);
 }
+
+export function botIdentityCachePath(opts = {}) {
+  return join(opts.repoRoot || REPO_ROOT, 'data', 'telegram-bot-identity.json');
+}
