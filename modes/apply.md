@@ -356,13 +356,14 @@ Unrecognized fields: if required, mark `needs_candidate_confirmation`; if option
 When Playwright is driving the browser (see Requirements), don't fill field-by-field from the main flow — that means re-reading the DOM after every single field and re-litigating each Known ATS Quirk inline, which burns main-context tokens on mechanical work. Delegate the fill to a subagent instead, once, right after the candidate approves Step 7's consolidated answer set.
 
 1. Build the approved field→value mapping from Step 7's output, skipping any field still marked `needs_candidate_confirmation` and not yet resolved.
-2. Spawn a subagent — pin `model` to the resolved `spend_tier` (per `modes/_shared.md`'s Spend Tier table; this is mechanical execution, not evaluative judgment) — and give it:
+2. **If this application includes a resume/CV upload, create a renamed temporary copy first.** Every ATS this system currently supports (Greenhouse, Lever, Workday, Ashby) uses a standard file-input control for the resume upload, not a custom widget — this is a normal automated field-fill, not a manual hand-off, and past live sessions have already done it this way successfully (a stale comment below once claimed otherwise; that claim never matched what actually happened and has been corrected). But the canonical internal path — `output/{num}-{company}-{YYYY-MM-DD}.pdf` — is exactly the kind of filename that makes a human reviewer's first impression "this was mass-produced by a tool." Before spawning the subagent, copy the already-approved tailored PDF to `.tmp/{candidate.full_name} - {Company}.pdf` (`candidate.full_name` from `config/profile.yml`; `{Company}` the name resolved during Step 1's DETECT; sanitize both by stripping/replacing filesystem-invalid characters — `/ \ : * ? " < > |` — before joining). Use this renamed copy as the upload source, never the internal path. The canonical `output/*.pdf` is left completely untouched — it remains the source of truth for the `/pdf` command, Telegram delivery, and dedup; only a throwaway copy gets the human-facing name.
+3. Spawn a subagent — pin `model` to the resolved `spend_tier` (per `modes/_shared.md`'s Spend Tier table; this is mechanical execution, not evaluative judgment) — and give it:
    - ATS type, from Step 1/Step 5 preflight detection
    - The approved field→value mapping (label, value, and snapshot ref if already captured)
    - The current Playwright tab state
-   - File paths for resume/cover-letter uploads, flagged as manual — Playwright cannot reliably drive an OS file-picker for an arbitrary path, so tell the candidate the path and ask them to attach it themselves
+   - The renamed resume-copy path from step 2 above, to be uploaded directly through the ATS's file-input control like any other field — not flagged as manual
    - The relevant entries from `## Known ATS Quirks` below for the detected ATS
-3. The subagent fills fields top-to-bottom with `browser_snapshot` / `browser_click` / `browser_type` / `browser_select_option` / `browser_fill_form`, verifying each value registered (the Workday React-field quirk in particular silently fails this check), and returns:
+4. The subagent fills fields top-to-bottom with `browser_snapshot` / `browser_click` / `browser_type` / `browser_select_option` / `browser_fill_form`, verifying each value registered (the Workday React-field quirk in particular silently fails this check), and returns:
    ```json
    {
      "fields_filled": [{"label": "...", "value": "..."}],
@@ -372,8 +373,10 @@ When Playwright is driving the browser (see Requirements), don't fill field-by-f
      "notes": "..."
    }
    ```
-4. The subagent never clicks Submit, Send, or Save-and-Continue on a page that finalizes anything, and never advances past a review/submit page — that's the candidate's action alone, per the ethical-use rule in AGENTS.md ("always STOP before clicking Submit/Send/Apply").
-5. On any `fields_failed` entry or `is_review_page: true`, hand control back to the main flow: report what filled, what didn't, and what needs manual upload, then proceed to Step 8. Without Playwright, skip this step entirely and use Step 7's copy-paste output instead.
+   `needs_manual_upload` is the fallback, not the default: it's populated only when the upload genuinely fails (e.g. a non-standard drag-and-drop widget that resists the normal file-input approach), naming the *renamed* copy's path so the candidate attaches the same human-facing filename if they finish it by hand.
+5. **On a confirmed successful upload, delete the renamed temporary copy from step 2 immediately.** Its only purpose was controlling what filename the ATS receives at the moment of upload; once that moment has passed, keeping it around serves nothing and risks `.tmp/` silently accumulating one-off copies across every application run. Do not defer this cleanup to Step 9 — a multi-turn application can span hours across several Telegram exchanges, and an abandoned one would leave the copy behind indefinitely if cleanup waited for a submission that never comes. **On a failed upload (`needs_manual_upload`), do NOT delete it** — the candidate still needs that exact file to attach by hand; instead it's cleaned up at Step 9 once the application reaches a terminal state, the same way that step already cleans up `data/.apply-secrets.json` (Step 5-alt item 7).
+6. The subagent never clicks Submit, Send, or Save-and-Continue on a page that finalizes anything, and never advances past a review/submit page — that's the candidate's action alone, per the ethical-use rule in AGENTS.md ("always STOP before clicking Submit/Send/Apply").
+7. On any `fields_failed` entry or `is_review_page: true`, hand control back to the main flow: report what filled, what didn't, and what needs manual upload, then proceed to Step 8. Without Playwright, skip this step entirely and use Step 7's copy-paste output instead — no renamed copy is ever created in that path, since there's no automated upload to feed it to.
 
 ## Step 8 — Persist application snapshot
 
@@ -385,7 +388,7 @@ The section must include:
 - Free-text answers exactly as submitted
 - Dropdown/radio/checkbox selections made
 - Number or short-answer fields such as compensation, availability, start date, and work authorization
-- Files used, including CV, cover letter, portfolio, or other uploads with version/path when known
+- Files used, including CV, cover letter, portfolio, or other uploads with version/path when known — for a resume uploaded via Step 7b, record both the canonical `output/*.pdf` path (our own reference) and the renamed filename actually presented to the ATS (e.g. "Roberto Vasquez - Salesforce.pdf"), even though the renamed copy itself is deleted from `.tmp/` right after upload — the record should reflect what a reviewer on the employer side actually sees, not just our internal filename
 
 Write the section at the end of the report, or replace only the existing `## Application Answers` section if it already exists. Do not rename, reorder, or edit the existing A-H report blocks or `## Keywords extracted`.
 
@@ -402,7 +405,8 @@ If the candidate confirms that they submitted the application:
 2. Seed the follow-up schedule: run `node core/followup-seed.mjs {num} --json` (where `{num}` is the tracker row number). If the candidate applied on a different day than today, pass `--date YYYY-MM-DD` with the actual submission date. It's idempotent, so re-running is safe. (`--on` and `--date` are the same concept — the real submission date — each under its own script's flag name; pass the same value to both.)
 3. Refresh the report's `## Application Answers` section with the final field values and `**State:** submitted`
 4. **If this report has an entry in `data/.apply-secrets.json` (Step 5-alt item 7), delete it now.** The account exists permanently; the temporary credential cache exists only to get through this one application flow without repeatedly asking the candidate to paste a password, and that need ends the moment the application is submitted.
-5. Suggest next step: run the `contacto` mode (`/career-ops contacto` where available) for LinkedIn outreach
+5. **If Step 7b's resume upload ever fell back to `needs_manual_upload`, delete the leftover renamed copy in `.tmp/` now** (Step 7b item 5 — the success path already deletes it immediately and never reaches this step with one still present). The application is done either way by this point, whether the candidate attached it themselves or abandoned that path entirely.
+6. Suggest next step: run the `contacto` mode (`/career-ops contacto` where available) for LinkedIn outreach
 
 **Confirmed resume-verification failure at this vendor? Check the rest of the pipeline (#1870).** If the candidate confirms the ATS silently dropped or altered resume content that they had submitted (see the SuccessFactors-family quirk below), don't treat it as a one-off. Tracker rows in `data/applications.md` don't carry a canonical ATS-vendor field, so don't grep the tracker text for a vendor name — it will miss rows silently. Instead, resolve the vendor per row from its linked report's `**URL:**` field:
 - For clean-fingerprint vendors (Greenhouse, Lever, Ashby, Workday), match the URL's hostname the same way `detectVendor()` in `analyze-patterns.mjs` does — reuse that function/pattern rather than re-deriving it, so the two stay in sync.
