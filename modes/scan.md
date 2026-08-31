@@ -343,7 +343,7 @@ If a non-publicly accessible URL is found:
 
 ## Scan History
 
-`data/scan-history.tsv` tracks ALL seen URLs. Each row has nine tab-separated columns:
+`data/scan-history.tsv` tracks ALL seen URLs. Each row has twelve tab-separated columns:
 
 | # | Column | Example | Notes |
 |---|--------|---------|-------|
@@ -354,18 +354,21 @@ If a non-publicly accessible URL is found:
 | 5 | `company` | `Acme` | Company name |
 | 6 | `status` | `added` | `added`, `skipped_dup`, `skipped_title`, `skipped_expired` |
 | 7 | `location` | `Remote — Europe` | Location string (may be empty); persisted for later auditing |
-| 8 | `jd_fingerprint` | `a3f1c8d2e4b70592` | 64-bit SimHash of the JD text (16 hex chars); empty when no usable body was available |
-| 9 | `postedAt` | `2026-02-08` | ISO date the role was originally posted (as reported by the ATS); empty when not available |
+| 8 | `fingerprint` | `a3f1c8d2e4b70592` | 64-bit SimHash of the JD text (16 hex chars); empty when no usable body was available |
+| 9 | `posted_at` | `2026-02-08` | ISO date the role was originally posted (as reported by the ATS); empty when not available |
+| 10 | `trust_score` | `62` | Posting-legitimacy score (0-100, see the "Cross-listing check" and Block G in `modes/oferta.md`); empty unless the offer was actually flagged (score < 100) |
+| 11 | `trust_flags` | `stale-repost,generic-email` | Comma-separated legitimacy-signal flags; empty when `trust_score` is empty |
+| 12 | `normalized_company` | `acme` | Lowercased/normalized company name, used by the cross-listing check below to match the same posting across different company names |
 
 ```tsv
-url	first_seen	portal	title	company	status	location	jd_fingerprint	postedAt
-https://...	2026-02-10	Ashby — AI PM	PM AI	Acme	added	Remote	a3f1c8d2e4b70592	2026-02-08
+url	first_seen	portal	title	company	status	location	fingerprint	posted_at	trust_score	trust_flags	normalized_company
+https://...	2026-02-10	Ashby — AI PM	PM AI	Acme	added	Remote	a3f1c8d2e4b70592	2026-02-08			acme
 ```
 
 ### Filtering by posted date
 
 `first_seen` (column 2) is when **our scanner** spotted the URL — not when the
-employer actually posted it. That real posting date is column 9 (`postedAt`).
+employer actually posted it. That real posting date is column 9 (`posted_at`).
 To scope a scan to an absolute posting-date window (e.g. "only postings from
 the 17th to the 20th"), pass `--posted-after`/`--posted-before` on the CLI —
 both optional, both `YYYY-MM-DD`, both inclusive:

@@ -93,10 +93,10 @@ If the final score is >= 4.5, generate a draft of responses for the application 
 - **Good fit?** → "I sit at the intersection of [A] and [B], which is exactly where this role lives."
 - **How did you hear?** → Honest: "Found through [portal/scan], evaluated against my criteria, and it scored highest."
 
-**Language**: Always in the language of the JD (EN default). Apply `/tech-translate`.
+**Language**: Follow `config/profile.yml`'s `language.output` (default `en`) — see `core/AGENTS.md`'s Output Language Directive — regardless of the JD's own language. (`/tech-translate` is not a real command in this project; the line previously here referenced one.)
 
 ## Step 5 — Update Tracker
 
-Record it in `data/applications.md` with all columns including Report and PDF as ✅.
+**NEVER edit `data/applications.md` directly.** Write the TSV to `data/tracker-additions/{num}-{company-slug}.tsv` per the 9-column format in `core/AGENTS.md`'s "TSV Format for Tracker Additions" — PDF column `✅`, report column linking to the generated report — and run `node core/merge-tracker.mjs` to merge it in. This is the same mandatory TSV-then-merge path every other pipeline evaluation uses (`modes/pipeline.md`, `modes/cycle.md`); auto-pipeline doesn't get an exception.
 
 **If any step fails**, continue with the next ones and mark the failed step as pending in the tracker.

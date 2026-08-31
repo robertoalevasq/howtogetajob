@@ -250,7 +250,7 @@ const { contextBody, budgetReport } = buildBudgetedPrompt({
   profileContent,
   jdText,
   noCompress,
-  maxTokens: 1_048_576, // gemini-2.5-flash context window
+  maxTokens: 1_048_576, // gemini-3.6-flash context window (the active default — see modelName above; gemini-2.5-flash, this comment's original reference, is deprecated as of 2026-06-17)
 });
 
 // Log token budget info

@@ -166,7 +166,7 @@ After detecting archetype, read `_profile.md` for the user's specific framing an
 ### NEVER
 
 1. Invent experience or metrics
-2. Modify cv.md or portfolio files
+2. Modify cv.md or portfolio files without the candidate's explicit confirmation first (the `add`/`expand` modes exist specifically to do this, gated on a confirm-before-write preview — this rule is about never doing it silently, not never doing it)
 3. Submit applications on behalf of the candidate
 4. Share phone number in generated messages
 5. Recommend comp below market rate

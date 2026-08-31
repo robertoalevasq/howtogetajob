@@ -77,7 +77,7 @@ Three cheap, zero-token checks before spending any time on Step 1:
    specific errors — scanning against a broken config wastes the whole run
    on results from whatever partially-parsed config survived.
 3. **`node core/reconcile-pipeline.mjs`** — syncs any URLs already evaluated via
-   `/career-ops batch` (which writes to `batch/batch-state.tsv` but never
+   `/career-ops batch` (which writes to `data/batch-state.tsv` but never
    back to `data/pipeline.md`) into `data/pipeline.md`'s "Processed" section.
    Skip this without it and a URL you already batch-evaluated between `cycle`
    runs gets re-surfaced by Pass A/B and evaluated a second time — a wasted
@@ -434,7 +434,7 @@ run, including your own (Guardrail 4). Print one consolidated report:
 ```
 career-ops cycle — {YYYY-MM-DD}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Pre-flight: portals.yml valid, N URLs reconciled from batch/batch-state.tsv
+Pre-flight: portals.yml valid, N URLs reconciled from data/batch-state.tsv
 Scan (tracked):  N offers found → N new added to pipeline.md (N duplicates, N filtered, N expired)
 Scan (full ATS): N companies swept, N matches found → N new added (N duplicates) [+ resumed Nx if interrupted]
 Reposts flagged: N (churn/ghost-posting signal — see notes below)

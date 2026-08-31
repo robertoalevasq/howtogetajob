@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 // @ts-check
 // plugin-audit.mjs — static safety scan for COMMUNITY/registry plugins (run by
-// `plugins.mjs add` and by the registry-validate CI). Lives at repo ROOT (not
+// `plugins.mjs add` and by the registry-validate CI). Lives in core/ (not
 // under plugins/) on purpose: it must reference forbidden-API names + firewall
-// phrases, and root files are not walked by test-all's plugin deny-list/firewall
-// greps. Bundled plugins in plugins/ are reviewed in-tree and are NOT subject to
-// this scan (apify legitimately uses its own pinned client).
+// phrases, and test-all's plugin deny-list/firewall greps only walk plugins/
+// (see walkMjs() in core/test-all.mjs), so core/ is exempt regardless. Bundled
+// plugins in plugins/ are reviewed in-tree and are NOT subject to this scan
+// (apify legitimately uses its own pinned client).
 //
 // This is a STATIC heuristic, not containment — it raises the bar for an honest
 // or lazily-malicious author and gives the reviewer a checklist. A determined

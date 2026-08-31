@@ -2,8 +2,10 @@
 /**
  * normalize-statuses.mjs — Clean non-canonical states in applications.md
  *
- * Maps all non-canonical statuses to canonical ones per states.yml:
- *   Evaluada, Aplicado, Respondido, Entrevista, Oferta, Rechazado, Descartado, NO APLICAR
+ * Maps non-canonical statuses (including legacy Spanish aliases like
+ * Evaluada, Aplicado, Respondido, Entrevista, Oferta, Rechazado, Descartado,
+ * NO APLICAR) to the real canonical states per templates/states.yml:
+ *   Evaluated, Applied, Responded, Interview, Offer, Hired, Rejected, Discarded, SKIP
  *
  * Also strips markdown bold (**) and dates from the status field,
  * moving DUPLICADO info to the notes column.

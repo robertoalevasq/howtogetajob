@@ -16,11 +16,14 @@
  * This script does ONE job: normalize raw pasted (or file-provided) email text
  * into the exact candidate object shape reply-watch.mjs expects, and append it
  * to data/reply-candidates.json. It does NOT classify the reply — classification
- * stays reply-watch.mjs's job. reply-matcher.mjs's classifyReply() derives its
- * verdict from `subject` + `body_snippet` text directly; `signal` is only ever
- * used as a supplementary confidence boost (`cand.signal || ''`), never a hard
- * dependency — so leaving `signal: null` here is safe. This script never runs
- * reply-watch.mjs itself and never touches data/applications.md.
+ * stays reply-watch.mjs's job. reply-matcher.mjs's classifyReply() treats
+ * `signal` as a full OR-alternative to keyword matching (e.g.
+ * `signal === 'rejection' || hasRejectionKeywords`) rather than a mere
+ * confidence boost — but keyword matching independently covers the same
+ * ground for every verdict, so leaving `signal: null` here (this script never
+ * has a real signal to supply) still classifies correctly off `subject` +
+ * `body_snippet` text alone. This script never runs reply-watch.mjs itself
+ * and never touches data/applications.md.
  *
  * Usage:
  *   node paste-reply.mjs                  # interactive: prompts for subject, from, body

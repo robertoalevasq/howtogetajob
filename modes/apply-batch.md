@@ -21,7 +21,7 @@ Read `data/applications.md`. A row qualifies when **all** of the following hold:
 1. `Status` == `Evaluated` — not `Applied`, `Responded`, `Interview`, `Offer`, `Hired`, `Rejected`, `Discarded`, or `SKIP`. Applying to a row already past this stage is exactly the double-submission mistake `apply` mode's own cross-channel/repeat-application checks exist to catch — filtering it out here means those checks never even have to fire on a stale row.
 2. `Score` >= `auto_pdf_score_threshold` from `config/profile.yml` (default `4.0` if unset) — the same bar as the ethical-use rule in `AGENTS.md`: *"Below 4.0/5, explicitly recommend against applying."*
 3. The linked report's `**URL:**` resolves to Greenhouse, Lever, or Workday — match the hostname the same way `detectVendor()` in `analyze-patterns.mjs` does (`*.greenhouse.io`, `jobs.lever.co`/`*.lever.co`, `*.myworkdayjobs.com`/`*.myworkdaysite.com`). Anything else (Ashby, Workable, unknown/custom ATS) is out of scope for this mode — list it separately as "supported by `apply` mode directly, not by batch" rather than silently dropping it.
-4. The linked report file's mtime is **not older than** `cv.md`, `config/profile.yml`, or `modes/_profile.md` — the same freshness guard as `apply` mode's Step 5e. A row that fails only this check is not silently skipped: list it separately as "needs re-evaluation against the current CV/profile before it can be applied to," with the specific file(s) that changed and when.
+4. The linked report file's mtime is **not older than** `cv.md`, `config/profile.yml`, or `_profile.md` — the same freshness guard as `apply` mode's Step 5e. A row that fails only this check is not silently skipped: list it separately as "needs re-evaluation against the current CV/profile before it can be applied to," with the specific file(s) that changed and when.
 
 ### Step 2 — Present before touching a browser
 
@@ -53,5 +53,5 @@ Out of scope (ATS):   N (list report #s + vendor)
 - Never submits an application — identical rule to `apply` mode, per `AGENTS.md`'s ethical-use section.
 - Never processes a row outside Greenhouse/Lever/Workday. Ashby, Workable, and unknown ATSs have documented quirks in `apply` mode's Known ATS Quirks section, but aren't wired into this batch runner yet.
 - Never treats `output/cycle-keepers/` or any similar ad hoc digest as a source of eligible rows.
-- Never applies to a row whose linked report predates `cv.md` / `config/profile.yml` / `modes/_profile.md` without the candidate explicitly overriding that row's Step 5e gate.
+- Never applies to a row whose linked report predates `cv.md` / `config/profile.yml` / `_profile.md` without the candidate explicitly overriding that row's Step 5e gate.
 - Never infers a skip as a `Discarded` status change.

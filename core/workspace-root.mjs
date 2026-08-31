@@ -5,8 +5,10 @@
 // (dirname(fileURLToPath(import.meta.url))) unchanged — this helper is only
 // for the paths that must land inside the CURRENT workspace.
 //
-// A future router always spawns claude -p with cwd set to the target
-// workspace directory, so process.cwd() is correct by construction there.
+// The router (core/telegram-router.mjs's routeMessages(), consumed by
+// core/telegram-monitor.mjs's invokeClaudeRoutingOnce()) always spawns
+// claude -p with cwd set to the target workspace directory, so process.cwd()
+// is correct by construction there.
 // For a solo user running career-ops from the repo root as before workspaces
 // existed, process.cwd() IS the repo root — identical behavior, no migration
 // needed. CAREER_OPS_WORKSPACE is an explicit override for the rare case cwd
