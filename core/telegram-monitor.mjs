@@ -247,12 +247,47 @@ const ONBOARDING_MODEL = 'haiku';
  * @param {number} [timeoutMs]
  * @param {string} [model]
  */
-function invokeClaudeRoutingOnce(prompt, cwd, timeoutMs, model) {
+// Kept short deliberately: this only feeds notifyRoutingFailure's
+// candidate-facing message, not a debug log (the daemon's own console/log
+// already gets every byte via the live echo in spawnCapturingTail) — a
+// couple hundred characters is enough to carry a real reason ("You've hit
+// your session limit · resets 3:40pm") without turning a Telegram message
+// into a stack trace dump.
+const OUTPUT_TAIL_MAX_CHARS = 300;
+
+/**
+ * Spawn cmd/args, echoing stdout/stderr live to this process's own streams
+ * (so a daemon's console/log sees everything in real time, same as
+ * stdio:'inherit' did) while also capturing the last OUTPUT_TAIL_MAX_CHARS
+ * combined characters. On a non-zero exit, that tail is appended to the
+ * rejection's message — so a caller (and anything that surfaces the error to
+ * a human, like notifyRoutingFailure) gets the real reason instead of a bare
+ * exit code. Extracted as its own function, decoupled from claude-specific
+ * command resolution, so it's unit-testable with a stand-in command instead
+ * of the real `claude` binary.
+ *
+ * Found live 2026-08-30: a candidate's routing-failure notification said
+ * only "claude -p routing exited 1" when the real cause (a Claude session
+ * usage limit, resolving on its own at a stated time) streamed right past
+ * on stdout/stderr with nothing capturing it.
+ *
+ * @param {string} cmd @param {string[]} args
+ * @param {{cwd?: string, shell?: boolean, timeoutMs?: number, exitErrorPrefix?: string, timeoutErrorMessage?: (ms: number) => string}} [opts]
+ */
+export function spawnCapturingTail(cmd, args, opts = {}) {
+  const { cwd, shell, timeoutMs, exitErrorPrefix = 'process exited', timeoutErrorMessage } = opts;
   return new Promise((resolvePromise, reject) => {
-    const { cmd, shell } = resolveClaudeCommand();
     let settled = false;
-    const args = model ? ['-p', prompt, '--model', model] : ['-p', prompt];
-    const proc = spawn(cmd, args, { cwd, stdio: 'inherit', shell });
+    // stdio 'pipe' on stdout/stderr (not 'inherit') so a non-zero exit can
+    // surface WHY, not just the bare exit code.
+    const proc = spawn(cmd, args, { cwd, stdio: ['inherit', 'pipe', 'pipe'], shell });
+    let tail = '';
+    const captureAndEcho = (streamOut) => (chunk) => {
+      streamOut.write(chunk);
+      tail = (tail + chunk.toString()).slice(-OUTPUT_TAIL_MAX_CHARS);
+    };
+    proc.stdout.on('data', captureAndEcho(process.stdout));
+    proc.stderr.on('data', captureAndEcho(process.stderr));
 
     let timer;
     if (timeoutMs) {
@@ -260,7 +295,8 @@ function invokeClaudeRoutingOnce(prompt, cwd, timeoutMs, model) {
         if (settled) return;
         settled = true;
         proc.kill();
-        reject(Object.assign(new Error(`claude -p timed out after ${timeoutMs}ms`), { timedOut: true }));
+        const message = timeoutErrorMessage ? timeoutErrorMessage(timeoutMs) : `process timed out after ${timeoutMs}ms`;
+        reject(Object.assign(new Error(message), { timedOut: true }));
       }, timeoutMs);
     }
 
@@ -270,7 +306,7 @@ function invokeClaudeRoutingOnce(prompt, cwd, timeoutMs, model) {
       if (timer) clearTimeout(timer);
       // Marks this as a spawn-level failure (process never started at all —
       // ENOENT/EINVAL class) so the caller knows a retry might help, unlike
-      // a runtime failure where Claude did run and just exited non-zero.
+      // a runtime failure where the process did run and just exited non-zero.
       reject(Object.assign(err, { spawnFailed: true }));
     });
     proc.on('close', code => {
@@ -278,11 +314,24 @@ function invokeClaudeRoutingOnce(prompt, cwd, timeoutMs, model) {
       settled = true;
       if (timer) clearTimeout(timer);
       if (code !== 0) {
-        reject(new Error(`claude -p routing exited ${code}`));
+        const snippet = tail.trim();
+        reject(new Error(snippet ? `${exitErrorPrefix} ${code}: ${snippet}` : `${exitErrorPrefix} ${code}`));
         return;
       }
       resolvePromise();
     });
+  });
+}
+
+function invokeClaudeRoutingOnce(prompt, cwd, timeoutMs, model) {
+  const { cmd, shell } = resolveClaudeCommand();
+  const args = model ? ['-p', prompt, '--model', model] : ['-p', prompt];
+  return spawnCapturingTail(cmd, args, {
+    cwd,
+    shell,
+    timeoutMs,
+    exitErrorPrefix: 'claude -p routing exited',
+    timeoutErrorMessage: (ms) => `claude -p timed out after ${ms}ms`,
   });
 }
 
