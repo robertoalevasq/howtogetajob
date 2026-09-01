@@ -21,7 +21,7 @@
 import { chromium } from 'playwright';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { isMainModule } from './is-main.mjs';
+import { withPipelineLock } from './pipeline-lock.mjs';
 
 /** @param {string} workspaceCwd */
 export function browserSessionsStatePath(workspaceCwd) {
@@ -33,7 +33,7 @@ export function readBrowserSessions(path) {
   if (!existsSync(path)) return {};
   try {
     const data = JSON.parse(readFileSync(path, 'utf-8'));
-    return data && typeof data === 'object' ? data : {};
+    return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
   } catch {
     return {};
   }
@@ -61,8 +61,10 @@ export async function launchHolder({ report, workspaceCwd }) {
   });
   const endpoint = browserServer.wsEndpoint();
   const statePath = browserSessionsStatePath(workspaceCwd);
-  const sessions = readBrowserSessions(statePath);
-  sessions[report] = { endpoint, pid: process.pid, createdAt: new Date().toISOString() };
-  writeBrowserSessions(statePath, sessions);
-  return { endpoint, browserServer };
+  return withPipelineLock(statePath, () => {
+    const sessions = readBrowserSessions(statePath);
+    sessions[report] = { endpoint, pid: process.pid, createdAt: new Date().toISOString() };
+    writeBrowserSessions(statePath, sessions);
+    return { endpoint, browserServer };
+  });
 }
