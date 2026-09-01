@@ -31,7 +31,7 @@
  */
 
 import { spawn, execSync } from 'child_process';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { resolve, dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { acquirePipelineLock } from './pipeline-lock.mjs';
@@ -419,6 +419,49 @@ export async function sendCannedReply(chatId, text, hook = runHook) {
   } catch (err) {
     console.error(`[telegram-monitor] Could not send canned reply to ${chatId}: ${err.message}`);
   }
+}
+
+/**
+ * Determine which tracker report number an apply-flow message concerns,
+ * using only signals that are already structured (never re-implementing
+ * modes/telegram.md's own routing) — see the spec's "Daemon-side decision
+ * logic" section. Returns null whenever it can't confidently resolve one;
+ * callers treat null as "no browser-session override, dispatch normally"
+ * (docs/superpowers/specs/2026-08-31-apply-persistent-browser-design.md
+ * item 4 under Architecture > Daemon-side decision logic) — this function
+ * only ever adds a persistence path, never removes the existing fallback.
+ *
+ * Deliberately does NOT resolve `/apply {url}` (only `/apply {report#}`) —
+ * URL-to-report resolution requires fuzzy-matching against
+ * data/applications.md the way modes/telegram.md Step 3b item 0 does, which
+ * belongs in that mode file's routing logic, not duplicated here. A URL-based
+ * /apply simply dispatches without a browser-session override, same as any
+ * other unresolvable case.
+ *
+ * @param {{chatId: string, cwd: string, kind: 'routing'|'onboarding', messages: any[], state: object|null}} dispatch
+ * @returns {string | null}
+ */
+export function resolveReportForDispatch(dispatch) {
+  for (const msg of dispatch.messages || []) {
+    const m = /^\/apply\s+(\d+)\b/.exec((msg.text || '').trim());
+    if (m) return m[1];
+  }
+
+  const statePath = join(dispatch.cwd, 'data', 'telegram-state.md');
+  if (!existsSync(statePath)) return null;
+  let content;
+  try {
+    content = readFileSync(statePath, 'utf-8');
+  } catch {
+    return null;
+  }
+  const afterHeader = content.split('## Pending Confirmations')[1];
+  if (!afterHeader) return null;
+  const section = afterHeader.split('## Batch Queue')[0];
+  const blocks = section.match(/^\[msg_id: \d+\].*$/gm) || [];
+  if (blocks.length !== 1) return null;
+  const reportMatch = /^\s*report:\s*(\d+)\s*$/m.exec(section);
+  return reportMatch ? reportMatch[1] : null;
 }
 
 /**

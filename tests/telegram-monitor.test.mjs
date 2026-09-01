@@ -1,7 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { join } from 'node:path';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import {
   buildRoutingPrompt, buildOnboardingPrompt, dispatchOne, sendCannedReply, fanOutDispatches, createRoutingQueue,
+  resolveReportForDispatch,
 } from '../core/telegram-monitor.mjs';
 
 /** Run `fn` with console.error muted (these paths log deliberately). */
@@ -287,4 +291,64 @@ test('createRoutingQueue: a rejected in-flight dispatch still drains its queued 
 
   assert.equal(calls.length, 2);
   assert.deepEqual(calls[1], ['m2']);
+});
+
+function fakeWorkspaceWithState(pendingBlock) {
+  const ws = mkdtempSync(join(tmpdir(), 'career-ops-report-resolve-'));
+  mkdirSync(join(ws, 'data'), { recursive: true });
+  writeFileSync(join(ws, 'data', 'telegram-state.md'), [
+    '# Telegram State',
+    '',
+    '## Pending Confirmations',
+    pendingBlock,
+    '',
+    '## Batch Queue',
+    '(none)',
+  ].join('\n'));
+  return ws;
+}
+
+test('resolveReportForDispatch resolves a fresh "/apply {report}" command directly from the message text', () => {
+  const dispatch = { chatId: '1', cwd: '/fake/does-not-need-to-exist', kind: 'routing', messages: [{ chatId: '1', text: '/apply 937' }], state: null };
+  assert.equal(resolveReportForDispatch(dispatch), '937');
+});
+
+test('resolveReportForDispatch resolves from telegram-state.md when exactly one confirmation is pending', () => {
+  const ws = fakeWorkspaceWithState(
+    '[msg_id: 398] stage: field-approval — NRECA, report 937 — Self Identify (5 of 6)\n  report: 937\n  job_url: https://example.com\n  data: {}',
+  );
+  try {
+    const dispatch = { chatId: '1', cwd: ws, kind: 'routing', messages: [{ chatId: '1', text: 'yes' }], state: null };
+    assert.equal(resolveReportForDispatch(dispatch), '937');
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('resolveReportForDispatch returns null when zero confirmations are pending', () => {
+  const ws = fakeWorkspaceWithState('(none)');
+  try {
+    const dispatch = { chatId: '1', cwd: ws, kind: 'routing', messages: [{ chatId: '1', text: 'yes' }], state: null };
+    assert.equal(resolveReportForDispatch(dispatch), null);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('resolveReportForDispatch returns null when MULTIPLE confirmations are pending (ambiguous)', () => {
+  const ws = fakeWorkspaceWithState(
+    '[msg_id: 100] stage: question — first\n  report: 100\n  job_url: https://example.com\n  data: {}\n' +
+    '[msg_id: 200] stage: question — second\n  report: 200\n  job_url: https://example.com\n  data: {}',
+  );
+  try {
+    const dispatch = { chatId: '1', cwd: ws, kind: 'routing', messages: [{ chatId: '1', text: 'yes' }], state: null };
+    assert.equal(resolveReportForDispatch(dispatch), null);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('resolveReportForDispatch returns null for a command unrelated to apply', () => {
+  const dispatch = { chatId: '1', cwd: '/fake', kind: 'routing', messages: [{ chatId: '1', text: '/status' }], state: null };
+  assert.equal(resolveReportForDispatch(dispatch), null);
 });
