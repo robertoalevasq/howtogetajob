@@ -1,8 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { join } from 'node:path';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import {
   buildRoutingPrompt, buildOnboardingPrompt, dispatchOne, sendCannedReply, fanOutDispatches, createRoutingQueue,
+  resolveReportForDispatch, resolveBrowserMcpArgs, checkCdpAlive,
 } from '../core/telegram-monitor.mjs';
+import { writeBrowserSessions, browserSessionsStatePath, launchHolder } from '../core/apply-browser-holder.mjs';
 
 /** Run `fn` with console.error muted (these paths log deliberately). */
 async function quietErrors(fn) {
@@ -287,4 +292,272 @@ test('createRoutingQueue: a rejected in-flight dispatch still drains its queued 
 
   assert.equal(calls.length, 2);
   assert.deepEqual(calls[1], ['m2']);
+});
+
+function fakeWorkspaceWithState(pendingBlock) {
+  const ws = mkdtempSync(join(tmpdir(), 'career-ops-report-resolve-'));
+  mkdirSync(join(ws, 'data'), { recursive: true });
+  writeFileSync(join(ws, 'data', 'telegram-state.md'), [
+    '# Telegram State',
+    '',
+    '## Pending Confirmations',
+    pendingBlock,
+    '',
+    '## Batch Queue',
+    '(none)',
+  ].join('\n'));
+  return ws;
+}
+
+test('resolveReportForDispatch resolves a fresh "/apply {report}" command directly from the message text', () => {
+  const dispatch = { chatId: '1', cwd: '/fake/does-not-need-to-exist', kind: 'routing', messages: [{ chatId: '1', text: '/apply 937' }], state: null };
+  assert.equal(resolveReportForDispatch(dispatch), '937');
+});
+
+test('resolveReportForDispatch resolves from telegram-state.md when exactly one confirmation is pending', () => {
+  const ws = fakeWorkspaceWithState(
+    '[msg_id: 398] stage: field-approval — NRECA, report 937 — Self Identify (5 of 6)\n  report: 937\n  job_url: https://example.com\n  data: {}',
+  );
+  try {
+    const dispatch = { chatId: '1', cwd: ws, kind: 'routing', messages: [{ chatId: '1', text: 'yes' }], state: null };
+    assert.equal(resolveReportForDispatch(dispatch), '937');
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('resolveReportForDispatch still resolves /yes, /no, /skip, /cancel as confirmation replies, not as commands starting new work', () => {
+  const ws = fakeWorkspaceWithState(
+    '[msg_id: 398] stage: field-approval — NRECA, report 937 — Self Identify (5 of 6)\n  report: 937\n  job_url: https://example.com\n  data: {}',
+  );
+  try {
+    for (const text of ['/yes', '/no', '/skip', '/cancel']) {
+      const dispatch = { chatId: '1', cwd: ws, kind: 'routing', messages: [{ chatId: '1', text }], state: null };
+      assert.equal(resolveReportForDispatch(dispatch), '937', `${text} should still resolve the pending confirmation's report`);
+    }
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('resolveReportForDispatch returns null when zero confirmations are pending', () => {
+  const ws = fakeWorkspaceWithState('(none)');
+  try {
+    const dispatch = { chatId: '1', cwd: ws, kind: 'routing', messages: [{ chatId: '1', text: 'yes' }], state: null };
+    assert.equal(resolveReportForDispatch(dispatch), null);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('resolveReportForDispatch returns null when MULTIPLE confirmations are pending (ambiguous)', () => {
+  const ws = fakeWorkspaceWithState(
+    '[msg_id: 100] stage: question — first\n  report: 100\n  job_url: https://example.com\n  data: {}\n' +
+    '[msg_id: 200] stage: question — second\n  report: 200\n  job_url: https://example.com\n  data: {}',
+  );
+  try {
+    const dispatch = { chatId: '1', cwd: ws, kind: 'routing', messages: [{ chatId: '1', text: 'yes' }], state: null };
+    assert.equal(resolveReportForDispatch(dispatch), null);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('resolveReportForDispatch returns null for a command unrelated to apply', () => {
+  const dispatch = { chatId: '1', cwd: '/fake', kind: 'routing', messages: [{ chatId: '1', text: '/status' }], state: null };
+  assert.equal(resolveReportForDispatch(dispatch), null);
+});
+
+// The pending-confirmation fallback used to fire for ANY message text: with
+// one confirmation pending for report 937, all four of these resolved to 937
+// (verified live before the fix), silently pinning an unrelated command's
+// dispatch to that application's persistent browser.
+for (const text of ['/status', '/run', '/scan', 'https://boards.greenhouse.io/x/jobs/123']) {
+  test(`resolveReportForDispatch does NOT resolve a single pending confirmation for ${text}`, () => {
+    const ws = fakeWorkspaceWithState(
+      '[msg_id: 398] stage: field-approval — NRECA, report 937 — Self Identify (5 of 6)\n  report: 937\n  job_url: https://example.com\n  data: {}',
+    );
+    try {
+      const dispatch = { chatId: '1', cwd: ws, kind: 'routing', messages: [{ chatId: '1', text }], state: null };
+      assert.equal(resolveReportForDispatch(dispatch), null);
+    } finally {
+      rmSync(ws, { recursive: true, force: true });
+    }
+  });
+}
+
+test('resolveReportForDispatch still resolves an explicit "/apply {report}" even though it IS a recognized command', () => {
+  // The command guard only gates the pending-confirmation FALLBACK — the
+  // explicit /apply {report} match above it must keep working.
+  const ws = fakeWorkspaceWithState('(none)');
+  try {
+    const dispatch = { chatId: '1', cwd: ws, kind: 'routing', messages: [{ chatId: '1', text: '/apply 937' }], state: null };
+    assert.equal(resolveReportForDispatch(dispatch), '937');
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('resolveReportForDispatch resolves the pending confirmation when ANY message in the batch is a free-text reply', () => {
+  const ws = fakeWorkspaceWithState(
+    '[msg_id: 398] stage: field-approval — NRECA, report 937 — Self Identify (5 of 6)\n  report: 937\n  job_url: https://example.com\n  data: {}',
+  );
+  try {
+    const dispatch = {
+      chatId: '1', cwd: ws, kind: 'routing',
+      messages: [{ chatId: '1', text: '/status' }, { chatId: '1', text: 'yes' }],
+      state: null,
+    };
+    assert.equal(resolveReportForDispatch(dispatch), '937');
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('checkCdpAlive returns true against a REAL holder endpoint and false once that browser is gone', async () => {
+  // Deliberately unmocked, against a real launched browser: every other
+  // liveness test injects a fake checkCdpAlive, which is exactly why a wrong
+  // connection API (chromium.connect() against a Chrome-native CDP URL, which
+  // only times out) shipped undetected.
+  const ws = mkdtempSync(join(tmpdir(), 'career-ops-cdp-alive-'));
+  let holder;
+  try {
+    holder = await launchHolder({ report: '937', workspaceCwd: ws });
+    assert.equal(await checkCdpAlive(holder.endpoint), true);
+
+    const deadEndpoint = holder.endpoint;
+    await holder.browserServer.close();
+    holder = null;
+    assert.equal(await checkCdpAlive(deadEndpoint), false);
+    assert.equal(await checkCdpAlive('ws://127.0.0.1:1/devtools/browser/nope'), false);
+  } finally {
+    if (holder) await holder.browserServer.close().catch(() => {});
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+function fakeWorkspaceDir() {
+  return mkdtempSync(join(tmpdir(), 'career-ops-mcp-args-'));
+}
+
+test('resolveBrowserMcpArgs returns [] (no override) when report is null', async () => {
+  const args = await resolveBrowserMcpArgs(null, '/fake', {});
+  assert.deepEqual(args, []);
+});
+
+test('resolveBrowserMcpArgs reuses a live existing session, verified by BOTH pid and CDP checks', async () => {
+  const ws = fakeWorkspaceDir();
+  try {
+    writeBrowserSessions(browserSessionsStatePath(ws), {
+      '937': { endpoint: 'ws://127.0.0.1:1/fake', pid: 4242, createdAt: '2026-08-31T00:00:00.000Z' },
+    });
+    const args = await resolveBrowserMcpArgs('937', ws, {
+      checkPidAlive: async (pid) => pid === 4242,
+      checkCdpAlive: async (endpoint) => endpoint === 'ws://127.0.0.1:1/fake',
+      spawnHolder: async () => { throw new Error('should not spawn — a live session already exists'); },
+    });
+    assert.equal(args.length, 3);
+    assert.equal(args[0], '--mcp-config');
+    assert.equal(args[2], '--strict-mcp-config');
+    const config = JSON.parse(args[1]);
+    assert.deepEqual(config.mcpServers.playwright.args, ['@playwright/mcp@latest', '--cdp-endpoint', 'ws://127.0.0.1:1/fake']);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('resolveBrowserMcpArgs treats a dead PID as gone, deletes the stale entry, and spawns fresh', async () => {
+  const ws = fakeWorkspaceDir();
+  try {
+    writeBrowserSessions(browserSessionsStatePath(ws), {
+      '937': { endpoint: 'ws://127.0.0.1:1/stale', pid: 9999, createdAt: '2026-08-31T00:00:00.000Z' },
+    });
+    let spawned = false;
+    const args = await resolveBrowserMcpArgs('937', ws, {
+      checkPidAlive: async () => false, // dead
+      checkCdpAlive: async () => { throw new Error('should not even check CDP once the PID check already failed'); },
+      spawnHolder: async () => { spawned = true; },
+      waitForEndpoint: async () => 'ws://127.0.0.1:2/fresh',
+    });
+    assert.equal(spawned, true);
+    assert.equal(JSON.parse(args[1]).mcpServers.playwright.args[2], 'ws://127.0.0.1:2/fresh');
+    // The stale entry must be gone from the state file (not left for the
+    // NEXT lookup to trip over again).
+    const remaining = (await import('../core/apply-browser-holder.mjs')).readBrowserSessions(browserSessionsStatePath(ws));
+    assert.equal(remaining['937'], undefined);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('resolveBrowserMcpArgs treats a failed CDP connection as gone even when the PID is alive (PID recycling)', async () => {
+  const ws = fakeWorkspaceDir();
+  try {
+    writeBrowserSessions(browserSessionsStatePath(ws), {
+      '937': { endpoint: 'ws://127.0.0.1:1/stale', pid: 4242, createdAt: '2026-08-31T00:00:00.000Z' },
+    });
+    let spawned = false;
+    await resolveBrowserMcpArgs('937', ws, {
+      checkPidAlive: async () => true, // a DIFFERENT process happens to reuse this PID
+      checkCdpAlive: async () => false, // but it's not actually our browser
+      spawnHolder: async () => { spawned = true; },
+      waitForEndpoint: async () => 'ws://127.0.0.1:2/fresh',
+    });
+    assert.equal(spawned, true);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('resolveBrowserMcpArgs spawns a fresh holder when no entry exists yet', async () => {
+  const ws = fakeWorkspaceDir();
+  try {
+    let spawnedWith = null;
+    const args = await resolveBrowserMcpArgs('937', ws, {
+      spawnHolder: async (opts) => { spawnedWith = opts; },
+      waitForEndpoint: async () => 'ws://127.0.0.1:3/brand-new',
+    });
+    assert.deepEqual(spawnedWith, { report: '937', workspaceCwd: ws });
+    assert.equal(JSON.parse(args[1]).mcpServers.playwright.args[2], 'ws://127.0.0.1:3/brand-new');
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('resolveBrowserMcpArgs falls back to [] (no override) if spawning or waiting for the endpoint fails', async () => {
+  const ws = fakeWorkspaceDir();
+  try {
+    const args = await quietErrors(() => resolveBrowserMcpArgs('937', ws, {
+      spawnHolder: async () => {},
+      waitForEndpoint: async () => { throw new Error('holder never wrote its endpoint in time'); },
+    }));
+    assert.deepEqual(args, []);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('dispatchOne resolves and threads browser-session extraArgs for a ROUTING dispatch with a resolvable report', async () => {
+  const calls = [];
+  const fakeInvoke = async (prompt, cwd, timeoutMs, model, extraArgs) => { calls.push({ cwd, extraArgs }); };
+  const dispatch = {
+    chatId: '1', cwd: '/fake/workspace/alice', kind: 'routing',
+    messages: [{ chatId: '1', text: '/apply 937' }], state: null,
+  };
+  await dispatchOne(dispatch, fakeInvoke, async () => ['--mcp-config', '{"fake":true}', '--strict-mcp-config']);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].extraArgs, ['--mcp-config', '{"fake":true}', '--strict-mcp-config']);
+});
+
+test('dispatchOne passes an empty extraArgs array for an ONBOARDING dispatch — never resolves a browser session for onboarding', async () => {
+  const calls = [];
+  const fakeInvoke = async (prompt, cwd, timeoutMs, model, extraArgs) => { calls.push({ extraArgs }); };
+  const dispatch = {
+    chatId: '1', cwd: '/fake/workspace', kind: 'onboarding',
+    messages: [{ chatId: '1', text: 'Alice' }], state: { currentStep: 'name' },
+  };
+  let resolveBrowserCalled = false;
+  await dispatchOne(dispatch, fakeInvoke, async () => { resolveBrowserCalled = true; return []; });
+  assert.equal(calls[0].extraArgs.length, 0);
+  assert.equal(resolveBrowserCalled, false, 'onboarding never needs a browser session — resolving one would be wasted work on the hot path for every onboarding message');
 });

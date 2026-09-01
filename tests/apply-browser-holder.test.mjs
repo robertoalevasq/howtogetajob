@@ -1,0 +1,256 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { chromium } from 'playwright';
+import { browserSessionsStatePath, readBrowserSessions, writeBrowserSessions, removeBrowserSession, runHolderCli, launchHolder } from '../core/apply-browser-holder.mjs';
+import { acquirePipelineLock } from '../core/pipeline-lock.mjs';
+
+function fakeWorkspace() {
+  return mkdtempSync(join(tmpdir(), 'career-ops-browser-holder-'));
+}
+
+test('browserSessionsStatePath resolves under {workspace}/data/.apply-browser-sessions.json', () => {
+  const ws = fakeWorkspace();
+  try {
+    assert.equal(browserSessionsStatePath(ws), join(ws, 'data', '.apply-browser-sessions.json'));
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('readBrowserSessions returns {} when the file does not exist yet', () => {
+  const ws = fakeWorkspace();
+  try {
+    const path = browserSessionsStatePath(ws);
+    assert.deepEqual(readBrowserSessions(path), {});
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('writeBrowserSessions creates the data/ directory and persists entries; readBrowserSessions reads them back', () => {
+  const ws = fakeWorkspace();
+  try {
+    const path = browserSessionsStatePath(ws);
+    writeBrowserSessions(path, { '937': { endpoint: 'ws://127.0.0.1:9999/devtools/browser/abc', pid: 12345, createdAt: '2026-08-31T00:00:00.000Z' } });
+    const raw = JSON.parse(readFileSync(path, 'utf-8'));
+    assert.equal(raw['937'].pid, 12345);
+    const reread = readBrowserSessions(path);
+    assert.equal(reread['937'].endpoint, 'ws://127.0.0.1:9999/devtools/browser/abc');
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('removeBrowserSession deletes only the named report, leaving other entries intact', async () => {
+  const ws = fakeWorkspace();
+  try {
+    const path = browserSessionsStatePath(ws);
+    writeBrowserSessions(path, {
+      '937': { endpoint: 'ws://a', pid: 1, createdAt: '2026-08-31T00:00:00.000Z' },
+      '938': { endpoint: 'ws://b', pid: 2, createdAt: '2026-08-31T00:00:00.000Z' },
+    });
+    // No expectedPid — backward-compatible unconditional delete.
+    await removeBrowserSession(ws, '937');
+    const remaining = readBrowserSessions(path);
+    assert.equal(remaining['937'], undefined);
+    assert.equal(remaining['938'].endpoint, 'ws://b');
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('removeBrowserSession is a no-op when the report was never present or the file does not exist', async () => {
+  const ws = fakeWorkspace();
+  try {
+    // File doesn't exist at all yet.
+    await assert.doesNotReject(() => removeBrowserSession(ws, '999'));
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('removeBrowserSession deletes the entry when expectedPid matches the recorded owner', async () => {
+  const ws = fakeWorkspace();
+  try {
+    const path = browserSessionsStatePath(ws);
+    writeBrowserSessions(path, {
+      '937': { endpoint: 'ws://a', pid: 4242, createdAt: '2026-08-31T00:00:00.000Z' },
+    });
+    await removeBrowserSession(ws, '937', 4242);
+    assert.equal(readBrowserSessions(path)['937'], undefined);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('removeBrowserSession does NOT delete an entry a NEWER holder has already claimed (expectedPid mismatch)', async () => {
+  const ws = fakeWorkspace();
+  try {
+    const path = browserSessionsStatePath(ws);
+    // The newer holder (pid 5555) already replaced report 937's entry; the
+    // OLD holder (pid 4242) now hits its timeout and runs its own cleanup.
+    writeBrowserSessions(path, {
+      '937': { endpoint: 'ws://newer', pid: 5555, createdAt: '2026-08-31T01:00:00.000Z' },
+    });
+    await removeBrowserSession(ws, '937', 4242);
+    const remaining = readBrowserSessions(path);
+    assert.equal(remaining['937'].pid, 5555, "the newer holder's live entry must survive the old holder's cleanup");
+    assert.equal(remaining['937'].endpoint, 'ws://newer');
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('runHolderCli passes its OWN pid as expectedPid, so a superseded holder never removes the newer entry', async () => {
+  const ws = fakeWorkspace();
+  try {
+    const path = browserSessionsStatePath(ws);
+    const fakeLaunch = async ({ report, workspaceCwd }) => {
+      const p = browserSessionsStatePath(workspaceCwd);
+      const sessions = readBrowserSessions(p);
+      // Deliberately record a DIFFERENT pid than this process's: simulates a
+      // newer holder having replaced this report's entry mid-flight.
+      sessions[report] = { endpoint: 'ws://127.0.0.1:9/newer', pid: process.pid + 1, createdAt: new Date().toISOString() };
+      writeBrowserSessions(p, sessions);
+      return { endpoint: 'ws://127.0.0.1:9/newer', browserServer: { close: async () => {} } };
+    };
+    await runHolderCli(['--report', '937', '--workspace', ws], { launch: fakeLaunch, idleTimeoutMs: 10 });
+    assert.equal(readBrowserSessions(path)['937'].pid, process.pid + 1);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('runHolderCli launches a real browser, writes the state entry, then removes it on idle timeout', async () => {
+  const ws = fakeWorkspace();
+  try {
+    let closed = false;
+    const fakeLaunch = async ({ report, workspaceCwd }) => {
+      // Real launchHolder writes the entry itself — the fake must too, so
+      // runHolderCli's cleanup-on-exit path has something real to remove.
+      const path = browserSessionsStatePath(workspaceCwd);
+      const sessions = readBrowserSessions(path);
+      sessions[report] = { endpoint: 'ws://127.0.0.1:9/fake', pid: process.pid, createdAt: new Date().toISOString() };
+      writeBrowserSessions(path, sessions);
+      return { endpoint: 'ws://127.0.0.1:9/fake', browserServer: { close: async () => { closed = true; } } };
+    };
+    await runHolderCli(['--report', '937', '--workspace', ws], { launch: fakeLaunch, idleTimeoutMs: 10 });
+    assert.equal(closed, true, 'the browser server should be closed on idle timeout');
+    assert.deepEqual(readBrowserSessions(browserSessionsStatePath(ws))['937'], undefined);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('runHolderCli removes the state entry even if browserServer.close() rejects', async () => {
+  const ws = fakeWorkspace();
+  try {
+    const fakeLaunch = async ({ report, workspaceCwd }) => {
+      // Real launchHolder writes the entry itself — the fake must too, so
+      // runHolderCli's cleanup-on-exit path has something real to remove.
+      const path = browserSessionsStatePath(workspaceCwd);
+      const sessions = readBrowserSessions(path);
+      sessions[report] = { endpoint: 'ws://127.0.0.1:9/fake', pid: process.pid, createdAt: new Date().toISOString() };
+      writeBrowserSessions(path, sessions);
+      return {
+        endpoint: 'ws://127.0.0.1:9/fake',
+        browserServer: {
+          close: async () => {
+            throw new Error('simulated crash during close');
+          },
+        },
+      };
+    };
+    // runHolderCli will reject because close() throws, but that's expected.
+    // The important thing is that removeBrowserSession still ran in the finally.
+    await assert.rejects(
+      () => runHolderCli(['--report', '938', '--workspace', ws], { launch: fakeLaunch, idleTimeoutMs: 10 }),
+      /simulated crash during close/,
+    );
+    // State entry must be removed even though close() threw.
+    assert.deepEqual(readBrowserSessions(browserSessionsStatePath(ws))['938'], undefined);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('launchHolder exposes a genuine Chrome-native CDP endpoint that connectOverCDP() can actually connect to', async () => {
+  const ws = fakeWorkspace();
+  let holder;
+  let cdpConnection;
+  try {
+    holder = await launchHolder({ report: '999', workspaceCwd: ws });
+    const { endpoint } = holder;
+
+    // The whole point of this fix: the recorded endpoint must be Chromium's
+    // OWN native CDP endpoint (ws://host:port/devtools/browser/{uuid}), not
+    // Playwright's internal launchServer()/wsEndpoint() multiplexing format.
+    assert.match(endpoint, /^ws:\/\/127\.0\.0\.1:\d+\/devtools\/browser\/.+/);
+
+    // Confirm it's also what got written to the state file.
+    const sessions = readBrowserSessions(browserSessionsStatePath(ws));
+    assert.equal(sessions['999'].endpoint, endpoint);
+
+    // The real proof: connectOverCDP() (what @playwright/mcp's --cdp-endpoint
+    // uses internally) must actually succeed against this endpoint.
+    cdpConnection = await chromium.connectOverCDP(endpoint);
+    assert.equal(cdpConnection.isConnected(), true);
+    // Exercise the connection for real, not just check the flag.
+    await cdpConnection.contexts();
+  } finally {
+    if (cdpConnection) {
+      await cdpConnection.close().catch(() => {});
+    }
+    if (holder) {
+      await holder.browserServer.close().catch(() => {});
+    }
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('launchHolder closes the just-launched browser and rethrows when a post-launch step fails', async () => {
+  const ws = fakeWorkspace();
+  try {
+    let closed = false;
+    // A fake browser means nothing is actually listening on the reserved
+    // port, so the real /json/version fetch fails — exactly the class of
+    // post-launch failure (fetch / JSON parse / lock) that previously leaked
+    // the browser and hung this process forever.
+    await assert.rejects(
+      () => launchHolder({ report: '937', workspaceCwd: ws }, {
+        launchBrowser: async () => ({ close: async () => { closed = true; } }),
+      }),
+    );
+    assert.equal(closed, true, 'the browser must be closed when a post-launch step throws');
+    // Nothing must have been recorded for a launch that never completed.
+    assert.equal(readBrowserSessions(browserSessionsStatePath(ws))['937'], undefined);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('launchHolder rethrows (never hangs) when the state-file lock cannot be acquired, with a REAL browser', async () => {
+  const ws = fakeWorkspace();
+  const previousTimeout = process.env.CAREER_OPS_PIPELINE_LOCK_TIMEOUT_MS;
+  process.env.CAREER_OPS_PIPELINE_LOCK_TIMEOUT_MS = '500';
+  let heldLock;
+  try {
+    // Hold the very lock launchHolder needs for its state-file write, so the
+    // real withPipelineLock call throws LockTimeoutError AFTER a real
+    // chromium.launch() has already succeeded.
+    heldLock = await acquirePipelineLock(browserSessionsStatePath(ws), { timeoutMs: 2000 });
+    await assert.rejects(
+      () => launchHolder({ report: '937', workspaceCwd: ws }),
+      /lock/i,
+    );
+    assert.equal(readBrowserSessions(browserSessionsStatePath(ws))['937'], undefined);
+  } finally {
+    if (heldLock) heldLock.release();
+    if (previousTimeout === undefined) delete process.env.CAREER_OPS_PIPELINE_LOCK_TIMEOUT_MS;
+    else process.env.CAREER_OPS_PIPELINE_LOCK_TIMEOUT_MS = previousTimeout;
+    rmSync(ws, { recursive: true, force: true });
+  }
+});

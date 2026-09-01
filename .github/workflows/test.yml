@@ -33,9 +33,14 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version: '1.26'
-      # Skip the postinstall (npx playwright install chromium); the tests
-      # never launch a browser, so the ~170 MB download is pure CI overhead.
+      # Skip the postinstall so the browser download is an explicit, cached,
+      # visible step below rather than a side effect of `npm install`.
       - run: npm install --ignore-scripts
+      # Chromium IS required: tests/apply-browser-holder.test.mjs and
+      # tests/telegram-monitor.test.mjs each launch a real browser (the
+      # persistent apply-browser holder's CDP endpoint can only be verified
+      # against a real one). Same command as package.json's own postinstall.
+      - run: npx playwright install chromium --with-deps
       - run: node core/test-all.mjs --quick
       - name: Go dashboard tests
         run: go test ./...

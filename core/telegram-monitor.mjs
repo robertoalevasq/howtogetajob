@@ -31,7 +31,7 @@
  */
 
 import { spawn, execSync } from 'child_process';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { resolve, dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { acquirePipelineLock } from './pipeline-lock.mjs';
@@ -39,6 +39,8 @@ import { telegramDaemonLockPath } from './hub-paths.mjs';
 import { routeMessages } from './telegram-router.mjs';
 import { runHook } from '../plugins/_engine.mjs';
 import { isMainModule } from './is-main.mjs';
+import { browserSessionsStatePath, readBrowserSessions, removeBrowserSession } from './apply-browser-holder.mjs';
+import { parseCommand } from './telegram-poll.mjs';
 
 // ROOT is this script's own directory (core/, after the #workspace-multitenancy
 // Task 1 move) — kept as the cwd for spawning 'telegram-poll.mjs' below by its
@@ -323,9 +325,9 @@ export function spawnCapturingTail(cmd, args, opts = {}) {
   });
 }
 
-function invokeClaudeRoutingOnce(prompt, cwd, timeoutMs, model) {
+function invokeClaudeRoutingOnce(prompt, cwd, timeoutMs, model, extraArgs = []) {
   const { cmd, shell } = resolveClaudeCommand();
-  const args = model ? ['-p', prompt, '--model', model] : ['-p', prompt];
+  const args = model ? ['-p', prompt, '--model', model, ...extraArgs] : ['-p', prompt, ...extraArgs];
   return spawnCapturingTail(cmd, args, {
     cwd,
     shell,
@@ -422,6 +424,197 @@ export async function sendCannedReply(chatId, text, hook = runHook) {
 }
 
 /**
+ * Determine which tracker report number an apply-flow message concerns,
+ * using only signals that are already structured (never re-implementing
+ * modes/telegram.md's own routing) — see the spec's "Daemon-side decision
+ * logic" section. Returns null whenever it can't confidently resolve one;
+ * callers treat null as "no browser-session override, dispatch normally"
+ * (docs/superpowers/specs/2026-08-31-apply-persistent-browser-design.md
+ * item 4 under Architecture > Daemon-side decision logic) — this function
+ * only ever adds a persistence path, never removes the existing fallback.
+ *
+ * Deliberately does NOT resolve `/apply {url}` (only `/apply {report#}`) —
+ * URL-to-report resolution requires fuzzy-matching against
+ * data/applications.md the way modes/telegram.md Step 3b item 0 does, which
+ * belongs in that mode file's routing logic, not duplicated here. A URL-based
+ * /apply simply dispatches without a browser-session override, same as any
+ * other unresolvable case.
+ *
+ * @param {{chatId: string, cwd: string, kind: 'routing'|'onboarding', messages: any[], state: object|null}} dispatch
+ * @returns {string | null}
+ */
+export function resolveReportForDispatch(dispatch) {
+  const messages = dispatch.messages || [];
+  for (const msg of messages) {
+    const m = /^\/apply\s+(\d+)\b/.exec((msg.text || '').trim());
+    if (m) return m[1];
+  }
+
+  // The pending-confirmation fallback below only makes sense for a message
+  // that could actually BE an answer to that confirmation — free text like
+  // "yes"/"no"/"skip the veteran question". A recognized slash command
+  // (/status, /run, /scan, ...) starts its own workflow, and a pasted URL is
+  // a fresh application/JD, never a yes/no answer; neither one is "replying"
+  // to the pending gate. Without this guard, ANY message at all resolved to
+  // whatever single confirmation happened to be pending (verified live: with
+  // one pending confirmation for report 937, all of /status, /run, /scan and
+  // a bare Greenhouse URL resolved to 937), so an unrelated command got its
+  // dispatch silently pinned to that application's persistent browser.
+  // /yes, /no, /skip, /cancel are themselves recognized commands (parseCommand
+  // returns isCommand: true for them) but modes/telegram.md:71 documents them
+  // as first-class confirmation-reply forms ("routes exactly like the
+  // equivalent standalone word") — excluding all recognized commands here
+  // would silently un-resolve these four, losing the persistent-browser
+  // attachment on exactly the reply this whole check exists to recognize.
+  // Found live during the final review of this feature.
+  const CONFIRMATION_COMMANDS = new Set(['yes', 'no', 'skip', 'cancel']);
+  const looksLikeConfirmationReply = messages.some(msg => {
+    const text = (msg.text || '').trim();
+    if (!text) return false;
+    const parsed = parseCommand(text);
+    if (parsed.isCommand && !CONFIRMATION_COMMANDS.has(parsed.command)) return false;
+    if (/^https?:\/\//i.test(text)) return false;
+    return true;
+  });
+  if (!looksLikeConfirmationReply) return null;
+
+  const statePath = join(dispatch.cwd, 'data', 'telegram-state.md');
+  if (!existsSync(statePath)) return null;
+  let content;
+  try {
+    content = readFileSync(statePath, 'utf-8');
+  } catch {
+    return null;
+  }
+  const afterHeader = content.split('## Pending Confirmations')[1];
+  if (!afterHeader) return null;
+  const section = afterHeader.split('## Batch Queue')[0];
+  const blocks = section.match(/^\[msg_id: \d+\].*$/gm) || [];
+  if (blocks.length !== 1) return null;
+  const reportMatch = /^\s*report:\s*(\d+)\s*$/m.exec(section);
+  return reportMatch ? reportMatch[1] : null;
+}
+
+const APPLY_BROWSER_HOLDER_PATH = join(dirname(fileURLToPath(import.meta.url)), 'apply-browser-holder.mjs');
+const BROWSER_ENDPOINT_WAIT_MS = 5000;
+const BROWSER_ENDPOINT_POLL_INTERVAL_MS = 100;
+
+/** @param {number} pid */
+async function checkPidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Is the browser behind `endpoint` still alive?
+ *
+ * A plain HTTP GET against Chromium's OWN /json/version endpoint — the same
+ * one apply-browser-holder.mjs reads the CDP URL from in the first place —
+ * rather than a Playwright connect/disconnect cycle. Two reasons:
+ *   1. Correctness. The recorded endpoint is a genuine Chrome-native CDP URL
+ *      (ws://host:port/devtools/browser/{uuid}), so `chromium.connect()` —
+ *      Playwright's OWN server protocol — cannot speak to it at all and just
+ *      times out; only `connectOverCDP()` can. Verified live: connect() hit
+ *      its full 3000ms timeout against a real holder while connectOverCDP()
+ *      succeeded instantly.
+ *   2. Cost and safety. Even the correct connectOverCDP() would attach a real
+ *      client to a browser that another dispatch may be actively driving, and
+ *      then close it — risk of disturbing the shared session for a liveness
+ *      probe that only needs a yes/no. An HTTP GET touches nothing.
+ *
+ * @param {string} endpoint
+ */
+export async function checkCdpAlive(endpoint) {
+  try {
+    const url = new URL(endpoint);
+    const res = await fetch(`http://${url.hostname}:${url.port}/json/version`, { signal: AbortSignal.timeout(3000) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** @param {{report: string, workspaceCwd: string}} opts */
+async function spawnHolder({ report, workspaceCwd }) {
+  spawn(process.execPath, [APPLY_BROWSER_HOLDER_PATH, '--report', report, '--workspace', workspaceCwd], {
+    detached: true,
+    stdio: 'ignore',
+  }).unref();
+}
+
+/** @param {string} workspaceCwd @param {string} report */
+async function waitForEndpoint(workspaceCwd, report) {
+  const statePath = browserSessionsStatePath(workspaceCwd);
+  const deadline = Date.now() + BROWSER_ENDPOINT_WAIT_MS;
+  while (Date.now() < deadline) {
+    const sessions = readBrowserSessions(statePath);
+    if (sessions[report]?.endpoint) return sessions[report].endpoint;
+    await new Promise(r => setTimeout(r, BROWSER_ENDPOINT_POLL_INTERVAL_MS));
+  }
+  throw new Error(`Timed out waiting for apply-browser-holder to write its endpoint for report ${report}`);
+}
+
+function buildMcpConfigArgs(endpoint) {
+  const config = { mcpServers: { playwright: { command: 'npx', args: ['@playwright/mcp@latest', '--cdp-endpoint', endpoint] } } };
+  return ['--mcp-config', JSON.stringify(config), '--strict-mcp-config'];
+}
+
+/**
+ * Resolve the --mcp-config override (if any) that should be appended to this
+ * dispatch's `claude -p` invocation so it reconnects to report `report`'s
+ * persistent browser instead of launching its own — see the spec's
+ * "Architecture > How a dispatch connects to it" and "Daemon-side decision
+ * logic" sections. Returns [] (no override, dispatch exactly as today) when
+ * `report` is null, or when anything about the persistence mechanism fails —
+ * this function is never allowed to block or fail a dispatch; the fallback
+ * IS the safety net described in the spec's "degrade gracefully" goal.
+ *
+ * @param {string | null} report
+ * @param {string} workspaceCwd
+ * @param {{checkPidAlive?: typeof checkPidAlive, checkCdpAlive?: typeof checkCdpAlive, spawnHolder?: typeof spawnHolder, waitForEndpoint?: typeof waitForEndpoint}} [deps] - overridable for tests.
+ * @returns {Promise<string[]>}
+ */
+export async function resolveBrowserMcpArgs(report, workspaceCwd, deps = {}) {
+  if (!report) return [];
+  const pidAlive = deps.checkPidAlive || checkPidAlive;
+  const cdpAlive = deps.checkCdpAlive || checkCdpAlive;
+  const doSpawn = deps.spawnHolder || spawnHolder;
+  const doWait = deps.waitForEndpoint || waitForEndpoint;
+
+  try {
+    const statePath = browserSessionsStatePath(workspaceCwd);
+    const sessions = readBrowserSessions(statePath);
+    const existing = sessions[report];
+
+    if (existing) {
+      const alive = (await pidAlive(existing.pid)) && (await cdpAlive(existing.endpoint));
+      if (alive) return buildMcpConfigArgs(existing.endpoint);
+      // No expectedPid here deliberately: this path has already established
+      // that whatever is recorded is dead (pid gone, or its CDP endpoint
+      // unreachable), so there is no "our own" entry to protect — the point
+      // is to clear the stale record whoever wrote it.
+      await removeBrowserSession(workspaceCwd, report);
+    }
+
+    await doSpawn({ report, workspaceCwd });
+    const endpoint = await doWait(workspaceCwd, report);
+    return buildMcpConfigArgs(endpoint);
+  } catch (err) {
+    console.error(`[telegram-monitor] Persistent browser session unavailable for report ${report}, falling back to a fresh browser: ${err.message}`);
+    return [];
+  }
+}
+
+/** @param {object} dispatch */
+async function defaultResolveBrowserArgs(dispatch) {
+  return resolveBrowserMcpArgs(resolveReportForDispatch(dispatch), dispatch.cwd);
+}
+
+/**
  * Guarded single-shot Claude invocation for one routed dispatch: builds the
  * right prompt for its kind (routing vs. onboarding), invokes it with that
  * dispatch's own resolved cwd, retries once on a spawn-level failure, and
@@ -444,9 +637,10 @@ export async function sendCannedReply(chatId, text, hook = runHook) {
  * emergency notification before giving up (2026-08-13).
  *
  * @param {{chatId: string, cwd: string, kind: 'routing'|'onboarding', messages: any[], state: object|null}} dispatch
- * @param {(prompt: string, cwd: string, timeoutMs?: number, model?: string) => Promise<void>} [invoke] - overridable for tests.
+ * @param {(prompt: string, cwd: string, timeoutMs?: number, model?: string, extraArgs?: string[]) => Promise<void>} [invoke] - overridable for tests.
+ * @param {(dispatch: object) => Promise<string[]>} [resolveBrowserArgs] - overridable for tests; defaults to resolving report + browser session for real.
  */
-export async function dispatchOne(dispatch, invoke = invokeClaudeRoutingOnce) {
+export async function dispatchOne(dispatch, invoke = invokeClaudeRoutingOnce, resolveBrowserArgs = defaultResolveBrowserArgs) {
   const prompt = dispatch.kind === 'onboarding'
     ? buildOnboardingPrompt(dispatch)
     : buildRoutingPrompt(dispatch.messages);
@@ -455,14 +649,18 @@ export async function dispatchOne(dispatch, invoke = invokeClaudeRoutingOnce) {
   // dispatch (cycle/apply/etc.) is unlimited and uses the account default.
   const timeoutMs = dispatch.kind === 'onboarding' ? ONBOARDING_TIMEOUT_MS : undefined;
   const model = dispatch.kind === 'onboarding' ? ONBOARDING_MODEL : undefined;
+  // Onboarding never touches Playwright/apply.md — resolving a browser
+  // session for it would be pure wasted work on a hot path every onboarding
+  // message travels.
+  const extraArgs = dispatch.kind === 'onboarding' ? [] : await resolveBrowserArgs(dispatch);
 
   try {
-    await invoke(prompt, dispatch.cwd, timeoutMs, model);
+    await invoke(prompt, dispatch.cwd, timeoutMs, model, extraArgs);
   } catch (err) {
     if (err.spawnFailed) {
       console.error(`[telegram-monitor] Spawn failed (${err.message}) — retrying once...`);
       try {
-        await invoke(prompt, dispatch.cwd, timeoutMs, model);
+        await invoke(prompt, dispatch.cwd, timeoutMs, model, extraArgs);
         return;
       } catch (retryErr) {
         console.error(`[telegram-monitor] Retry also failed (${retryErr.message}) — sending emergency notification.`);
