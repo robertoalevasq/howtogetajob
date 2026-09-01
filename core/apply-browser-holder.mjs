@@ -110,19 +110,28 @@ export function removeBrowserSession(workspaceCwd, report) {
   writeBrowserSessions(path, sessions);
 }
 
-// No CDP activity for this long means the application was abandoned —
-// self-terminate rather than leaving an orphaned browser process running
-// indefinitely (see the spec's "Cleanup" section). This is a BACKSTOP: the
+// Absolute lifetime cap for a holder process, NOT an activity-based idle
+// timer: it is armed once at launch and never reset by CDP traffic, so a
+// holder self-terminates this long after it started regardless of how busy
+// the application has been. It exists only to stop an orphaned browser from
+// running forever (see the spec's "Cleanup" section) and is a BACKSTOP: the
 // documented mode-file cleanup triggers (Step 9 success, explicit skip, a
 // hard-stop) are expected to remove the session first in the normal case —
 // this only fires when every one of those was somehow missed.
-const DEFAULT_IDLE_TIMEOUT_MS = 45 * 60 * 1000;
+//
+// 4 hours, not the original 45 minutes: modes/apply.md's own account-creation
+// flow documents an email-verification pause that can span "minutes to
+// hours", so a 45-minute cap self-destructed during the exact wait this
+// holder exists to survive. The value is chosen to comfortably exceed that
+// documented window; genuine activity-based idle tracking was considered and
+// deliberately rejected as disproportionate complexity for the benefit.
+const DEFAULT_IDLE_TIMEOUT_MS = 4 * 60 * 60 * 1000;
 
 /**
  * @param {string[]} argv - e.g. ['--report', '937', '--workspace', '/path']
  * @param {{launch?: typeof launchHolder, idleTimeoutMs?: number}} [opts]
  *   `launch` and `idleTimeoutMs` are injectable so tests never spawn a real
- *   browser or wait 45 real minutes.
+ *   browser or wait out the real DEFAULT_IDLE_TIMEOUT_MS lifetime cap.
  */
 export async function runHolderCli(argv, opts = {}) {
   const launch = opts.launch || launchHolder;
