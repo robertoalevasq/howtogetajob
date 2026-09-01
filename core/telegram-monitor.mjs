@@ -325,9 +325,9 @@ export function spawnCapturingTail(cmd, args, opts = {}) {
   });
 }
 
-function invokeClaudeRoutingOnce(prompt, cwd, timeoutMs, model) {
+function invokeClaudeRoutingOnce(prompt, cwd, timeoutMs, model, extraArgs = []) {
   const { cmd, shell } = resolveClaudeCommand();
-  const args = model ? ['-p', prompt, '--model', model] : ['-p', prompt];
+  const args = model ? ['-p', prompt, '--model', model, ...extraArgs] : ['-p', prompt, ...extraArgs];
   return spawnCapturingTail(cmd, args, {
     cwd,
     shell,
@@ -558,6 +558,11 @@ export async function resolveBrowserMcpArgs(report, workspaceCwd, deps = {}) {
   }
 }
 
+/** @param {object} dispatch */
+async function defaultResolveBrowserArgs(dispatch) {
+  return resolveBrowserMcpArgs(resolveReportForDispatch(dispatch), dispatch.cwd);
+}
+
 /**
  * Guarded single-shot Claude invocation for one routed dispatch: builds the
  * right prompt for its kind (routing vs. onboarding), invokes it with that
@@ -581,9 +586,10 @@ export async function resolveBrowserMcpArgs(report, workspaceCwd, deps = {}) {
  * emergency notification before giving up (2026-08-13).
  *
  * @param {{chatId: string, cwd: string, kind: 'routing'|'onboarding', messages: any[], state: object|null}} dispatch
- * @param {(prompt: string, cwd: string, timeoutMs?: number, model?: string) => Promise<void>} [invoke] - overridable for tests.
+ * @param {(prompt: string, cwd: string, timeoutMs?: number, model?: string, extraArgs?: string[]) => Promise<void>} [invoke] - overridable for tests.
+ * @param {(dispatch: object) => Promise<string[]>} [resolveBrowserArgs] - overridable for tests; defaults to resolving report + browser session for real.
  */
-export async function dispatchOne(dispatch, invoke = invokeClaudeRoutingOnce) {
+export async function dispatchOne(dispatch, invoke = invokeClaudeRoutingOnce, resolveBrowserArgs = defaultResolveBrowserArgs) {
   const prompt = dispatch.kind === 'onboarding'
     ? buildOnboardingPrompt(dispatch)
     : buildRoutingPrompt(dispatch.messages);
@@ -592,14 +598,18 @@ export async function dispatchOne(dispatch, invoke = invokeClaudeRoutingOnce) {
   // dispatch (cycle/apply/etc.) is unlimited and uses the account default.
   const timeoutMs = dispatch.kind === 'onboarding' ? ONBOARDING_TIMEOUT_MS : undefined;
   const model = dispatch.kind === 'onboarding' ? ONBOARDING_MODEL : undefined;
+  // Onboarding never touches Playwright/apply.md — resolving a browser
+  // session for it would be pure wasted work on a hot path every onboarding
+  // message travels.
+  const extraArgs = dispatch.kind === 'onboarding' ? [] : await resolveBrowserArgs(dispatch);
 
   try {
-    await invoke(prompt, dispatch.cwd, timeoutMs, model);
+    await invoke(prompt, dispatch.cwd, timeoutMs, model, extraArgs);
   } catch (err) {
     if (err.spawnFailed) {
       console.error(`[telegram-monitor] Spawn failed (${err.message}) — retrying once...`);
       try {
-        await invoke(prompt, dispatch.cwd, timeoutMs, model);
+        await invoke(prompt, dispatch.cwd, timeoutMs, model, extraArgs);
         return;
       } catch (retryErr) {
         console.error(`[telegram-monitor] Retry also failed (${retryErr.message}) — sending emergency notification.`);

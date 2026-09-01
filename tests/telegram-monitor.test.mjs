@@ -454,3 +454,28 @@ test('resolveBrowserMcpArgs falls back to [] (no override) if spawning or waitin
     rmSync(ws, { recursive: true, force: true });
   }
 });
+
+test('dispatchOne resolves and threads browser-session extraArgs for a ROUTING dispatch with a resolvable report', async () => {
+  const calls = [];
+  const fakeInvoke = async (prompt, cwd, timeoutMs, model, extraArgs) => { calls.push({ cwd, extraArgs }); };
+  const dispatch = {
+    chatId: '1', cwd: '/fake/workspace/alice', kind: 'routing',
+    messages: [{ chatId: '1', text: '/apply 937' }], state: null,
+  };
+  await dispatchOne(dispatch, fakeInvoke, async () => ['--mcp-config', '{"fake":true}', '--strict-mcp-config']);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].extraArgs, ['--mcp-config', '{"fake":true}', '--strict-mcp-config']);
+});
+
+test('dispatchOne passes an empty extraArgs array for an ONBOARDING dispatch — never resolves a browser session for onboarding', async () => {
+  const calls = [];
+  const fakeInvoke = async (prompt, cwd, timeoutMs, model, extraArgs) => { calls.push({ extraArgs }); };
+  const dispatch = {
+    chatId: '1', cwd: '/fake/workspace', kind: 'onboarding',
+    messages: [{ chatId: '1', text: 'Alice' }], state: { currentStep: 'name' },
+  };
+  let resolveBrowserCalled = false;
+  await dispatchOne(dispatch, fakeInvoke, async () => { resolveBrowserCalled = true; return []; });
+  assert.equal(calls[0].extraArgs.length, 0);
+  assert.equal(resolveBrowserCalled, false, 'onboarding never needs a browser session — resolving one would be wasted work on the hot path for every onboarding message');
+});
