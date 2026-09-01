@@ -21,6 +21,7 @@
 import { chromium } from 'playwright';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { createServer } from 'node:net';
 import { withPipelineLock } from './pipeline-lock.mjs';
 import { isMainModule } from './is-main.mjs';
 
@@ -46,21 +47,51 @@ export function writeBrowserSessions(path, sessions) {
   writeFileSync(path, JSON.stringify(sessions, null, 2));
 }
 
+// Reserve a free port ourselves rather than passing --remote-debugging-port=0
+// to Chromium: we need to know the exact port in advance to query Chromium's
+// own /json/version HTTP endpoint afterward and read back its real,
+// Chrome-native CDP WebSocket URL. --remote-debugging-port=0 would still let
+// Chromium pick a free port, but wouldn't tell us which one it picked.
+async function reserveFreePort() {
+  return new Promise((resolve, reject) => {
+    const srv = createServer();
+    srv.once('error', reject);
+    srv.listen(0, '127.0.0.1', () => {
+      const { port } = srv.address();
+      srv.close(() => resolve(port));
+    });
+  });
+}
+
 /**
  * Launch a real, remote-debuggable browser and record it in this workspace's
- * session-state file under `report`. Port 0 lets the OS assign a free port —
- * multiple holders (different reports, possibly different candidates) run
- * concurrently, so a fixed port would collide.
+ * session-state file under `report`. Exposes Chromium's OWN native Chrome
+ * DevTools Protocol endpoint (via its HTTP /json/version JSON response),
+ * NOT Playwright's own launchServer()/wsEndpoint() protocol -- @playwright/mcp's
+ * --cdp-endpoint flag calls chromium.connectOverCDP() internally, which
+ * requires the genuine Chrome-native endpoint format
+ * (ws://host:port/devtools/browser/{uuid}), not Playwright's internal
+ * multiplexing-server format. Verified directly: connectOverCDP() fails
+ * against a launchServer() wsEndpoint() value but succeeds against this one,
+ * and session state (a navigated page, a JS global set on it) genuinely
+ * persists across two independent connectOverCDP() connections to the same
+ * endpoint -- the entire premise this feature depends on.
  *
  * @param {{report: string, workspaceCwd: string}} opts
- * @returns {Promise<{endpoint: string, browserServer: import('playwright').BrowserServer}>}
+ * @returns {Promise<{endpoint: string, browserServer: import('playwright').Browser}>}
  */
 export async function launchHolder({ report, workspaceCwd }) {
-  const browserServer = await chromium.launchServer({
+  const port = await reserveFreePort();
+  const browserServer = await chromium.launch({
     headless: true,
-    args: ['--remote-debugging-port=0', '--remote-debugging-address=127.0.0.1'],
+    args: [`--remote-debugging-port=${port}`, '--remote-debugging-address=127.0.0.1'],
   });
-  const endpoint = browserServer.wsEndpoint();
+  // Chromium needs a brief moment after launch before its DevTools HTTP
+  // endpoint is ready to answer -- a fixed short delay is simpler and more
+  // than sufficient here (verified empirically with 500ms; use the same).
+  await new Promise(r => setTimeout(r, 500));
+  const res = await fetch(`http://127.0.0.1:${port}/json/version`);
+  const { webSocketDebuggerUrl: endpoint } = await res.json();
   const statePath = browserSessionsStatePath(workspaceCwd);
   return withPipelineLock(statePath, () => {
     const sessions = readBrowserSessions(statePath);

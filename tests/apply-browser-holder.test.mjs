@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { browserSessionsStatePath, readBrowserSessions, writeBrowserSessions, removeBrowserSession, runHolderCli } from '../core/apply-browser-holder.mjs';
+import { chromium } from 'playwright';
+import { browserSessionsStatePath, readBrowserSessions, writeBrowserSessions, removeBrowserSession, runHolderCli, launchHolder } from '../core/apply-browser-holder.mjs';
 
 function fakeWorkspace() {
   return mkdtempSync(join(tmpdir(), 'career-ops-browser-holder-'));
@@ -118,6 +119,40 @@ test('runHolderCli removes the state entry even if browserServer.close() rejects
     // State entry must be removed even though close() threw.
     assert.deepEqual(readBrowserSessions(browserSessionsStatePath(ws))['938'], undefined);
   } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('launchHolder exposes a genuine Chrome-native CDP endpoint that connectOverCDP() can actually connect to', async () => {
+  const ws = fakeWorkspace();
+  let holder;
+  let cdpConnection;
+  try {
+    holder = await launchHolder({ report: '999', workspaceCwd: ws });
+    const { endpoint } = holder;
+
+    // The whole point of this fix: the recorded endpoint must be Chromium's
+    // OWN native CDP endpoint (ws://host:port/devtools/browser/{uuid}), not
+    // Playwright's internal launchServer()/wsEndpoint() multiplexing format.
+    assert.match(endpoint, /^ws:\/\/127\.0\.0\.1:\d+\/devtools\/browser\/.+/);
+
+    // Confirm it's also what got written to the state file.
+    const sessions = readBrowserSessions(browserSessionsStatePath(ws));
+    assert.equal(sessions['999'].endpoint, endpoint);
+
+    // The real proof: connectOverCDP() (what @playwright/mcp's --cdp-endpoint
+    // uses internally) must actually succeed against this endpoint.
+    cdpConnection = await chromium.connectOverCDP(endpoint);
+    assert.equal(cdpConnection.isConnected(), true);
+    // Exercise the connection for real, not just check the flag.
+    await cdpConnection.contexts();
+  } finally {
+    if (cdpConnection) {
+      await cdpConnection.close().catch(() => {});
+    }
+    if (holder) {
+      await holder.browserServer.close().catch(() => {});
+    }
     rmSync(ws, { recursive: true, force: true });
   }
 });
