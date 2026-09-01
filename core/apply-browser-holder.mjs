@@ -22,6 +22,7 @@ import { chromium } from 'playwright';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { withPipelineLock } from './pipeline-lock.mjs';
+import { isMainModule } from './is-main.mjs';
 
 /** @param {string} workspaceCwd */
 export function browserSessionsStatePath(workspaceCwd) {
@@ -66,5 +67,61 @@ export async function launchHolder({ report, workspaceCwd }) {
     sessions[report] = { endpoint, pid: process.pid, createdAt: new Date().toISOString() };
     writeBrowserSessions(statePath, sessions);
     return { endpoint, browserServer };
+  });
+}
+
+/** @param {string} workspaceCwd @param {string} report */
+export function removeBrowserSession(workspaceCwd, report) {
+  const path = browserSessionsStatePath(workspaceCwd);
+  const sessions = readBrowserSessions(path);
+  if (!(report in sessions)) return;
+  delete sessions[report];
+  writeBrowserSessions(path, sessions);
+}
+
+// No CDP activity for this long means the application was abandoned —
+// self-terminate rather than leaving an orphaned browser process running
+// indefinitely (see the spec's "Cleanup" section). This is a BACKSTOP: the
+// documented mode-file cleanup triggers (Step 9 success, explicit skip, a
+// hard-stop) are expected to remove the session first in the normal case —
+// this only fires when every one of those was somehow missed.
+const DEFAULT_IDLE_TIMEOUT_MS = 45 * 60 * 1000;
+
+/**
+ * @param {string[]} argv - e.g. ['--report', '937', '--workspace', '/path']
+ * @param {{launch?: typeof launchHolder, idleTimeoutMs?: number}} [opts]
+ *   `launch` and `idleTimeoutMs` are injectable so tests never spawn a real
+ *   browser or wait 45 real minutes.
+ */
+export async function runHolderCli(argv, opts = {}) {
+  const launch = opts.launch || launchHolder;
+  const idleTimeoutMs = opts.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
+
+  const reportIdx = argv.indexOf('--report');
+  const workspaceIdx = argv.indexOf('--workspace');
+  const report = reportIdx !== -1 ? argv[reportIdx + 1] : null;
+  const workspaceCwd = workspaceIdx !== -1 ? argv[workspaceIdx + 1] : null;
+  if (!report || !workspaceCwd) {
+    throw new Error('Usage: apply-browser-holder.mjs --report <num> --workspace <path>');
+  }
+
+  const { browserServer } = await launch({ report, workspaceCwd });
+
+  let resolveStop;
+  const stopped = new Promise(r => { resolveStop = r; });
+  const timer = setTimeout(() => resolveStop(), idleTimeoutMs);
+  const stopEarly = () => { clearTimeout(timer); resolveStop(); };
+  process.on('SIGTERM', stopEarly);
+  process.on('SIGINT', stopEarly);
+
+  await stopped;
+  await browserServer.close();
+  removeBrowserSession(workspaceCwd, report);
+}
+
+if (isMainModule(import.meta.url)) {
+  runHolderCli(process.argv.slice(2)).catch(err => {
+    console.error(`[apply-browser-holder] ${err.message}`);
+    process.exitCode = 1;
   });
 }
