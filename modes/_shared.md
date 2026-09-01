@@ -161,6 +161,51 @@ Classify every offer into one of these types (or hybrid of 2):
 
 After detecting archetype, read `_profile.md` for the user's specific framing and proof points for that archetype.
 
+## Checkpoint & Resumption (Token Limit Recovery)
+
+When a mode runs for a long time and approaches token limits, it may be interrupted mid-execution. To support clean resumption in a fresh turn, every long-running mode MUST:
+
+1. **Write checkpoints** at key progress points (after each batch, step completion, significant milestone)
+   - Checkpoint location: `data/cache/{mode}-status.json` or a mode-specific checkpoint file
+   - Checkpoint content: enough state to resume cleanly (current step, progress counters, pending work, last report#)
+   - Frequency: at least every 500 items processed, or every major step boundary
+   
+2. **Detect checkpoint markers** at startup
+   - Check if the user's prompt contains `[CHECKPOINT: {mode}|{encodedState}]`
+   - If present, use `parseCheckpoint()` from `core/resumption-prompt.mjs` to load state
+   - Resume from the saved step instead of starting fresh
+   
+3. **Emit resumption prompt** when approaching token limit
+   - Import `generateResumptionPrompt()` from `core/resumption-prompt.mjs`
+   - Call it with the mode name and current checkpoint state
+   - Output the result before the session ends so the user can copy-paste it into a fresh turn
+
+**Checkpoint marker format:**
+```
+[CHECKPOINT: {mode}|{base64-encoded-JSON-state}]
+Resume {mode}: {human-friendly description}
+```
+
+The marker is on the first line; the description is for human readability. When parsing, strip both before resuming normal mode logic.
+
+**Example checkpoint flow:**
+- User: `/career-ops pipeline` (processes 1000 URLs, hits token limit at URL #723)
+- System: outputs `[CHECKPOINT: pipeline|eyJwZW5kaW5nVXJsc1...] Resume pipeline: 722 processed, 278 remaining`
+- User (next turn): pastes the checkpoint prompt + any follow-up commands
+- System: parses checkpoint, loads state, resumes from URL #723
+
+**Implementation checklist for modes:**
+- [ ] Read checkpoint on startup if `[CHECKPOINT: ...]` is present
+- [ ] Write checkpoint after every N items or every major step
+- [ ] Generate resumption prompt before token limit forces an interrupt
+- [ ] Document the checkpoint state shape in the mode's own file
+
+**See `docs/CHECKPOINT_RECOVERY.md` for:**
+- User guide: how to use checkpoint markers to resume interrupted runs
+- Developer guide: how to add checkpoint support to a new mode
+- Code examples for all major modes
+- Troubleshooting and recovery scenarios
+
 ## Global Rules
 
 ### NEVER

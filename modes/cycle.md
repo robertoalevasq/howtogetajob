@@ -65,6 +65,31 @@ pipeline backlog) instead.
    match — a `cd && node` compound is parsed as two separate rules and won't be covered by either,
    which reintroduces a manual-approval prompt mid-run.
 
+## Token Limit Resumption
+
+If a `cycle` run is interrupted due to hitting the token limit mid-execution, it can be resumed cleanly in a fresh turn:
+
+**Resuming from a checkpoint:**
+
+1. The last partial response should include a prompt like:
+   ```
+   [CHECKPOINT: cycle|{base64-encoded-state}]
+   Resume cycle: continue from {step-label}
+   ```
+
+2. Copy this entire prompt (including the `[CHECKPOINT: ...]` marker) into a fresh turn, optionally followed by your own instructions
+
+3. The mode will automatically detect the checkpoint marker, load the saved state (current step, counter progress), and resume from that point without re-running earlier work
+
+**What happens internally:**
+
+- `cycle-status.json` is the source of truth for progress — it is updated at every checkpoint (Pass A/B progress, Step counters)
+- On resumption, the checkpoint state is loaded, the lock is re-acquired, and execution continues from the saved step
+- All earlier work (reports already written, PDFs already generated, tracker rows already added) remains intact
+- The run picks up cleanly without duplication or re-evaluation
+
+**If you don't see a checkpoint prompt when interrupted:** The run may have completed more of the steps than it appeared. Check `node core/cycle-status.mjs` to see where the run actually left off, and continue from there.
+
 ## Step 0 — Pre-flight
 
 Three cheap, zero-token checks before spending any time on Step 1:
