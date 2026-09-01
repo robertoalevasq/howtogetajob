@@ -584,7 +584,11 @@ export async function resolveBrowserMcpArgs(report, workspaceCwd, deps = {}) {
     if (existing) {
       const alive = (await pidAlive(existing.pid)) && (await cdpAlive(existing.endpoint));
       if (alive) return buildMcpConfigArgs(existing.endpoint);
-      removeBrowserSession(workspaceCwd, report);
+      // No expectedPid here deliberately: this path has already established
+      // that whatever is recorded is dead (pid gone, or its CDP endpoint
+      // unreachable), so there is no "our own" entry to protect — the point
+      // is to clear the stale record whoever wrote it.
+      await removeBrowserSession(workspaceCwd, report);
     }
 
     await doSpawn({ report, workspaceCwd });

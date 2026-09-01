@@ -119,13 +119,34 @@ export async function launchHolder({ report, workspaceCwd }, deps = {}) {
   }
 }
 
-/** @param {string} workspaceCwd @param {string} report */
-export function removeBrowserSession(workspaceCwd, report) {
+/**
+ * Remove `report`'s entry from this workspace's session-state file.
+ *
+ * Locked (same withPipelineLock the launch path uses) because this is a
+ * read-modify-write over a file other holders and the daemon also write:
+ * unlocked, a concurrent launch's write could be clobbered wholesale by this
+ * function's stale in-memory copy.
+ *
+ * `expectedPid`, when given, makes the delete conditional on the entry still
+ * belonging to the caller. A holder that has been SUPERSEDED — its report's
+ * entry already replaced by a newer holder — must not delete the newer
+ * holder's live entry when its own timeout/signal cleanup finally runs, which
+ * is exactly what an unconditional key-based delete did. Omitted (the
+ * daemon's stale-entry cleanup, which has no particular pid in mind because
+ * it has already established the entry is dead) deletes unconditionally, as
+ * before.
+ *
+ * @param {string} workspaceCwd @param {string} report @param {number} [expectedPid]
+ */
+export function removeBrowserSession(workspaceCwd, report, expectedPid) {
   const path = browserSessionsStatePath(workspaceCwd);
-  const sessions = readBrowserSessions(path);
-  if (!(report in sessions)) return;
-  delete sessions[report];
-  writeBrowserSessions(path, sessions);
+  return withPipelineLock(path, () => {
+    const sessions = readBrowserSessions(path);
+    if (!(report in sessions)) return;
+    if (expectedPid !== undefined && sessions[report]?.pid !== expectedPid) return;
+    delete sessions[report];
+    writeBrowserSessions(path, sessions);
+  });
 }
 
 // Absolute lifetime cap for a holder process, NOT an activity-based idle
@@ -180,7 +201,10 @@ export async function runHolderCli(argv, opts = {}) {
     } finally {
       process.off('SIGTERM', stopEarly);
       process.off('SIGINT', stopEarly);
-      removeBrowserSession(workspaceCwd, report);
+      // process.pid as expectedPid: only ever remove OUR OWN entry. If a
+      // newer holder has already superseded this one for the same report,
+      // its entry must survive this (late) cleanup untouched.
+      await removeBrowserSession(workspaceCwd, report, process.pid);
     }
   }
 }

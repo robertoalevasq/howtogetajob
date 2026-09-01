@@ -44,7 +44,7 @@ test('writeBrowserSessions creates the data/ directory and persists entries; rea
   }
 });
 
-test('removeBrowserSession deletes only the named report, leaving other entries intact', () => {
+test('removeBrowserSession deletes only the named report, leaving other entries intact', async () => {
   const ws = fakeWorkspace();
   try {
     const path = browserSessionsStatePath(ws);
@@ -52,7 +52,8 @@ test('removeBrowserSession deletes only the named report, leaving other entries 
       '937': { endpoint: 'ws://a', pid: 1, createdAt: '2026-08-31T00:00:00.000Z' },
       '938': { endpoint: 'ws://b', pid: 2, createdAt: '2026-08-31T00:00:00.000Z' },
     });
-    removeBrowserSession(ws, '937');
+    // No expectedPid — backward-compatible unconditional delete.
+    await removeBrowserSession(ws, '937');
     const remaining = readBrowserSessions(path);
     assert.equal(remaining['937'], undefined);
     assert.equal(remaining['938'].endpoint, 'ws://b');
@@ -61,11 +62,63 @@ test('removeBrowserSession deletes only the named report, leaving other entries 
   }
 });
 
-test('removeBrowserSession is a no-op when the report was never present or the file does not exist', () => {
+test('removeBrowserSession is a no-op when the report was never present or the file does not exist', async () => {
   const ws = fakeWorkspace();
   try {
     // File doesn't exist at all yet.
-    assert.doesNotThrow(() => removeBrowserSession(ws, '999'));
+    await assert.doesNotReject(() => removeBrowserSession(ws, '999'));
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('removeBrowserSession deletes the entry when expectedPid matches the recorded owner', async () => {
+  const ws = fakeWorkspace();
+  try {
+    const path = browserSessionsStatePath(ws);
+    writeBrowserSessions(path, {
+      '937': { endpoint: 'ws://a', pid: 4242, createdAt: '2026-08-31T00:00:00.000Z' },
+    });
+    await removeBrowserSession(ws, '937', 4242);
+    assert.equal(readBrowserSessions(path)['937'], undefined);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('removeBrowserSession does NOT delete an entry a NEWER holder has already claimed (expectedPid mismatch)', async () => {
+  const ws = fakeWorkspace();
+  try {
+    const path = browserSessionsStatePath(ws);
+    // The newer holder (pid 5555) already replaced report 937's entry; the
+    // OLD holder (pid 4242) now hits its timeout and runs its own cleanup.
+    writeBrowserSessions(path, {
+      '937': { endpoint: 'ws://newer', pid: 5555, createdAt: '2026-08-31T01:00:00.000Z' },
+    });
+    await removeBrowserSession(ws, '937', 4242);
+    const remaining = readBrowserSessions(path);
+    assert.equal(remaining['937'].pid, 5555, "the newer holder's live entry must survive the old holder's cleanup");
+    assert.equal(remaining['937'].endpoint, 'ws://newer');
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('runHolderCli passes its OWN pid as expectedPid, so a superseded holder never removes the newer entry', async () => {
+  const ws = fakeWorkspace();
+  try {
+    const path = browserSessionsStatePath(ws);
+    const fakeLaunch = async ({ report, workspaceCwd }) => {
+      const p = browserSessionsStatePath(workspaceCwd);
+      const sessions = readBrowserSessions(p);
+      // Deliberately record a DIFFERENT pid than this process's: simulates a
+      // newer holder having replaced this report's entry mid-flight.
+      sessions[report] = { endpoint: 'ws://127.0.0.1:9/newer', pid: process.pid + 1, createdAt: new Date().toISOString() };
+      writeBrowserSessions(p, sessions);
+      return { endpoint: 'ws://127.0.0.1:9/newer', browserServer: { close: async () => {} } };
+    };
+    await runHolderCli(['--report', '937', '--workspace', ws], { launch: fakeLaunch, idleTimeoutMs: 10 });
+    assert.equal(readBrowserSessions(path)['937'].pid, process.pid + 1);
   } finally {
     rmSync(ws, { recursive: true, force: true });
   }
