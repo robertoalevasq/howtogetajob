@@ -5,9 +5,9 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import {
   buildRoutingPrompt, buildOnboardingPrompt, dispatchOne, sendCannedReply, fanOutDispatches, createRoutingQueue,
-  resolveReportForDispatch, resolveBrowserMcpArgs,
+  resolveReportForDispatch, resolveBrowserMcpArgs, checkCdpAlive,
 } from '../core/telegram-monitor.mjs';
-import { writeBrowserSessions, browserSessionsStatePath } from '../core/apply-browser-holder.mjs';
+import { writeBrowserSessions, browserSessionsStatePath, launchHolder } from '../core/apply-browser-holder.mjs';
 
 /** Run `fn` with console.error muted (these paths log deliberately). */
 async function quietErrors(fn) {
@@ -352,6 +352,74 @@ test('resolveReportForDispatch returns null when MULTIPLE confirmations are pend
 test('resolveReportForDispatch returns null for a command unrelated to apply', () => {
   const dispatch = { chatId: '1', cwd: '/fake', kind: 'routing', messages: [{ chatId: '1', text: '/status' }], state: null };
   assert.equal(resolveReportForDispatch(dispatch), null);
+});
+
+// The pending-confirmation fallback used to fire for ANY message text: with
+// one confirmation pending for report 937, all four of these resolved to 937
+// (verified live before the fix), silently pinning an unrelated command's
+// dispatch to that application's persistent browser.
+for (const text of ['/status', '/run', '/scan', 'https://boards.greenhouse.io/x/jobs/123']) {
+  test(`resolveReportForDispatch does NOT resolve a single pending confirmation for ${text}`, () => {
+    const ws = fakeWorkspaceWithState(
+      '[msg_id: 398] stage: field-approval — NRECA, report 937 — Self Identify (5 of 6)\n  report: 937\n  job_url: https://example.com\n  data: {}',
+    );
+    try {
+      const dispatch = { chatId: '1', cwd: ws, kind: 'routing', messages: [{ chatId: '1', text }], state: null };
+      assert.equal(resolveReportForDispatch(dispatch), null);
+    } finally {
+      rmSync(ws, { recursive: true, force: true });
+    }
+  });
+}
+
+test('resolveReportForDispatch still resolves an explicit "/apply {report}" even though it IS a recognized command', () => {
+  // The command guard only gates the pending-confirmation FALLBACK — the
+  // explicit /apply {report} match above it must keep working.
+  const ws = fakeWorkspaceWithState('(none)');
+  try {
+    const dispatch = { chatId: '1', cwd: ws, kind: 'routing', messages: [{ chatId: '1', text: '/apply 937' }], state: null };
+    assert.equal(resolveReportForDispatch(dispatch), '937');
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('resolveReportForDispatch resolves the pending confirmation when ANY message in the batch is a free-text reply', () => {
+  const ws = fakeWorkspaceWithState(
+    '[msg_id: 398] stage: field-approval — NRECA, report 937 — Self Identify (5 of 6)\n  report: 937\n  job_url: https://example.com\n  data: {}',
+  );
+  try {
+    const dispatch = {
+      chatId: '1', cwd: ws, kind: 'routing',
+      messages: [{ chatId: '1', text: '/status' }, { chatId: '1', text: 'yes' }],
+      state: null,
+    };
+    assert.equal(resolveReportForDispatch(dispatch), '937');
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('checkCdpAlive returns true against a REAL holder endpoint and false once that browser is gone', async () => {
+  // Deliberately unmocked, against a real launched browser: every other
+  // liveness test injects a fake checkCdpAlive, which is exactly why a wrong
+  // connection API (chromium.connect() against a Chrome-native CDP URL, which
+  // only times out) shipped undetected.
+  const ws = mkdtempSync(join(tmpdir(), 'career-ops-cdp-alive-'));
+  let holder;
+  try {
+    holder = await launchHolder({ report: '937', workspaceCwd: ws });
+    assert.equal(await checkCdpAlive(holder.endpoint), true);
+
+    const deadEndpoint = holder.endpoint;
+    await holder.browserServer.close();
+    holder = null;
+    assert.equal(await checkCdpAlive(deadEndpoint), false);
+    assert.equal(await checkCdpAlive('ws://127.0.0.1:1/devtools/browser/nope'), false);
+  } finally {
+    if (holder) await holder.browserServer.close().catch(() => {});
+    rmSync(ws, { recursive: true, force: true });
+  }
 });
 
 function fakeWorkspaceDir() {

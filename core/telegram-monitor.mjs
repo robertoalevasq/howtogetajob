@@ -40,7 +40,7 @@ import { routeMessages } from './telegram-router.mjs';
 import { runHook } from '../plugins/_engine.mjs';
 import { isMainModule } from './is-main.mjs';
 import { browserSessionsStatePath, readBrowserSessions, removeBrowserSession } from './apply-browser-holder.mjs';
-import { chromium } from 'playwright';
+import { parseCommand } from './telegram-poll.mjs';
 
 // ROOT is this script's own directory (core/, after the #workspace-multitenancy
 // Task 1 move) — kept as the cwd for spawning 'telegram-poll.mjs' below by its
@@ -444,10 +444,30 @@ export async function sendCannedReply(chatId, text, hook = runHook) {
  * @returns {string | null}
  */
 export function resolveReportForDispatch(dispatch) {
-  for (const msg of dispatch.messages || []) {
+  const messages = dispatch.messages || [];
+  for (const msg of messages) {
     const m = /^\/apply\s+(\d+)\b/.exec((msg.text || '').trim());
     if (m) return m[1];
   }
+
+  // The pending-confirmation fallback below only makes sense for a message
+  // that could actually BE an answer to that confirmation — free text like
+  // "yes"/"no"/"skip the veteran question". A recognized slash command
+  // (/status, /run, /scan, ...) starts its own workflow, and a pasted URL is
+  // a fresh application/JD, never a yes/no answer; neither one is "replying"
+  // to the pending gate. Without this guard, ANY message at all resolved to
+  // whatever single confirmation happened to be pending (verified live: with
+  // one pending confirmation for report 937, all of /status, /run, /scan and
+  // a bare Greenhouse URL resolved to 937), so an unrelated command got its
+  // dispatch silently pinned to that application's persistent browser.
+  const looksLikeConfirmationReply = messages.some(msg => {
+    const text = (msg.text || '').trim();
+    if (!text) return false;
+    if (parseCommand(text).isCommand) return false;
+    if (/^https?:\/\//i.test(text)) return false;
+    return true;
+  });
+  if (!looksLikeConfirmationReply) return null;
 
   const statePath = join(dispatch.cwd, 'data', 'telegram-state.md');
   if (!existsSync(statePath)) return null;
@@ -480,12 +500,30 @@ async function checkPidAlive(pid) {
   }
 }
 
-/** @param {string} endpoint */
-async function checkCdpAlive(endpoint) {
+/**
+ * Is the browser behind `endpoint` still alive?
+ *
+ * A plain HTTP GET against Chromium's OWN /json/version endpoint — the same
+ * one apply-browser-holder.mjs reads the CDP URL from in the first place —
+ * rather than a Playwright connect/disconnect cycle. Two reasons:
+ *   1. Correctness. The recorded endpoint is a genuine Chrome-native CDP URL
+ *      (ws://host:port/devtools/browser/{uuid}), so `chromium.connect()` —
+ *      Playwright's OWN server protocol — cannot speak to it at all and just
+ *      times out; only `connectOverCDP()` can. Verified live: connect() hit
+ *      its full 3000ms timeout against a real holder while connectOverCDP()
+ *      succeeded instantly.
+ *   2. Cost and safety. Even the correct connectOverCDP() would attach a real
+ *      client to a browser that another dispatch may be actively driving, and
+ *      then close it — risk of disturbing the shared session for a liveness
+ *      probe that only needs a yes/no. An HTTP GET touches nothing.
+ *
+ * @param {string} endpoint
+ */
+export async function checkCdpAlive(endpoint) {
   try {
-    const browser = await chromium.connect(endpoint, { timeout: 3000 });
-    await browser.close();
-    return true;
+    const url = new URL(endpoint);
+    const res = await fetch(`http://${url.hostname}:${url.port}/json/version`, { signal: AbortSignal.timeout(3000) });
+    return res.ok;
   } catch {
     return false;
   }
