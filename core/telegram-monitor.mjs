@@ -39,6 +39,8 @@ import { telegramDaemonLockPath } from './hub-paths.mjs';
 import { routeMessages } from './telegram-router.mjs';
 import { runHook } from '../plugins/_engine.mjs';
 import { isMainModule } from './is-main.mjs';
+import { browserSessionsStatePath, readBrowserSessions, removeBrowserSession } from './apply-browser-holder.mjs';
+import { chromium } from 'playwright';
 
 // ROOT is this script's own directory (core/, after the #workspace-multitenancy
 // Task 1 move) — kept as the cwd for spawning 'telegram-poll.mjs' below by its
@@ -462,6 +464,98 @@ export function resolveReportForDispatch(dispatch) {
   if (blocks.length !== 1) return null;
   const reportMatch = /^\s*report:\s*(\d+)\s*$/m.exec(section);
   return reportMatch ? reportMatch[1] : null;
+}
+
+const APPLY_BROWSER_HOLDER_PATH = join(dirname(fileURLToPath(import.meta.url)), 'apply-browser-holder.mjs');
+const BROWSER_ENDPOINT_WAIT_MS = 5000;
+const BROWSER_ENDPOINT_POLL_INTERVAL_MS = 100;
+
+/** @param {number} pid */
+async function checkPidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** @param {string} endpoint */
+async function checkCdpAlive(endpoint) {
+  try {
+    const browser = await chromium.connect(endpoint, { timeout: 3000 });
+    await browser.close();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** @param {{report: string, workspaceCwd: string}} opts */
+async function spawnHolder({ report, workspaceCwd }) {
+  spawn(process.execPath, [APPLY_BROWSER_HOLDER_PATH, '--report', report, '--workspace', workspaceCwd], {
+    detached: true,
+    stdio: 'ignore',
+  }).unref();
+}
+
+/** @param {string} workspaceCwd @param {string} report */
+async function waitForEndpoint(workspaceCwd, report) {
+  const statePath = browserSessionsStatePath(workspaceCwd);
+  const deadline = Date.now() + BROWSER_ENDPOINT_WAIT_MS;
+  while (Date.now() < deadline) {
+    const sessions = readBrowserSessions(statePath);
+    if (sessions[report]?.endpoint) return sessions[report].endpoint;
+    await new Promise(r => setTimeout(r, BROWSER_ENDPOINT_POLL_INTERVAL_MS));
+  }
+  throw new Error(`Timed out waiting for apply-browser-holder to write its endpoint for report ${report}`);
+}
+
+function buildMcpConfigArgs(endpoint) {
+  const config = { mcpServers: { playwright: { command: 'npx', args: ['@playwright/mcp@latest', '--cdp-endpoint', endpoint] } } };
+  return ['--mcp-config', JSON.stringify(config), '--strict-mcp-config'];
+}
+
+/**
+ * Resolve the --mcp-config override (if any) that should be appended to this
+ * dispatch's `claude -p` invocation so it reconnects to report `report`'s
+ * persistent browser instead of launching its own — see the spec's
+ * "Architecture > How a dispatch connects to it" and "Daemon-side decision
+ * logic" sections. Returns [] (no override, dispatch exactly as today) when
+ * `report` is null, or when anything about the persistence mechanism fails —
+ * this function is never allowed to block or fail a dispatch; the fallback
+ * IS the safety net described in the spec's "degrade gracefully" goal.
+ *
+ * @param {string | null} report
+ * @param {string} workspaceCwd
+ * @param {{checkPidAlive?: typeof checkPidAlive, checkCdpAlive?: typeof checkCdpAlive, spawnHolder?: typeof spawnHolder, waitForEndpoint?: typeof waitForEndpoint}} [deps] - overridable for tests.
+ * @returns {Promise<string[]>}
+ */
+export async function resolveBrowserMcpArgs(report, workspaceCwd, deps = {}) {
+  if (!report) return [];
+  const pidAlive = deps.checkPidAlive || checkPidAlive;
+  const cdpAlive = deps.checkCdpAlive || checkCdpAlive;
+  const doSpawn = deps.spawnHolder || spawnHolder;
+  const doWait = deps.waitForEndpoint || waitForEndpoint;
+
+  try {
+    const statePath = browserSessionsStatePath(workspaceCwd);
+    const sessions = readBrowserSessions(statePath);
+    const existing = sessions[report];
+
+    if (existing) {
+      const alive = (await pidAlive(existing.pid)) && (await cdpAlive(existing.endpoint));
+      if (alive) return buildMcpConfigArgs(existing.endpoint);
+      removeBrowserSession(workspaceCwd, report);
+    }
+
+    await doSpawn({ report, workspaceCwd });
+    const endpoint = await doWait(workspaceCwd, report);
+    return buildMcpConfigArgs(endpoint);
+  } catch (err) {
+    console.error(`[telegram-monitor] Persistent browser session unavailable for report ${report}, falling back to a fresh browser: ${err.message}`);
+    return [];
+  }
 }
 
 /**
