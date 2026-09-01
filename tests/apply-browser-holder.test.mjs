@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { browserSessionsStatePath, readBrowserSessions, writeBrowserSessions, removeBrowserSession, runHolderCli, launchHolder } from '../core/apply-browser-holder.mjs';
+import { acquirePipelineLock } from '../core/pipeline-lock.mjs';
 
 function fakeWorkspace() {
   return mkdtempSync(join(tmpdir(), 'career-ops-browser-holder-'));
@@ -153,6 +154,50 @@ test('launchHolder exposes a genuine Chrome-native CDP endpoint that connectOver
     if (holder) {
       await holder.browserServer.close().catch(() => {});
     }
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('launchHolder closes the just-launched browser and rethrows when a post-launch step fails', async () => {
+  const ws = fakeWorkspace();
+  try {
+    let closed = false;
+    // A fake browser means nothing is actually listening on the reserved
+    // port, so the real /json/version fetch fails — exactly the class of
+    // post-launch failure (fetch / JSON parse / lock) that previously leaked
+    // the browser and hung this process forever.
+    await assert.rejects(
+      () => launchHolder({ report: '937', workspaceCwd: ws }, {
+        launchBrowser: async () => ({ close: async () => { closed = true; } }),
+      }),
+    );
+    assert.equal(closed, true, 'the browser must be closed when a post-launch step throws');
+    // Nothing must have been recorded for a launch that never completed.
+    assert.equal(readBrowserSessions(browserSessionsStatePath(ws))['937'], undefined);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('launchHolder rethrows (never hangs) when the state-file lock cannot be acquired, with a REAL browser', async () => {
+  const ws = fakeWorkspace();
+  const previousTimeout = process.env.CAREER_OPS_PIPELINE_LOCK_TIMEOUT_MS;
+  process.env.CAREER_OPS_PIPELINE_LOCK_TIMEOUT_MS = '500';
+  let heldLock;
+  try {
+    // Hold the very lock launchHolder needs for its state-file write, so the
+    // real withPipelineLock call throws LockTimeoutError AFTER a real
+    // chromium.launch() has already succeeded.
+    heldLock = await acquirePipelineLock(browserSessionsStatePath(ws), { timeoutMs: 2000 });
+    await assert.rejects(
+      () => launchHolder({ report: '937', workspaceCwd: ws }),
+      /lock/i,
+    );
+    assert.equal(readBrowserSessions(browserSessionsStatePath(ws))['937'], undefined);
+  } finally {
+    if (heldLock) heldLock.release();
+    if (previousTimeout === undefined) delete process.env.CAREER_OPS_PIPELINE_LOCK_TIMEOUT_MS;
+    else process.env.CAREER_OPS_PIPELINE_LOCK_TIMEOUT_MS = previousTimeout;
     rmSync(ws, { recursive: true, force: true });
   }
 });

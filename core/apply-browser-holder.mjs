@@ -78,27 +78,45 @@ async function reserveFreePort() {
  * endpoint -- the entire premise this feature depends on.
  *
  * @param {{report: string, workspaceCwd: string}} opts
+ * @param {{launchBrowser?: (port: number) => Promise<import('playwright').Browser>}} [deps]
+ *   `launchBrowser` is injectable so the close-on-post-launch-failure path
+ *   below can be tested deterministically (and cross-platform) without a real
+ *   Chromium; production always uses the real chromium.launch().
  * @returns {Promise<{endpoint: string, browserServer: import('playwright').Browser}>}
  */
-export async function launchHolder({ report, workspaceCwd }) {
-  const port = await reserveFreePort();
-  const browserServer = await chromium.launch({
+export async function launchHolder({ report, workspaceCwd }, deps = {}) {
+  const launchBrowser = deps.launchBrowser || (p => chromium.launch({
     headless: true,
-    args: [`--remote-debugging-port=${port}`, '--remote-debugging-address=127.0.0.1'],
-  });
-  // Chromium needs a brief moment after launch before its DevTools HTTP
-  // endpoint is ready to answer -- a fixed short delay is simpler and more
-  // than sufficient here (verified empirically with 500ms; use the same).
-  await new Promise(r => setTimeout(r, 500));
-  const res = await fetch(`http://127.0.0.1:${port}/json/version`);
-  const { webSocketDebuggerUrl: endpoint } = await res.json();
-  const statePath = browserSessionsStatePath(workspaceCwd);
-  return withPipelineLock(statePath, () => {
-    const sessions = readBrowserSessions(statePath);
-    sessions[report] = { endpoint, pid: process.pid, createdAt: new Date().toISOString() };
-    writeBrowserSessions(statePath, sessions);
-    return { endpoint, browserServer };
-  });
+    args: [`--remote-debugging-port=${p}`, '--remote-debugging-address=127.0.0.1'],
+  }));
+  const port = await reserveFreePort();
+  const browserServer = await launchBrowser(port);
+  // Everything after a SUCCESSFUL launch has to be able to close the browser
+  // again on failure. Without this, a throw from the fetch, the JSON parse, or
+  // withPipelineLock (LockTimeoutError) left a live Chromium process behind
+  // AND hung this process forever: the holder is spawned detached with
+  // stdio:'ignore', so the error is invisible, and the still-open browser
+  // connection keeps the event loop alive with nothing left to do. Close, then
+  // re-throw so runHolderCli's caller (the CLI entrypoint below) can log it and
+  // process.exit(1) — terminating for real instead of hanging silently.
+  try {
+    // Chromium needs a brief moment after launch before its DevTools HTTP
+    // endpoint is ready to answer -- a fixed short delay is simpler and more
+    // than sufficient here (verified empirically with 500ms; use the same).
+    await new Promise(r => setTimeout(r, 500));
+    const res = await fetch(`http://127.0.0.1:${port}/json/version`);
+    const { webSocketDebuggerUrl: endpoint } = await res.json();
+    const statePath = browserSessionsStatePath(workspaceCwd);
+    return await withPipelineLock(statePath, () => {
+      const sessions = readBrowserSessions(statePath);
+      sessions[report] = { endpoint, pid: process.pid, createdAt: new Date().toISOString() };
+      writeBrowserSessions(statePath, sessions);
+      return { endpoint, browserServer };
+    });
+  } catch (err) {
+    await browserServer.close().catch(() => {});
+    throw err;
+  }
 }
 
 /** @param {string} workspaceCwd @param {string} report */
@@ -170,6 +188,10 @@ export async function runHolderCli(argv, opts = {}) {
 if (isMainModule(import.meta.url)) {
   runHolderCli(process.argv.slice(2)).catch(err => {
     console.error(`[apply-browser-holder] ${err.message}`);
-    process.exitCode = 1;
+    // process.exit(), not process.exitCode: a failure between launch and the
+    // state-file write may leave something still holding the event loop open,
+    // and this process is detached with stdio:'ignore' — hanging invisibly
+    // forever is strictly worse than exiting hard on an already-fatal error.
+    process.exit(1);
   });
 }
