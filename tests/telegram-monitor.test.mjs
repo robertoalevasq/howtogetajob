@@ -326,6 +326,20 @@ test('resolveReportForDispatch resolves from telegram-state.md when exactly one 
   }
 });
 
+test('resolveReportForDispatch still resolves /yes, /no, /skip, /cancel as confirmation replies, not as commands starting new work', () => {
+  const ws = fakeWorkspaceWithState(
+    '[msg_id: 398] stage: field-approval — NRECA, report 937 — Self Identify (5 of 6)\n  report: 937\n  job_url: https://example.com\n  data: {}',
+  );
+  try {
+    for (const text of ['/yes', '/no', '/skip', '/cancel']) {
+      const dispatch = { chatId: '1', cwd: ws, kind: 'routing', messages: [{ chatId: '1', text }], state: null };
+      assert.equal(resolveReportForDispatch(dispatch), '937', `${text} should still resolve the pending confirmation's report`);
+    }
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
 test('resolveReportForDispatch returns null when zero confirmations are pending', () => {
   const ws = fakeWorkspaceWithState('(none)');
   try {

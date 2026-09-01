@@ -460,10 +460,19 @@ export function resolveReportForDispatch(dispatch) {
   // one pending confirmation for report 937, all of /status, /run, /scan and
   // a bare Greenhouse URL resolved to 937), so an unrelated command got its
   // dispatch silently pinned to that application's persistent browser.
+  // /yes, /no, /skip, /cancel are themselves recognized commands (parseCommand
+  // returns isCommand: true for them) but modes/telegram.md:71 documents them
+  // as first-class confirmation-reply forms ("routes exactly like the
+  // equivalent standalone word") — excluding all recognized commands here
+  // would silently un-resolve these four, losing the persistent-browser
+  // attachment on exactly the reply this whole check exists to recognize.
+  // Found live during the final review of this feature.
+  const CONFIRMATION_COMMANDS = new Set(['yes', 'no', 'skip', 'cancel']);
   const looksLikeConfirmationReply = messages.some(msg => {
     const text = (msg.text || '').trim();
     if (!text) return false;
-    if (parseCommand(text).isCommand) return false;
+    const parsed = parseCommand(text);
+    if (parsed.isCommand && !CONFIRMATION_COMMANDS.has(parsed.command)) return false;
     if (/^https?:\/\//i.test(text)) return false;
     return true;
   });
