@@ -114,9 +114,17 @@ export async function runHolderCli(argv, opts = {}) {
   process.on('SIGTERM', stopEarly);
   process.on('SIGINT', stopEarly);
 
-  await stopped;
-  await browserServer.close();
-  removeBrowserSession(workspaceCwd, report);
+  try {
+    await stopped;
+  } finally {
+    try {
+      await browserServer.close();
+    } finally {
+      process.off('SIGTERM', stopEarly);
+      process.off('SIGINT', stopEarly);
+      removeBrowserSession(workspaceCwd, report);
+    }
+  }
 }
 
 if (isMainModule(import.meta.url)) {

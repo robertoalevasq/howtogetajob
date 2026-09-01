@@ -89,3 +89,35 @@ test('runHolderCli launches a real browser, writes the state entry, then removes
     rmSync(ws, { recursive: true, force: true });
   }
 });
+
+test('runHolderCli removes the state entry even if browserServer.close() rejects', async () => {
+  const ws = fakeWorkspace();
+  try {
+    const fakeLaunch = async ({ report, workspaceCwd }) => {
+      // Real launchHolder writes the entry itself — the fake must too, so
+      // runHolderCli's cleanup-on-exit path has something real to remove.
+      const path = browserSessionsStatePath(workspaceCwd);
+      const sessions = readBrowserSessions(path);
+      sessions[report] = { endpoint: 'ws://127.0.0.1:9/fake', pid: process.pid, createdAt: new Date().toISOString() };
+      writeBrowserSessions(path, sessions);
+      return {
+        endpoint: 'ws://127.0.0.1:9/fake',
+        browserServer: {
+          close: async () => {
+            throw new Error('simulated crash during close');
+          },
+        },
+      };
+    };
+    // runHolderCli will reject because close() throws, but that's expected.
+    // The important thing is that removeBrowserSession still ran in the finally.
+    await assert.rejects(
+      () => runHolderCli(['--report', '938', '--workspace', ws], { launch: fakeLaunch, idleTimeoutMs: 10 }),
+      /simulated crash during close/,
+    );
+    // State entry must be removed even though close() threw.
+    assert.deepEqual(readBrowserSessions(browserSessionsStatePath(ws))['938'], undefined);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
