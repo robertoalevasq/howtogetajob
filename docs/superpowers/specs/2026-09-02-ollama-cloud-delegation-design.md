@@ -37,7 +37,7 @@ Confirmed facts that shaped this design:
 2. **A separate OpenCode+Ollama session was considered and rejected** — it would require running a second program, which contradicts "don't change how things currently work."
 3. **Landed on: single Claude Code session, Claude calls a new script mid-conversation for specific narrow tasks, reads back JSON, continues.** No new program for the user, no workflow change, same report/tracker output.
 4. **Scheduling/automation dropped from scope** — orthogonal to the token-delegation goal; already exists as an unrelated feature if wanted later.
-5. **Ollama Cloud confirmed as the target** (not local Ollama) — no local-hardware fallback needed in config.
+5. **Ollama Cloud confirmed as the primary target.** Revisited after the user shared their hardware (Ryzen 5 3600, RTX 5060 Ti 8GB VRAM, 32GB RAM): well below the repo's documented minimum for a *full* A-G evaluation locally (32B+/16-24GB+ VRAM), but plausibly fine for these three narrow, single-JSON-object tasks. Final shape: **Ollama Cloud first, local Ollama on this machine as the fallback** when cloud is unreachable/rate-limited/fails — not the reverse, and not local-only.
 
 ## Architecture
 
@@ -49,17 +49,22 @@ Claude Code session (unchanged entry point: /career-ops pipeline, paste a URL, e
   │     ├─ node core/preflight-check.mjs <url-or-jd-file>   (LIGHT — pure script, zero LLM)
   │     │     → { liveness, dedup, gateResult, advertisedComp, locationNormalized }
   │     │
-  │     ├─ [if gate passes] node core/ollama-delegate.mjs <task> --input <file>   (MEDIUM — Ollama Cloud)
+  │     ├─ [if gate passes] node core/ollama-delegate.mjs <task> --input <file>   (MEDIUM)
+  │     │     1. try Ollama Cloud (config/llm-provider.yml → ollama_cloud)
+  │     │     2. on failure, try local Ollama (→ ollama_local, e.g. qwen2.5:14b)
+  │     │     3. on failure, exit non-zero — Claude does the task itself inline
   │     │     → strict JSON signal/draft object, treated as untrusted input
   │     │
   │     └─ modes/oferta.md (UNCHANGED) — Claude writes Blocks A-G, citing/verifying
   │           the preflight + delegate outputs where relevant, deciding everything
   │           Block B/C/G-verdict/E/F on its own judgment as it does today
   │
-  └─ config/llm-provider.yml — endpoint/model/timeout/per-task toggles
+  └─ config/llm-provider.yml — endpoints/models/timeout/per-task toggles for both providers
 ```
 
 `ollama-delegate.mjs` never runs standalone in this design (that's what `ollama-eval.mjs` is for) — it's always invoked from within the Claude-orchestrated flow, for one narrow task at a time.
+
+**None of the three tasks send `cv.md` content.** `comp-market-estimate` needs only role/location/company; `block-g-signals` needs only the JD/company; `risk-summary-draft` needs Claude's own already-decided score/gaps/legitimacy facts, not raw CV text. So whichever provider handles a given call — Ollama Cloud or local — never sees the candidate's resume, only JD-derived text and Claude's own already-decided outputs. This is a meaningfully smaller exposure than the existing standalone `ollama-eval.mjs`/`openai-eval.mjs` scripts, which send the entire CV.
 
 ## Task categorization
 
@@ -101,26 +106,42 @@ CLI: `node core/ollama-delegate.mjs <task> --input <file>` where `<task>` is one
 - `modes/delegate/block-g-signals.md`
 - `modes/delegate/risk-summary-draft.md`
 
-Each file is short and self-contained: what input it receives, what JSON shape to return, and the narrow scope of the task (explicitly *not* a verdict — e.g. `block-g-signals.md` states up front that it gathers evidence only, the Suspicious/Caution/Confidence call is never its job). `ollama-delegate.mjs` reads the task's file, appends the JD text (and any `preflight-check.mjs` output relevant to that task) as user content, calls `https://ollama.com/v1/chat/completions` (or whatever `config/llm-provider.yml` names), parses `choices[0].message.content` as strict JSON (ignoring any `message.reasoning` field some cloud models return), and exits 0 with that JSON on stdout. On any failure (timeout, non-200, malformed JSON) exits non-zero with the reason on stderr — the caller (Claude, per the mode-file instructions) treats this exactly like a missing WebSearch result: does the task itself inline instead.
+Each file is short and self-contained: what input it receives, what JSON shape to return, and the narrow scope of the task (explicitly *not* a verdict — e.g. `block-g-signals.md` states up front that it gathers evidence only, the Suspicious/Caution/Confidence call is never its job). `ollama-delegate.mjs` reads the task's file, appends the JD text (and any `preflight-check.mjs` output relevant to that task) as user content, then:
+
+1. Calls `ollama_cloud`'s endpoint (`https://ollama.com/v1/chat/completions` by default) with the configured model.
+2. On failure (timeout, non-200, malformed JSON), retries the same request against `ollama_local`'s endpoint (`http://localhost:11434/v1/...` by default) — same loopback-only safety guard `ollama-eval.mjs` already uses for local Ollama (refuses a non-localhost `ollama_local.base_url` unless explicitly overridden), since this leg is specifically meant to stay on-machine.
+3. On failure of both, exits non-zero with the reason on stderr — the caller (Claude, per the mode-file instructions) treats this exactly like a missing WebSearch result: does the task itself inline instead.
+
+Either leg parses `choices[0].message.content` as strict JSON (ignoring any `message.reasoning` field some cloud/reasoning models return) and exits 0 with that JSON on stdout.
 
 This keeps the actual AI instructions reviewable and editable the same way `oferta.md` is, and — unlike the pre-existing `ollama-eval.mjs`/`openai-eval.mjs` scripts, which the user has not exercised against the current, customized `cv.md`/`_profile.md`/`oferta.md` and so cannot be assumed to still work correctly — these three task files are new, narrow, and testable in isolation before anything depends on them.
 
 ### `config/llm-provider.yml` (new)
 
 ```yaml
+# Tried in order: ollama_cloud, then ollama_local, then Claude does the task inline.
 ollama_cloud:
   enabled: true
   base_url: https://ollama.com/v1
   model: gpt-oss:20b
   api_key_env: OLLAMA_API_KEY
   timeout_ms: 60000
-  tasks:
-    comp_market_estimate: true
-    block_g_signals: true
-    risk_summary_draft: true
+
+ollama_local:
+  enabled: true
+  base_url: http://localhost:11434/v1
+  model: qwen2.5:14b-instruct-q4_K_M   # sized for 8GB VRAM; user-tunable
+  timeout_ms: 120000
+
+tasks:
+  comp_market_estimate: true
+  block_g_signals: true
+  risk_summary_draft: true
 ```
 
-Each `tasks.*` flag lets the user turn off one delegated task without touching mode files. `enabled: false` at the top level disables delegation entirely (every task falls back to Claude doing it inline, i.e. today's exact behavior). Default model is `gpt-oss:20b` rather than a larger cloud model — these are narrow, single-purpose extraction tasks (not a full A-G evaluation), so the smaller/faster model (confirmed working during design) is the sensible default; `model` is user-tunable per the config above.
+Each `tasks.*` flag lets the user turn off one delegated task without touching mode files (it falls back straight to Claude doing it inline, skipping both providers). Setting either provider's `enabled: false` removes it from the fallback chain — e.g. `ollama_local.enabled: false` if the user doesn't want a pipeline run depending on their desktop being on. If both are `false` or missing, delegation is a no-op end to end.
+
+Default cloud model is `gpt-oss:20b` rather than a larger cloud model — these are narrow, single-purpose extraction tasks (not a full A-G evaluation), so the smaller/faster model (confirmed working during design) is the sensible default. Default local model (`qwen2.5:14b-instruct-q4_K_M`) is picked for the same reason, sized to comfortably fit an 8GB-VRAM card at Q4 quantization; the user needs `ollama pull qwen2.5:14b-instruct-q4_K_M` (or their chosen alternative) done once, same setup step `ollama-eval.mjs`'s docs already describe.
 
 ### `.env` / `.env.example`
 
@@ -137,18 +158,20 @@ Add `OLLAMA_API_KEY=` to `.env.example` alongside the existing provider keys. Ac
 
 | Failure | Behavior |
 |---|---|
-| Ollama Cloud unreachable/timeout | `ollama-delegate.mjs` exits non-zero; Claude does that one sub-task itself inline, exactly as if the script didn't exist. Pipeline continues, nothing skipped. |
-| Malformed/non-JSON model response | Same as above — treated as a failed delegate call, not a crash. |
-| `config/llm-provider.yml` missing or `enabled: false` | Delegation is a no-op; `pipeline.md`'s instructions fall through to Claude doing every step directly (today's exact behavior). |
+| Ollama Cloud unreachable/timeout | `ollama-delegate.mjs` retries the same call against `ollama_local` (if enabled). |
+| Local Ollama also unreachable/not running/timeout | Exits non-zero; Claude does that one sub-task itself inline, exactly as if the script didn't exist. Pipeline continues, nothing skipped. |
+| Malformed/non-JSON model response (either provider) | Same fallback chain — treated as a failed leg, not a crash: cloud failure tries local, local failure (or a cloud-disabled config) falls back to Claude. |
+| `config/llm-provider.yml` missing, or both providers `enabled: false` | Delegation is a no-op; `pipeline.md`'s instructions fall through to Claude doing every step directly (today's exact behavior). |
 | `preflight-check.mjs` itself errors (e.g. bad URL) | Propagates as a normal script failure the mode file already knows how to handle (same pattern as `check-liveness.mjs` today) — never silently swallowed. |
 
 ## Security
 
-The Ollama Cloud API key lives only in the user's local `.env` (gitignored), read via `config/llm-provider.yml`'s `api_key_env` indirection (same pattern `openai-eval.mjs` already uses for `OPENAI_API_KEY`). Never written to a report, tracker row, or any tracked file. `cv.md` and JD text are sent to Ollama Cloud (a third-party hosted service) for the three delegated tasks only — this is a materially smaller exposure than the existing `ollama-eval.mjs`/`openai-eval.mjs` standalone path, which already sends the same data plus the full `oferta.md` rubric text.
+The Ollama Cloud API key lives only in the user's local `.env` (gitignored), read via `config/llm-provider.yml`'s `api_key_env` indirection (same pattern `openai-eval.mjs` already uses for `OPENAI_API_KEY`). Never written to a report, tracker row, or any tracked file. As noted in Architecture above, **`cv.md` is never sent to either provider** for these three tasks — only JD-derived text and Claude's own already-decided facts. What does reach Ollama Cloud (a third-party hosted service) is scoped to that JD/role/company text; the local fallback leg keeps that same text entirely on-machine, and reuses `ollama-eval.mjs`'s existing loopback guard so a misconfigured `ollama_local.base_url` can't silently start sending it somewhere remote.
 
 ## Testing / validation
 
 - Unit tests for `preflight-check.mjs`'s dedup and keyword-gate logic (mirroring existing test patterns in `core/test-all.mjs`'s suite), including the "inconclusive vs. conclusively empty" signal `jd-skill-gap.mjs` already establishes as the right shape for this kind of gate.
-- `ollama-delegate.mjs` tested against a mocked HTTP response (malformed JSON, timeout, 200-with-reasoning-field) without requiring a live key in CI.
+- `ollama-delegate.mjs` tested against mocked HTTP responses (malformed JSON, timeout, 200-with-reasoning-field) for both providers, plus the cloud-fails/local-succeeds and both-fail fallback paths, without requiring a live key or a running local Ollama in CI.
 - One live manual run against the real Ollama Cloud key (already verified reachable during design) to confirm the three task prompts produce usable JSON from `gpt-oss:20b`.
+- One live manual run with Ollama Cloud temporarily disabled to confirm the local fallback actually engages `ollama_local` and produces usable JSON from `qwen2.5:14b-instruct-q4_K_M` on the user's hardware — this is the leg with the most real uncertainty (untested model/task combination), so it should be checked before being trusted, not just assumed to work because the config supports it.
 - `validate-script-references.mjs` run after the `pipeline.md`/`auto-pipeline.md`/`batch-prompt.md` edits, per `AGENTS.md`'s "two reference sweeps" rule, since this design does touch script-invocation prose in multiple mode files.
