@@ -65,30 +65,40 @@ pipeline backlog) instead.
    match — a `cd && node` compound is parsed as two separate rules and won't be covered by either,
    which reintroduces a manual-approval prompt mid-run.
 
-## Token Limit Resumption
+## Token Limit Resumption — Automatic
 
-If a `cycle` run is interrupted due to hitting the token limit mid-execution, it can be resumed cleanly in a fresh turn:
+If a `cycle` run is interrupted due to hitting the token limit mid-execution, it automatically resumes in your next run — no action needed.
 
-**Resuming from a checkpoint:**
+**How it works:**
 
-1. The last partial response should include a prompt like:
+1. **First run interrupted:** The mode writes progress to `data/cache/cycle-status.json` at every checkpoint (Pass A/B progress, Step counters).
+
+2. **Next turn — just run the mode again:**
    ```
-   [CHECKPOINT: cycle|{base64-encoded-state}]
-   Resume cycle: continue from {step-label}
+   /career-ops cycle
    ```
 
-2. Copy this entire prompt (including the `[CHECKPOINT: ...]` marker) into a fresh turn, optionally followed by your own instructions
+3. **Auto-detect & resume:** The mode checks `data/cache/cycle-status.json`:
+   - If file exists and is fresh (< 24h old) and run not complete → auto-resume
+   - If file is stale or run completed → start fresh
+   - Emits: `▶️  Resuming cycle at step "Pipeline Processing" (150/497 URLs processed)`
 
-3. The mode will automatically detect the checkpoint marker, load the saved state (current step, counter progress), and resume from that point without re-running earlier work
+4. **Execution continues:** From the saved step without re-running earlier work
+   - All reports already written remain intact
+   - All PDFs already generated remain on disk
+   - All tracker rows already added remain in the table
+   - No duplication, no re-evaluation
 
-**What happens internally:**
+**Force a fresh start** (if needed):
+```bash
+rm data/cache/cycle-status.json
+# Next /career-ops cycle will start fresh
+```
 
-- `cycle-status.json` is the source of truth for progress — it is updated at every checkpoint (Pass A/B progress, Step counters)
-- On resumption, the checkpoint state is loaded, the lock is re-acquired, and execution continues from the saved step
-- All earlier work (reports already written, PDFs already generated, tracker rows already added) remains intact
-- The run picks up cleanly without duplication or re-evaluation
-
-**If you don't see a checkpoint prompt when interrupted:** The run may have completed more of the steps than it appeared. Check `node core/cycle-status.mjs` to see where the run actually left off, and continue from there.
+**Check current status:**
+```bash
+node core/cycle-status.mjs    # Shows current step and progress counters
+```
 
 ## Step 0 — Pre-flight
 

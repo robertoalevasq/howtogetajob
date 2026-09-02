@@ -26,6 +26,7 @@
 
 import { parseCheckpoint, stripCheckpoint, isCheckpointMarked } from './resumption-prompt.mjs';
 
+
 /**
  * Detect and parse checkpoint marker from a prompt.
  *
@@ -57,6 +58,48 @@ export function detectCheckpoint(prompt) {
     cleanPrompt,
   };
 }
+
+/**
+ * Auto-detect and load checkpoint from filesystem.
+ * Checks if a mode's checkpoint file exists, is fresh (< 24h old), and is resumable.
+ *
+ * @param {string} mode - The mode name (e.g., 'cycle', 'pipeline')
+ * @param {string} checkpointPath - Path to the checkpoint file (e.g., data/cache/cycle-status.json)
+ * @param {number} [maxAgeMs=86400000] - Max age before considered stale (default: 24 hours)
+ * @returns {{checkpoint: {mode: string, state: object} | null, reason?: string}}
+ *   Returns checkpoint if found, fresh, and resumable; null otherwise.
+ */
+export async function autoDetectCheckpoint(mode, checkpointPath, maxAgeMs = 86400000) {
+  try {
+    const { readFileSync, statSync } = await import('fs');
+
+    // Check file exists
+    const stat = statSync(checkpointPath);
+
+    // Check age
+    const ageMs = Date.now() - stat.mtimeMs;
+    if (ageMs > maxAgeMs) {
+      return { checkpoint: null, reason: `checkpoint stale (${Math.round(ageMs / 3600000)}h old)` };
+    }
+
+    // Load and parse state
+    const content = readFileSync(checkpointPath, 'utf8');
+    const state = JSON.parse(content);
+
+    // Check if run is already complete
+    if (state.step?.id === 'done' || state.liveness?.state === 'done') {
+      return { checkpoint: null, reason: 'previous run completed' };
+    }
+
+    return {
+      checkpoint: { mode, state },
+    };
+  } catch (e) {
+    // File doesn't exist, is invalid JSON, or some other error
+    return { checkpoint: null, reason: e.message };
+  }
+}
+
 
 /**
  * Log resumption info in a standardized format for all modes.

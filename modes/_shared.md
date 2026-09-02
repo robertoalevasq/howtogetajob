@@ -163,48 +163,46 @@ After detecting archetype, read `_profile.md` for the user's specific framing an
 
 ## Checkpoint & Resumption (Token Limit Recovery)
 
-When a mode runs for a long time and approaches token limits, it may be interrupted mid-execution. To support clean resumption in a fresh turn, every long-running mode MUST:
+When a mode runs for a long time and approaches token limits, it may be interrupted mid-execution. The system supports automatic resumption in a fresh run — no user action required.
+
+**User experience:**
+- Mode interrupted at step X due to token limit
+- User runs the mode again: `/career-ops cycle`
+- System auto-detects checkpoint file, loads state, emits: `▶️  Resuming cycle at step "Pipeline Processing" (150/497 URLs processed)`
+- Mode continues from step X without re-running earlier work
+
+**How it works:**
 
 1. **Write checkpoints** at key progress points (after each batch, step completion, significant milestone)
    - Checkpoint location: `data/cache/{mode}-status.json` or a mode-specific checkpoint file
    - Checkpoint content: enough state to resume cleanly (current step, progress counters, pending work, last report#)
    - Frequency: at least every 500 items processed, or every major step boundary
    
-2. **Detect checkpoint markers** at startup
-   - Check if the user's prompt contains `[CHECKPOINT: {mode}|{encodedState}]`
-   - If present, use `parseCheckpoint()` from `core/resumption-prompt.mjs` to load state
-   - Resume from the saved step instead of starting fresh
+2. **Auto-detect at startup** — the mode checks if a checkpoint file exists
+   - If file exists and is fresh (< 24h old) and run is not complete → auto-resume
+   - If file is stale or run completed → start fresh
+   - No user prompt, no copy-paste needed
    
-3. **Emit resumption prompt** when approaching token limit
-   - Import `generateResumptionPrompt()` from `core/resumption-prompt.mjs`
-   - Call it with the mode name and current checkpoint state
-   - Output the result before the session ends so the user can copy-paste it into a fresh turn
+3. **Optional: Support explicit checkpoint markers** (for headless batch workflows)
+   - If user explicitly pastes `[CHECKPOINT: {mode}|{encodedState}]` → use that instead of file
+   - Useful for Telegram/API integrations where a file checkpoint may not be available
+   - Example: `[CHECKPOINT: cycle|eyJzdGVwIjp7ImlkIjoiMi1waXBlbGluZSJ9fQ==]`
 
-**Checkpoint marker format:**
-```
-[CHECKPOINT: {mode}|{base64-encoded-JSON-state}]
-Resume {mode}: {human-friendly description}
-```
-
-The marker is on the first line; the description is for human readability. When parsing, strip both before resuming normal mode logic.
-
-**Example checkpoint flow:**
-- User: `/career-ops pipeline` (processes 1000 URLs, hits token limit at URL #723)
-- System: outputs `[CHECKPOINT: pipeline|eyJwZW5kaW5nVXJsc1...] Resume pipeline: 722 processed, 278 remaining`
-- User (next turn): pastes the checkpoint prompt + any follow-up commands
-- System: parses checkpoint, loads state, resumes from URL #723
+4. **Force fresh start** when needed
+   - Delete the checkpoint file: `rm data/cache/{mode}-status.json`
+   - Next run will start fresh, not resume
 
 **Implementation checklist for modes:**
-- [ ] Read checkpoint on startup if `[CHECKPOINT: ...]` is present
+- [ ] Call `autoDetectCheckpoint(mode, path)` at startup to detect + load state
 - [ ] Write checkpoint after every N items or every major step
-- [ ] Generate resumption prompt before token limit forces an interrupt
+- [ ] Generate resumption prompt before token limit forces an interrupt (via `generateResumptionPrompt()`)
 - [ ] Document the checkpoint state shape in the mode's own file
 
 **See `docs/CHECKPOINT_RECOVERY.md` for:**
-- User guide: how to use checkpoint markers to resume interrupted runs
+- User guide: how resumption works automatically
 - Developer guide: how to add checkpoint support to a new mode
-- Code examples for all major modes
-- Troubleshooting and recovery scenarios
+- API reference and code examples for all major modes
+- Troubleshooting and manual recovery scenarios
 
 ## Global Rules
 

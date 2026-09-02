@@ -6,25 +6,35 @@ When a mode runs for a long time and hits the token limit mid-execution, it can 
 
 If a mode is interrupted due to token limit:
 
-1. **Look for a resumption prompt** at the end of the last response — it looks like:
-   ```
-   [CHECKPOINT: cycle|{base64-encoded-state}]
-   Resume cycle: continue from Pipeline Processing
-   ```
+**The mode automatically resumes where it left off in your next run — no action needed.**
 
-2. **Copy the entire prompt** (including the `[CHECKPOINT: ...]` marker) into a fresh turn
-
-3. **Paste it and send** — the mode will detect the checkpoint, load the saved state, and resume from where it left off
-
-**Example:**
+When you run the mode again:
 ```
-[CHECKPOINT: cycle|eyJzdGVwIjp7ImlkIjoiMi1waXBlbGluZSJ9fQ==]
-Resume cycle: continue from Pipeline Processing
+/career-ops cycle
 ```
 
-If you don't see a resumption prompt, check the current status manually:
+The system:
+1. **Detects** if a checkpoint file exists (e.g., `data/cache/cycle-status.json`)
+2. **Checks** if it's fresh (less than 24 hours old)
+3. **Checks** if the run is not already complete
+4. **Emits** a clear message: `▶️  Resuming cycle at step "Pipeline Processing" (pipelineUrlsProcessed=150, pipelineUrlsPending=347)`
+5. **Continues** from that exact step without re-running earlier work
+
+No copy-paste, no manual recovery — just run the mode again and it picks up cleanly.
+
+**Manual recovery (if needed):**
+
+If you want to force a fresh start instead of resuming:
 ```bash
-node core/cycle-status.mjs    # For cycle mode
+# Delete the checkpoint file to start fresh
+rm data/cache/cycle-status.json
+# Then run the mode normally
+/career-ops cycle
+```
+
+**Check current status:**
+```bash
+node core/cycle-status.mjs    # For cycle mode — shows current step and progress
 ```
 
 ---
@@ -40,23 +50,55 @@ Every long-running mode should:
 3. **Write checkpoints regularly** — save state at every major milestone
 4. **Generate resumption prompt** — emit a copy-paste-ready prompt if interrupted
 
-### Step 1: Detect Checkpoint at Startup
+### Step 1: Auto-Detect Checkpoint at Startup
 
-In your mode's script or handler, use the checkpoint-startup utility:
+In your mode's script or handler, use the checkpoint-startup utility to auto-detect from the filesystem:
 
 ```javascript
-import { detectCheckpoint } from './checkpoint-startup.mjs';
+import { autoDetectCheckpoint, resumptionSummary } from './checkpoint-startup.mjs';
 
-const userPrompt = process.env.CLAUDE_PROMPT || '';
-const { checkpoint, cleanPrompt } = detectCheckpoint(userPrompt);
+// For cycle mode:
+const { checkpoint } = autoDetectCheckpoint('cycle', 'data/cache/cycle-status.json');
 
 if (checkpoint) {
   const { mode, state } = checkpoint;
-  console.log(`Resuming ${mode} from step ${state.step.id}`);
+  console.log(resumptionSummary(mode, state));
   // Load state, resume work
 } else {
-  console.log('Starting fresh');
+  console.log('Starting fresh cycle run');
   // Normal startup flow
+}
+```
+
+**How it works:**
+- Checks if `data/cache/cycle-status.json` exists
+- Verifies it's less than 24 hours old
+- Verifies the previous run is not already complete
+- Automatically loads and returns the state if all checks pass
+- Returns `null` if file doesn't exist, is stale, or run completed
+
+**Optional: Also check for explicit checkpoint marker in prompt**
+
+If the user pastes an explicit `[CHECKPOINT: ...]` marker (the copy-paste-friendly format), detect that too:
+
+```javascript
+import { detectCheckpoint, autoDetectCheckpoint, resumptionSummary } from './checkpoint-startup.mjs';
+
+const userPrompt = process.env.CLAUDE_PROMPT || '';
+
+// First check for explicit checkpoint marker in prompt
+let { checkpoint, cleanPrompt } = detectCheckpoint(userPrompt);
+
+// If not found, check for auto-resumable checkpoint file
+if (!checkpoint) {
+  const result = autoDetectCheckpoint('cycle', 'data/cache/cycle-status.json');
+  checkpoint = result.checkpoint;
+}
+
+if (checkpoint) {
+  const { mode, state } = checkpoint;
+  console.log(resumptionSummary(mode, state));
+  // Continue with cleanPrompt (checkpoint marker stripped if present)
 }
 ```
 
