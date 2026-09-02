@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, existsSync, lstatSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, lstatSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { provisionWorkspace, SLUG_RE, JUNCTION_DIRS, repairAllWorkspaces } from '../core/provision-workspace.mjs';
@@ -197,6 +197,72 @@ test('bindWorkspaceChat throws on an invalid slug without touching disk', () => 
     assert.throws(() => bindWorkspaceChat('a/b', '111', { reposRoot: root }), /invalid workspace slug/);
     assert.equal(existsSync(join(root, 'workspaces')), false);
   } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('provisionWorkspace seeds config/llm-provider.yml from the example template', () => {
+  const root = mkdtempSync(join(tmpdir(), 'career-ops-root-'));
+  try {
+    provisionWorkspace('carol', { reposRoot: root });
+    const seeded = join(root, 'workspaces', 'carol', 'config', 'llm-provider.yml');
+    assert.ok(existsSync(seeded));
+    const content = readFileSync(seeded, 'utf-8');
+    assert.match(content, /ollama_cloud:/);
+    assert.match(content, /ollama_local:/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('provisionWorkspace seeds OLLAMA_API_KEY into the new workspace\'s own .env from the hub-level default', () => {
+  const root = mkdtempSync(join(tmpdir(), 'career-ops-root-'));
+  const original = process.env.OLLAMA_API_KEY;
+  process.env.OLLAMA_API_KEY = 'hub-default-test-key';
+  try {
+    provisionWorkspace('dave', { reposRoot: root });
+    const envPath = join(root, 'workspaces', 'dave', '.env');
+    assert.ok(existsSync(envPath));
+    const content = readFileSync(envPath, 'utf-8');
+    assert.match(content, /^OLLAMA_API_KEY=hub-default-test-key$/m);
+  } finally {
+    if (original === undefined) delete process.env.OLLAMA_API_KEY; else process.env.OLLAMA_API_KEY = original;
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('provisionWorkspace never overwrites a workspace\'s own existing OLLAMA_API_KEY with the hub default', () => {
+  const root = mkdtempSync(join(tmpdir(), 'career-ops-root-'));
+  const original = process.env.OLLAMA_API_KEY;
+  process.env.OLLAMA_API_KEY = 'hub-default-test-key';
+  try {
+    const wsDir = join(root, 'workspaces', 'erin');
+    mkdirSync(wsDir, { recursive: true });
+    writeFileSync(join(wsDir, '.env'), 'OLLAMA_API_KEY=erins-own-key\n');
+    provisionWorkspace('erin', { reposRoot: root, repair: true });
+    const content = readFileSync(join(wsDir, '.env'), 'utf-8');
+    assert.match(content, /^OLLAMA_API_KEY=erins-own-key$/m);
+    assert.doesNotMatch(content, /hub-default-test-key/);
+  } finally {
+    if (original === undefined) delete process.env.OLLAMA_API_KEY; else process.env.OLLAMA_API_KEY = original;
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('provisionWorkspace does not write an OLLAMA_API_KEY line at all when no hub default is set', () => {
+  const root = mkdtempSync(join(tmpdir(), 'career-ops-root-'));
+  const original = process.env.OLLAMA_API_KEY;
+  delete process.env.OLLAMA_API_KEY;
+  try {
+    provisionWorkspace('frank', { reposRoot: root });
+    const envPath = join(root, 'workspaces', 'frank', '.env');
+    // No hub default and no pre-existing .env — provisioning must not
+    // fabricate an empty "OLLAMA_API_KEY=" line (seedEnvKey no-ops on falsy value).
+    if (existsSync(envPath)) {
+      assert.doesNotMatch(readFileSync(envPath, 'utf-8'), /OLLAMA_API_KEY=/);
+    }
+  } finally {
+    if (original === undefined) delete process.env.OLLAMA_API_KEY; else process.env.OLLAMA_API_KEY = original;
     rmSync(root, { recursive: true, force: true });
   }
 });

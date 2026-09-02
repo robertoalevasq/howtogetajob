@@ -12,12 +12,21 @@
 // `node core/scan.mjs`, Claude reading `modes/oferta.md` via a bare relative
 // Read call, etc).
 
-import { existsSync, mkdirSync, symlinkSync, copyFileSync, writeFileSync, readFileSync, lstatSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, symlinkSync, copyFileSync, writeFileSync, readFileSync, appendFileSync, lstatSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isMainModule } from './is-main.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url))); // core/'s parent = repo root
+
+// Explicit path, not cwd-based auto-discovery: this script can run with cwd
+// set to a workspace directory (the router spawns claude -p that way), and
+// the hub-level default keys below (e.g. OLLAMA_API_KEY) live in the HUB
+// ROOT's .env, never a workspace's own .env.
+try {
+  const { config } = await import('dotenv');
+  config({ path: join(ROOT, '.env') });
+} catch { /* dotenv optional */ }
 
 export const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,31}$/;
 
@@ -62,6 +71,7 @@ const SYSTEM_FILE_COPIES = [
 // { destination relative to workspace root, template relative to repo root }
 const SEEDED_FILES = [
   { target: 'config/profile.yml', template: 'config/profile.example.yml' },
+  { target: 'config/llm-provider.yml', template: 'config/llm-provider.example.yml' },
   { target: 'config/plugins.yml', template: 'templates/plugins.example.yml' },
   { target: 'portals.yml', template: 'templates/portals.example.yml' },
   { target: '_profile.md', template: 'modes/_profile.template.md' },
@@ -113,6 +123,30 @@ function seedFile(repoRoot, wsDir, target, template) {
 }
 
 /**
+ * Ensure a KEY=VALUE line is present in wsDir/.env — appends when the key is
+ * genuinely absent, never touches an existing value for that key (a
+ * workspace's own key, once set, always wins; this only fills a gap).
+ * No-op when `value` is falsy, so an unset hub-level default never writes
+ * a literal "KEY=" line.
+ *
+ * @param {string} wsDir
+ * @param {string} key
+ * @param {string|undefined} value
+ * @param {string} [label] - Comment header written above the key, once.
+ * @returns {boolean} Whether a line was actually written.
+ */
+function seedEnvKey(wsDir, key, value, label) {
+  if (!value) return false;
+  const envPath = join(wsDir, '.env');
+  const existing = existsSync(envPath) ? readFileSync(envPath, 'utf-8') : '';
+  if (new RegExp(`^${key}=`, 'm').test(existing)) return false;
+  const prefix = existing && !existing.endsWith('\n') ? '\n' : '';
+  const header = label ? `${prefix}# ── ${label} ──\n` : prefix;
+  appendFileSync(envPath, `${header}${key}=${value}\n`);
+  return true;
+}
+
+/**
  * @param {string} slug
  * @param {{ reposRoot?: string, chatId?: string, displayName?: string, repair?: boolean }} [opts]
  */
@@ -138,6 +172,13 @@ export function provisionWorkspace(slug, opts = {}) {
 
   for (const { target, template } of SYSTEM_FILE_COPIES) seedFile(ROOT, wsDir, target, template);
   for (const { target, template } of SEEDED_FILES) seedFile(ROOT, wsDir, target, template);
+
+  // Hub-level default keys: when the hub owner sets these in the repo root's
+  // own .env, every new (or repaired) workspace inherits them automatically,
+  // so a feature like Ollama Cloud delegation is live for new users without
+  // per-workspace setup. A workspace's own .env, once it has its own value
+  // for the key, is never overwritten — this only fills a gap.
+  seedEnvKey(wsDir, 'OLLAMA_API_KEY', process.env.OLLAMA_API_KEY, 'Ollama Cloud delegation (ollama-delegate.mjs) — hub default key');
 
   const pipelinePath = join(wsDir, 'data', 'pipeline.md');
   if (!existsSync(pipelinePath)) writeFileSync(pipelinePath, PIPELINE_SKELETON, 'utf-8');
