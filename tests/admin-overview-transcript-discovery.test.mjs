@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { hubProjectDirPrefix, classifyProjectDir, findHubTranscriptFiles } from '../core/admin-overview-snapshot.mjs';
+import { hubProjectDirPrefix, classifyProjectDir, findHubTranscriptFiles, walkJsonlFiles } from '../core/admin-overview-snapshot.mjs';
 
 test('hubProjectDirPrefix replaces colons, backslashes, and underscores with hyphens', () => {
   const prefix = hubProjectDirPrefix('C:\\Users\\thebo\\_vscode\\career-ops');
@@ -74,33 +74,23 @@ test('findHubTranscriptFiles returns an empty array when ~/.claude/projects does
   }
 });
 
-test('findHubTranscriptFiles gracefully skips unreadable directories and returns files from readable ones', () => {
-  const reposRoot = join(mkdtempSync(join(tmpdir(), 'admin-overview-repo-')), 'career-ops');
-  mkdirSync(reposRoot, { recursive: true });
+test('walkJsonlFiles gracefully returns empty array when directory does not exist', () => {
+  const nonexistentDir = join(tmpdir(), 'admin-overview-does-not-exist-xyz');
+  // Should not throw; should return empty array
+  assert.deepEqual(walkJsonlFiles(nonexistentDir), []);
+});
+
+test('findHubTranscriptFiles gracefully handles projects directory that is a file instead of directory', () => {
   const claudeHome = mkdtempSync(join(tmpdir(), 'admin-overview-claude-'));
+  const reposRoot = '/some/repo';
   try {
-    const prefix = reposRoot.replace(/[:\\_]/g, '-');
-    const hubDir = join(claudeHome, 'projects', prefix);
-    const wsDir = join(claudeHome, 'projects', `${prefix}-workspaces-bob`);
-    mkdirSync(hubDir, { recursive: true });
-    mkdirSync(wsDir, { recursive: true });
-    writeFileSync(join(hubDir, 'session1.jsonl'), '{}\n');
-    writeFileSync(join(wsDir, 'session2.jsonl'), '{}\n');
+    // Create a FILE at the projects path instead of a directory
+    // existsSync returns true, but readdirSync will throw ENOTDIR
+    writeFileSync(join(claudeHome, 'projects'), 'this is a file, not a directory\n');
 
-    // Create a file where a subdirectory is expected in hubDir,
-    // making that path unreadable as a directory.
-    const brokenSubdir = join(hubDir, 'broken-subdir');
-    writeFileSync(brokenSubdir, 'not a directory\n');
-
-    const found = findHubTranscriptFiles(reposRoot, claudeHome);
-    // Should find both session1.jsonl (from hub) and session2.jsonl (from workspace),
-    // despite the presence of the broken-subdir file.
-    assert.equal(found.length, 2);
-    const paths = found.map((f) => f.path).sort();
-    assert.ok(paths.some((p) => p.includes('session1.jsonl')));
-    assert.ok(paths.some((p) => p.includes('session2.jsonl')));
+    // Should not throw; should return empty array
+    assert.deepEqual(findHubTranscriptFiles(reposRoot, claudeHome), []);
   } finally {
     rmSync(claudeHome, { recursive: true, force: true });
-    rmSync(dirname(reposRoot), { recursive: true, force: true });
   }
 });

@@ -133,7 +133,7 @@ export function classifyProjectDir(dirName, prefix) {
   return { scope: 'workspace', slug };
 }
 
-function walkJsonlFiles(dir) {
+export function walkJsonlFiles(dir) {
   const out = [];
   try {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
