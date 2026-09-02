@@ -70,3 +70,27 @@ export function getTrackerStats(wsDir) {
     return null;
   }
 }
+
+/**
+ * Run core/cycle-status.mjs --json against one workspace and return its
+ * liveness classification. The script itself already handles "never run
+ * yet" gracefully (prints {liveness: {state: 'no_run', ...}} and exits 0),
+ * so the try/catch here only guards against a genuinely broken/corrupt
+ * state file — never let one bad workspace crash the whole snapshot.
+ *
+ * @param {string} wsDir
+ * @returns {{state: string, staleMs: number|null, lastUpdateAgo: string|null, step: object|null}}
+ */
+export function getActiveTaskStatus(wsDir) {
+  try {
+    const out = execFileSync(process.execPath, [join(ROOT, 'core', 'cycle-status.mjs'), '--json'], {
+      cwd: wsDir,
+      encoding: 'utf-8',
+      timeout: 30_000,
+    });
+    const data = JSON.parse(out);
+    return { ...data.liveness, step: data.step || null };
+  } catch {
+    return { state: 'no_run', staleMs: null, lastUpdateAgo: null, step: null };
+  }
+}
