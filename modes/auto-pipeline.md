@@ -39,6 +39,10 @@ On a hit, **stop before Step 1** and surface the candidate's own recorded decisi
 
 **`[HEADLESS]` invocation:** never wait here — a blacklist entry means do-not-apply, so the safe autonomous default is to skip, not to guess "yes." Stop the pipeline for this entry exactly as an explicit "no" would, mark it blacklisted, log it, and continue to the next URL.
 
+## Step 0.7 — Pre-gathered signals (optional, zero-risk)
+
+If `config/llm-provider.yml` exists, run `node core/ollama-delegate.mjs comp-market-estimate --input <JD file>` and `node core/ollama-delegate.mjs block-g-signals --input <JD file>` against the JD extracted in Step 0. Either call may fail (config absent, both providers down, task disabled) — that is expected and NOT an error: on any non-zero exit, proceed to Step 1 without that input, exactly as this mode behaves today. On success, pass the returned JSON into Step 1's evaluation as an extra input for Claude to verify and cite — never as a fact taken on faith, and never as a substitute for Block B/C or Block G's final tier verdict, which stay entirely Claude's judgment call. `oferta.md` itself is unchanged by this step; it simply receives a richer input.
+
 ## Step 1 — A-G Evaluation
 
 Execute the same as the `oferta` mode (read `modes/oferta.md` for all A-F blocks + Block G Posting Legitimacy). Read `_custom.md` → Evaluation Rules, if it exists, and apply its override here. Default (if absent or silent): standard A-G evaluation.
