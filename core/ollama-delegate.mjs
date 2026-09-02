@@ -192,24 +192,24 @@ async function main() {
   if (!task || !TASKS[task] || !inputPath) {
     console.error('Usage: node ollama-delegate.mjs <task> --input <file>');
     console.error(`  task: ${Object.keys(TASKS).join(' | ')}`);
-    process.exit(1);
+    return 1;
   }
   if (!existsSync(inputPath)) {
     console.error(`❌  Input file not found: ${inputPath}`);
-    process.exit(1);
+    return 1;
   }
 
-  const inputText = readFileSync(inputPath, 'utf-8');
   try {
+    const inputText = readFileSync(inputPath, 'utf-8');
     const json = await delegate(task, inputText);
     console.log(JSON.stringify(json));
-    process.exit(0);
+    return 0;
   } catch (err) {
     console.error(`❌  ${err.message}`);
-    process.exit(1);
+    return 1;
   }
 }
 
 if (isMainModule(import.meta.url)) {
-  main();
+  process.exitCode = await main();
 }
