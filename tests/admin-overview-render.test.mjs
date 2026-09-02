@@ -95,8 +95,11 @@ test('end-to-end: rendering a snapshot built from a transcript with secret conve
     mkdirSync(transcriptDir, { recursive: true });
     writeFileSync(join(transcriptDir, 'session.jsonl'), JSON.stringify({
       type: 'assistant', timestamp: '2026-09-01T10:00:00.000Z',
-      message: { role: 'assistant', content: [{ type: 'text', text: secretText }] },
-      usage: { input_tokens: 10, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 5 },
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: secretText }],
+        usage: { input_tokens: 10, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 5 },
+      },
     }) + '\n');
 
     const snapshotPath = join(dir, 'snapshot.json');

@@ -5,9 +5,9 @@
  * local session transcripts.
  *
  * PRIVACY-CRITICAL: the transcript-parsing functions in this file extract
- * ONLY `timestamp`, `usage`, and Skill-tool-call `input.skill`/`input.args`
- * fields from each JSONL line — never any other field (message content,
- * tool results, file contents). See
+ * ONLY `timestamp`, `message.usage`, and Skill-tool-call
+ * `input.skill`/`input.args` fields from each JSONL line — never any other
+ * field (message content, tool results, file contents). See
  * docs/superpowers/specs/2026-09-02-admin-overview-design.md.
  */
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'fs';
@@ -194,7 +194,7 @@ export function findHubTranscriptFiles(reposRoot = ROOT, claudeHome = join(homed
 
 /**
  * PRIVACY-CRITICAL: parse one .jsonl transcript file and extract ONLY
- * `timestamp`+`usage` (from lines carrying a top-level `usage` object) and
+ * `timestamp`+`usage` (from lines carrying a `message.usage` object) and
  * `timestamp`+Skill-tool-call `input.skill`/`input.args` (from `tool_use`
  * content blocks named "Skill"). Every other field on every line —
  * `message.content` text, other tool inputs/results, anything else — is
@@ -228,14 +228,14 @@ export function extractUsageAndSkillCalls(filePath) {
     const timestamp = entry.timestamp;
     if (!timestamp) continue;
 
-    if (entry.usage && typeof entry.usage === 'object') {
+    if (entry.message?.usage && typeof entry.message.usage === 'object') {
       usageEntries.push({
         timestamp,
         usage: {
-          input_tokens: entry.usage.input_tokens || 0,
-          cache_creation_input_tokens: entry.usage.cache_creation_input_tokens || 0,
-          cache_read_input_tokens: entry.usage.cache_read_input_tokens || 0,
-          output_tokens: entry.usage.output_tokens || 0,
+          input_tokens: entry.message.usage.input_tokens || 0,
+          cache_creation_input_tokens: entry.message.usage.cache_creation_input_tokens || 0,
+          cache_read_input_tokens: entry.message.usage.cache_read_input_tokens || 0,
+          output_tokens: entry.message.usage.output_tokens || 0,
         },
       });
     }

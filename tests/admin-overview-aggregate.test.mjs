@@ -14,12 +14,12 @@ function writeTranscript(lines) {
 
 test('aggregateHistory buckets token usage by workspace and by day', () => {
   const { dir, filePath } = writeTranscript([
-    { type: 'assistant', timestamp: '2026-08-31T10:00:00.000Z', message: { role: 'assistant', content: [] },
-      usage: { input_tokens: 10, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 5 } },
-    { type: 'assistant', timestamp: '2026-08-31T14:00:00.000Z', message: { role: 'assistant', content: [] },
-      usage: { input_tokens: 20, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 15 } },
-    { type: 'assistant', timestamp: '2026-09-01T09:00:00.000Z', message: { role: 'assistant', content: [] },
-      usage: { input_tokens: 1, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 1 } },
+    { type: 'assistant', timestamp: '2026-08-31T10:00:00.000Z',
+      message: { role: 'assistant', content: [], usage: { input_tokens: 10, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 5 } } },
+    { type: 'assistant', timestamp: '2026-08-31T14:00:00.000Z',
+      message: { role: 'assistant', content: [], usage: { input_tokens: 20, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 15 } } },
+    { type: 'assistant', timestamp: '2026-09-01T09:00:00.000Z',
+      message: { role: 'assistant', content: [], usage: { input_tokens: 1, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 1 } } },
   ]);
   try {
     const result = aggregateHistory([{ path: filePath, scope: 'workspace', slug: 'alice' }], ['alice']);
@@ -53,8 +53,8 @@ test('aggregateHistory buckets run counts by workspace, mode, and day, including
 
 test('aggregateHistory buckets a slug not in knownSlugs under "deleted-or-renamed", never dropped', () => {
   const { dir, filePath } = writeTranscript([
-    { type: 'assistant', timestamp: '2026-08-31T10:00:00.000Z', message: { role: 'assistant', content: [] },
-      usage: { input_tokens: 5, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 5 } },
+    { type: 'assistant', timestamp: '2026-08-31T10:00:00.000Z',
+      message: { role: 'assistant', content: [], usage: { input_tokens: 5, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 5 } } },
   ]);
   try {
     const result = aggregateHistory([{ path: filePath, scope: 'workspace', slug: 'ghost-workspace' }], ['alice']);
@@ -67,8 +67,8 @@ test('aggregateHistory buckets a slug not in knownSlugs under "deleted-or-rename
 
 test('aggregateHistory buckets hub-scope files under "hub", separate from any workspace', () => {
   const { dir, filePath } = writeTranscript([
-    { type: 'assistant', timestamp: '2026-08-31T10:00:00.000Z', message: { role: 'assistant', content: [] },
-      usage: { input_tokens: 7, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 3 } },
+    { type: 'assistant', timestamp: '2026-08-31T10:00:00.000Z',
+      message: { role: 'assistant', content: [], usage: { input_tokens: 7, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 3 } } },
   ]);
   try {
     const result = aggregateHistory([{ path: filePath, scope: 'hub', slug: null }], ['alice']);

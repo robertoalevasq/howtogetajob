@@ -16,8 +16,11 @@ test('extractUsageAndSkillCalls pulls timestamp+usage from assistant message lin
   const { dir, filePath } = writeFixture([
     {
       type: 'assistant', timestamp: '2026-08-31T17:21:28.588Z',
-      message: { role: 'assistant', content: [{ type: 'text', text: 'some secret conversation content' }] },
-      usage: { input_tokens: 10, cache_creation_input_tokens: 100, cache_read_input_tokens: 50, output_tokens: 20 },
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'some secret conversation content' }],
+        usage: { input_tokens: 10, cache_creation_input_tokens: 100, cache_read_input_tokens: 50, output_tokens: 20 },
+      },
     },
   ]);
   try {
@@ -73,8 +76,11 @@ test('extractUsageAndSkillCalls skips a malformed JSON line instead of crashing 
     '{not valid json at all',
     JSON.stringify({
       type: 'assistant', timestamp: '2026-08-31T17:24:00.000Z',
-      message: { role: 'assistant', content: [] },
-      usage: { input_tokens: 5, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 3 },
+      message: {
+        role: 'assistant',
+        content: [],
+        usage: { input_tokens: 5, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 3 },
+      },
     }),
   ].join('\n') + '\n');
   try {
@@ -96,8 +102,11 @@ test('extractUsageAndSkillCalls never includes message content anywhere in its r
   const { dir, filePath } = writeFixture([
     {
       type: 'assistant', timestamp: '2026-08-31T17:25:00.000Z',
-      message: { role: 'assistant', content: [{ type: 'text', text: secretText }] },
-      usage: { input_tokens: 1, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 1 },
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: secretText }],
+        usage: { input_tokens: 1, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 1 },
+      },
     },
   ]);
   try {
