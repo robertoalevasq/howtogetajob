@@ -110,6 +110,42 @@ try {
   try { await mod.delegate('not-a-real-task', 'x', { tasks: {} }); } catch (e) { threwUnknown = e; }
   if (threwUnknown && /unknown task/.test(threwUnknown.message)) pass('delegate() rejects an unrecognized task name');
   else fail(`delegate() unknown-task handling => ${threwUnknown?.message}`);
+
+  // 9. Valid JSON that isn't an object (null / number / array) -> ok:false, so
+  //    the fallback leg still gets its turn instead of a nonsense "success".
+  for (const [label, body] of [['null', 'null'], ['a bare number', '123'], ['a top-level array', '["a","b"]']]) {
+    globalThis.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: body } }] }), { status: 200 });
+    try {
+      const result = await mod.callProvider(
+        { base_url: 'https://ollama.com/v1', model: 'x', timeout_ms: 5000 },
+        { systemPrompt: 's', userContent: 'u' },
+      );
+      if (result.ok === false && /non-object JSON/.test(result.error)) {
+        pass(`callProvider rejects ${label} as a task result instead of accepting it as success`);
+      } else {
+        fail(`callProvider non-object handling (${label}) => ${JSON.stringify(result)}`);
+      }
+    } finally { globalThis.fetch = originalFetch; }
+  }
+
+  // 10. delegate(): cloud succeeds -> local is never called at all.
+  globalThis.fetch = async (url) => {
+    if (!String(url).includes('ollama.com')) {
+      fail('delegate() must not call the local provider when cloud already succeeded');
+      return new Response('{}', { status: 200 });
+    }
+    return new Response(JSON.stringify({ choices: [{ message: { content: '{"from":"cloud"}' } }] }), { status: 200 });
+  };
+  try {
+    const cfg = {
+      ollama_cloud: { enabled: true, base_url: 'https://ollama.com/v1', model: 'gpt-oss:20b', timeout_ms: 5000 },
+      ollama_local: { enabled: true, base_url: 'http://localhost:11434/v1', model: 'qwen2.5:14b', timeout_ms: 5000 },
+      tasks: {},
+    };
+    const result = await mod.delegate('block-g-signals', 'some JD text', cfg);
+    if (result.from === 'cloud') pass('delegate() returns the cloud result and skips the local leg entirely when cloud succeeds');
+    else fail(`delegate() cloud-success routing => ${JSON.stringify(result)}`);
+  } finally { globalThis.fetch = originalFetch; }
 } catch (err) {
   fail(`ollama-delegate fallback tests crashed: ${err.stack || err.message}`);
 }

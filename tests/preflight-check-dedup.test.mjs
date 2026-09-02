@@ -31,6 +31,14 @@ try {
     fail(`extractAdvertisedComp K-suffix => ${JSON.stringify(c3)}`);
   }
 
+  // K-suffix written once, at the end of the range — it must apply to both ends.
+  const c3b = mod.extractAdvertisedComp('$150-180K base salary');
+  if (c3b && c3b.low === 150000 && c3b.high === 180000 && c3b.currency === 'USD') {
+    pass('extractAdvertisedComp inherits a trailing K-suffix backward to the low end of the range');
+  } else {
+    fail(`extractAdvertisedComp trailing-K inheritance => ${JSON.stringify(c3b)}`);
+  }
+
   const c4 = mod.extractAdvertisedComp('We offer a competitive salary and great benefits.');
   if (c4 === null) pass('extractAdvertisedComp returns null when no comp is stated');
   else fail(`extractAdvertisedComp should be null, got ${JSON.stringify(c4)}`);

@@ -41,17 +41,21 @@ export function providerConfigPath() {
  * the file is absent or invalid — delegation is opt-in, so a fresh checkout
  * (or a syntax error) must behave exactly like today, never throw.
  *
+ * Always returns a fresh copy of the disabled default: a caller that mutates
+ * the returned object (a smoke test flipping `enabled`, say) must not corrupt
+ * the shared module-level default for the rest of the process.
+ *
  * @param {string} [path]
  * @returns {object}
  */
 export function loadProviderConfig(path = providerConfigPath()) {
-  if (!existsSync(path)) return DISABLED_CONFIG;
+  if (!existsSync(path)) return structuredClone(DISABLED_CONFIG);
   try {
     const parsed = yaml.load(readFileSync(path, 'utf-8'));
-    return parsed && typeof parsed === 'object' ? parsed : DISABLED_CONFIG;
+    return parsed && typeof parsed === 'object' ? parsed : structuredClone(DISABLED_CONFIG);
   } catch (err) {
     console.error(`⚠️  Could not parse ${path}: ${err.message} — delegation disabled for this call.`);
-    return DISABLED_CONFIG;
+    return structuredClone(DISABLED_CONFIG);
   }
 }
 
@@ -137,6 +141,13 @@ export async function callProvider(providerCfg, { systemPrompt, userContent }, {
         try { json = JSON.parse(fenced[1]); } catch { /* fall through */ }
       }
       if (!json) return { ok: false, error: `non-JSON response: ${content.slice(0, 200)}` };
+    }
+    // A bare `null`, number, boolean, string, or top-level array all parse as
+    // valid JSON but are never a usable task result. Treating them as success
+    // would silently skip the local-Ollama fallback leg for a nonsense
+    // response, which is exactly what the fallback chain exists to catch.
+    if (!json || typeof json !== 'object' || Array.isArray(json)) {
+      return { ok: false, error: `non-object JSON response: ${content.slice(0, 200)}` };
     }
     return { ok: true, json };
   } catch (err) {

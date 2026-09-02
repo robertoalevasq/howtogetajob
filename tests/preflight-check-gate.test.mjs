@@ -53,6 +53,16 @@ try {
   if (g10.pass === false && /clearance/.test(g10.reason)) pass('checkGate still catches uppercase SCI in TS/SCI context');
   else fail(`checkGate uppercase SCI still blocks => ${JSON.stringify(g10)}`);
 
+  // Lowercase clearance.status in the profile must behave identically to "None"
+  const g12 = mod.checkGate('Requires an active Top Secret clearance.', { clearance: { status: 'none', accepts_sponsorship: false } });
+  if (g12.pass === false && /clearance/.test(g12.reason)) pass('checkGate hard-stops on a lowercase clearance.status of "none"');
+  else fail(`checkGate lowercase clearance.status => ${JSON.stringify(g12)}`);
+
+  // ...as must odd casing/whitespace
+  const g13 = mod.checkGate('Requires an active Top Secret clearance.', { clearance: { status: '  NONE ', accepts_sponsorship: false } });
+  if (g13.pass === false) pass('checkGate normalizes casing and whitespace around clearance.status');
+  else fail(`checkGate padded/uppercase clearance.status => ${JSON.stringify(g13)}`);
+
   // Standalone uppercase SCI should trigger
   const g11 = mod.checkGate('Must have an active SCI clearance.', { clearance: { status: 'None', accepts_sponsorship: false } });
   if (g11.pass === false && /clearance/.test(g11.reason)) pass('checkGate catches standalone uppercase SCI');

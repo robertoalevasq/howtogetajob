@@ -44,10 +44,12 @@ export function extractAdvertisedComp(text) {
   const symMatch = text.match(symRe);
   if (symMatch) {
     const [, sym, num1, unit1, num2, unit2] = symMatch;
-    const low = parseAmount(num1, unit1);
+    // A K-suffix written once anywhere in the range applies to both ends —
+    // "$150-180K" means 150000-180000, not 150-180000.
+    const low = parseAmount(num1, unit1 || unit2);
     const high = parseAmount(num2, unit2 || unit1);
     return {
-      range: `${sym}${num1}${unit1 || ''}-${sym}${num2}${unit2 || unit1 || ''}`,
+      range: `${sym}${num1}${unit1 || unit2 || ''}-${sym}${num2}${unit2 || unit1 || ''}`,
       low, high,
       currency: CURRENCY_SYMBOLS[sym] || null,
       raw: symMatch[0].trim(),
@@ -122,7 +124,10 @@ export function checkGate(text, profile = {}) {
     const clearance = p.clearance || {};
     const status = clearance.status || 'None';
     const acceptsSponsorship = clearance.accepts_sponsorship === true;
-    if (status === 'None' && !acceptsSponsorship) {
+    // Case/whitespace-insensitive: a profile written as `status: none` must
+    // hard-stop identically to `status: None`. A safety check that silently
+    // stops firing because of casing is worse than no check at all.
+    if (String(status).trim().toLowerCase() === 'none' && !acceptsSponsorship) {
       return { pass: false, reason: `clearance mismatch: JD requires "${clearanceMatch[0]}", candidate clearance.status is "${status}" with no sponsorship` };
     }
   }
@@ -138,21 +143,31 @@ export function checkGate(text, profile = {}) {
 }
 
 function parseArgs(argv) {
-  const args = { company: null, role: null, text: '', jdFile: null, profile: null };
+  const args = { company: null, role: null, text: '', jdFile: null, profile: null, applications: null };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--company') args.company = argv[++i];
     else if (argv[i] === '--role') args.role = argv[++i];
     else if (argv[i] === '--text') args.text = argv[++i];
     else if (argv[i] === '--jd-file') args.jdFile = argv[++i];
     else if (argv[i] === '--profile') args.profile = argv[++i];
+    else if (argv[i] === '--applications') args.applications = argv[++i];
   }
   return args;
 }
 
+const USAGE = 'Usage: node preflight-check.mjs [--company <c> --role <r>] [--text <string>] [--jd-file <path>] [--profile <path>] [--applications <path>]\n'
+  + '  Needs either --company AND --role (dedup + gate), or at least one of --text/--jd-file (gate only).';
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  if (!args.company || !args.role) {
-    console.error('Usage: node preflight-check.mjs --company <c> --role <r> [--text <string>] [--jd-file <path>] [--profile <path>]');
+  // Dedup needs company+role; the keyword gate and comp extraction need only
+  // text. batch/batch-prompt.md's Step 1.5 runs before company/role are known,
+  // so a gate-only call with just --jd-file is legitimate — but a call with
+  // neither pairing has nothing to check at all.
+  const canDedup = Boolean(args.company && args.role);
+  const hasText = Boolean(args.text || args.jdFile);
+  if (!canDedup && !hasText) {
+    console.error(USAGE);
     return 1;
   }
 
@@ -176,8 +191,15 @@ async function main() {
     }
   }
 
+  // `checked: false` means dedup was never attempted (no company/role given) —
+  // deliberately distinct from "attempted and found nothing," so a caller can
+  // never read a gate-only call as proof the role isn't already tracked.
+  const duplicate = canDedup
+    ? { ...checkDuplicate({ company: args.company, role: args.role }, { applicationsPath: args.applications }), checked: true }
+    : { isDuplicate: false, matchedRow: null, checked: false };
+
   const result = {
-    duplicate: checkDuplicate({ company: args.company, role: args.role }),
+    duplicate,
     gate: checkGate(text, profile),
     advertisedComp: extractAdvertisedComp(text),
   };

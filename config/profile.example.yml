@@ -100,6 +100,25 @@ location:
   #                        unchanged
   work_mode: "no_preference"
 
+# ── Security Clearance ───────────────────────────────────────────────────────
+#
+# Your clearance posture. Read by core/preflight-check.mjs's deterministic gate
+# (modes/pipeline.md's Metadata pre-filter and Pre-screen gate, and
+# batch/batch-prompt.md's Step 1.5): a JD that requires a clearance you don't
+# hold, when you also won't take a sponsored one, is a zero-token hard stop
+# instead of a full evaluation. If absent/commented, status is treated as
+# "None" and accepts_sponsorship as false — the most conservative default.
+#
+# clearance:
+#   # What you currently hold. Case-insensitive; "None" (or none at all) means
+#   # you hold no clearance. Anything else (e.g. "Secret", "Top Secret",
+#   # "TS/SCI") means the gate never hard-stops you on clearance language.
+#   status: "None"
+#   # true if you're willing to go through a sponsored clearance process. When
+#   # true, a clearance-requiring JD is a soft signal noted in Block A, never a
+#   # hard stop.
+#   accepts_sponsorship: false
+
 # ── Targeting Mode ──────────────────────────────────────────────────────────
 #
 # "title_based" (default) — scan by target_roles.primary keywords, as today.
