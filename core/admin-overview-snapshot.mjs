@@ -268,9 +268,6 @@ const RUN_CLASSIFICATION_PATTERNS = [
   ['scan', /\bscan mode\b/i],
   ['tracker', /\btracker mode\b/i],
   ['pdf', /\bpdf mode\b/i],
-  ['oferta', /\boferta\b/i],
-  ['batch', /\bbatch mode\b/i],
-  ['apply', /\bapply mode\b/i],
 ];
 
 /**
