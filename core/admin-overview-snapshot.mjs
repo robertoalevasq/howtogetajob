@@ -286,3 +286,58 @@ export function classifyRunFromArgs(argsText) {
   }
   return 'unclassified';
 }
+
+function dayKey(isoTimestamp) {
+  return isoTimestamp.slice(0, 10); // "2026-08-31T..." -> "2026-08-31"
+}
+
+function bucketKeyFor(scope, slug, knownSlugs) {
+  if (scope === 'hub') return 'hub';
+  if (slug && knownSlugs.includes(slug)) return slug;
+  return 'deleted-or-renamed';
+}
+
+/**
+ * Aggregate token-usage and run-count history across a set of discovered
+ * transcript files (from findHubTranscriptFiles), bucketed by workspace
+ * slug and by day. A file whose slug no longer matches any workspace in
+ * `knownSlugs` is bucketed under 'deleted-or-renamed' rather than dropped
+ * or mis-attributed. Hub-root-scoped files bucket under 'hub'.
+ *
+ * @param {{path: string, scope: 'hub'|'workspace', slug: string|null}[]} files
+ * @param {string[]} knownSlugs - Slugs of currently-provisioned workspaces (from listWorkspaces).
+ * @returns {{tokenUsageByWorkspace: Object<string, Object<string, {input_tokens: number, cache_creation_input_tokens: number, cache_read_input_tokens: number, output_tokens: number}>>, runCountsByWorkspace: Object<string, Object<string, Object<string, number>>>}}
+ */
+export function aggregateHistory(files, knownSlugs) {
+  const tokenUsageByWorkspace = {};
+  const runCountsByWorkspace = {};
+
+  for (const file of files) {
+    const bucket = bucketKeyFor(file.scope, file.slug, knownSlugs);
+    const { usageEntries, skillCalls } = extractUsageAndSkillCalls(file.path);
+
+    if (!tokenUsageByWorkspace[bucket]) tokenUsageByWorkspace[bucket] = {};
+    for (const { timestamp, usage } of usageEntries) {
+      const day = dayKey(timestamp);
+      if (!tokenUsageByWorkspace[bucket][day]) {
+        tokenUsageByWorkspace[bucket][day] = { input_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 0 };
+      }
+      const dayTotals = tokenUsageByWorkspace[bucket][day];
+      dayTotals.input_tokens += usage.input_tokens;
+      dayTotals.cache_creation_input_tokens += usage.cache_creation_input_tokens;
+      dayTotals.cache_read_input_tokens += usage.cache_read_input_tokens;
+      dayTotals.output_tokens += usage.output_tokens;
+    }
+
+    if (!runCountsByWorkspace[bucket]) runCountsByWorkspace[bucket] = {};
+    for (const { timestamp, skill, args } of skillCalls) {
+      if (!skill.includes('career-ops')) continue; // only career-ops invocations count as a "run"
+      const day = dayKey(timestamp);
+      const mode = classifyRunFromArgs(args);
+      if (!runCountsByWorkspace[bucket][day]) runCountsByWorkspace[bucket][day] = {};
+      runCountsByWorkspace[bucket][day][mode] = (runCountsByWorkspace[bucket][day][mode] || 0) + 1;
+    }
+  }
+
+  return { tokenUsageByWorkspace, runCountsByWorkspace };
+}
