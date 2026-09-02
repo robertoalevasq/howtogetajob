@@ -10,11 +10,12 @@
  * tool results, file contents). See
  * docs/superpowers/specs/2026-09-02-admin-overview-design.md.
  */
-import { existsSync, readFileSync, readdirSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { homedir } from 'os';
+import { isMainModule } from './is-main.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -340,4 +341,49 @@ export function aggregateHistory(files, knownSlugs) {
   }
 
   return { tokenUsageByWorkspace, runCountsByWorkspace };
+}
+
+/**
+ * Assemble the full cross-workspace snapshot: roster (with tracker stats
+ * and active-task status inlined per workspace) plus token-usage/run-count
+ * history aggregated from this hub's Claude Code session transcripts.
+ *
+ * @param {string} [reposRoot] - Override for tests.
+ * @param {string} [claudeHome] - Override for tests; defaults to `~/.claude`.
+ * @returns {object}
+ */
+export function buildSnapshot(reposRoot = ROOT, claudeHome = join(homedir(), '.claude')) {
+  const workspaces = listWorkspaces(reposRoot).map((ws) => ({
+    ...ws,
+    trackerStats: getTrackerStats(ws.dir),
+    activeTask: getActiveTaskStatus(ws.dir),
+  }));
+  const knownSlugs = workspaces.map((ws) => ws.slug);
+  const files = findHubTranscriptFiles(reposRoot, claudeHome);
+  const { tokenUsageByWorkspace, runCountsByWorkspace } = aggregateHistory(files, knownSlugs);
+
+  return {
+    generatedAt: new Date().toISOString(),
+    workspaces,
+    tokenUsageByWorkspace,
+    runCountsByWorkspace,
+  };
+}
+
+async function main() {
+  const [, , outPath] = process.argv;
+  if (!outPath) {
+    console.error('Usage: node admin-overview-snapshot.mjs <output.json>');
+    return 1;
+  }
+  const reposRoot = process.env.CAREER_OPS_ADMIN_OVERVIEW_REPO_ROOT || ROOT;
+  const claudeHome = process.env.CAREER_OPS_ADMIN_OVERVIEW_CLAUDE_HOME || join(homedir(), '.claude');
+  const snapshot = buildSnapshot(reposRoot, claudeHome);
+  writeFileSync(outPath, JSON.stringify(snapshot, null, 2), 'utf-8');
+  console.log(`admin-overview-snapshot: wrote ${outPath} (${snapshot.workspaces.length} workspace(s))`);
+  return 0;
+}
+
+if (isMainModule(import.meta.url)) {
+  process.exitCode = await main();
 }
