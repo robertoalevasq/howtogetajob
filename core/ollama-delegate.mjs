@@ -19,12 +19,17 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import yaml from 'js-yaml';
 import { isMainModule } from './is-main.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
 try {
   const { config } = await import('dotenv');
   config();
 } catch { /* dotenv optional */ }
 
+// ROOT resolves through core/'s workspace junction to the shared system-layer
+// root — correct for modes/delegate/*.md (shipped, identical across every
+// workspace), but never for user-layer paths (config/, data/), which must
+// resolve via workspaceRoot() instead (see workspace-root.mjs).
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
 const DISABLED_CONFIG = { ollama_cloud: { enabled: false }, ollama_local: { enabled: false }, tasks: {} };
@@ -33,7 +38,7 @@ const DISABLED_CONFIG = { ollama_cloud: { enabled: false }, ollama_local: { enab
  * @returns {string} Path to the user's provider config, overridable for tests.
  */
 export function providerConfigPath() {
-  return process.env.CAREER_OPS_LLM_PROVIDER_CONFIG || join(ROOT, 'config', 'llm-provider.yml');
+  return process.env.CAREER_OPS_LLM_PROVIDER_CONFIG || join(workspaceRoot(), 'config', 'llm-provider.yml');
 }
 
 /**

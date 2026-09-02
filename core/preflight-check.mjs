@@ -13,12 +13,10 @@
  * docs/superpowers/specs/2026-09-02-ollama-cloud-delegation-design.md.
  */
 import { existsSync, readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 import { isMainModule } from './is-main.mjs';
 import { resolveColumns, parseTrackerRow, normalizeTextKey } from './tracker-parse.mjs';
-
-const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+import { workspaceRoot } from './workspace-root.mjs';
 
 const CURRENCY_SYMBOLS = { '$': 'USD', '€': 'EUR', '£': 'GBP', '¥': 'JPY' };
 const CURRENCY_CODE_RE = '(?:USD|EUR|GBP|CAD|AUD|JPY|CHF|SEK|NOK|DKK|PLN|INR|MXN)';
@@ -80,7 +78,7 @@ export function extractAdvertisedComp(text) {
  * @returns {{isDuplicate: boolean, matchedRow: {num: number, company: string, role: string, status: string} | null}}
  */
 export function checkDuplicate({ company, role }, { applicationsPath } = {}) {
-  const path = applicationsPath || join(ROOT, 'data', 'applications.md');
+  const path = applicationsPath || join(workspaceRoot(), 'data', 'applications.md');
   const notFound = { isDuplicate: false, matchedRow: null };
   if (!existsSync(path)) return notFound;
 
@@ -181,7 +179,7 @@ async function main() {
   }
 
   const yaml = (await import('js-yaml')).default;
-  const profilePath = args.profile || join(ROOT, 'config', 'profile.yml');
+  const profilePath = args.profile || process.env.CAREER_OPS_PROFILE || join(workspaceRoot(), 'config', 'profile.yml');
   let profile = {};
   if (existsSync(profilePath)) {
     try {
