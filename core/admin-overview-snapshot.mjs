@@ -190,3 +190,68 @@ export function findHubTranscriptFiles(reposRoot = ROOT, claudeHome = join(homed
   }
   return results;
 }
+
+/**
+ * PRIVACY-CRITICAL: parse one .jsonl transcript file and extract ONLY
+ * `timestamp`+`usage` (from lines carrying a top-level `usage` object) and
+ * `timestamp`+Skill-tool-call `input.skill`/`input.args` (from `tool_use`
+ * content blocks named "Skill"). Every other field on every line —
+ * `message.content` text, other tool inputs/results, anything else — is
+ * read only to locate these two shapes and is never copied into the
+ * return value. A malformed line is skipped, never thrown.
+ *
+ * @param {string} filePath
+ * @returns {{usageEntries: {timestamp: string, usage: object}[], skillCalls: {timestamp: string, skill: string, args: string}[]}}
+ */
+export function extractUsageAndSkillCalls(filePath) {
+  const usageEntries = [];
+  const skillCalls = [];
+  if (!existsSync(filePath)) return { usageEntries, skillCalls };
+
+  let raw;
+  try {
+    raw = readFileSync(filePath, 'utf-8');
+  } catch {
+    return { usageEntries, skillCalls };
+  }
+
+  for (const line of raw.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    let entry;
+    try {
+      entry = JSON.parse(trimmed);
+    } catch {
+      continue; // malformed line — skip, don't crash the whole file
+    }
+    const timestamp = entry.timestamp;
+    if (!timestamp) continue;
+
+    if (entry.usage && typeof entry.usage === 'object') {
+      usageEntries.push({
+        timestamp,
+        usage: {
+          input_tokens: entry.usage.input_tokens || 0,
+          cache_creation_input_tokens: entry.usage.cache_creation_input_tokens || 0,
+          cache_read_input_tokens: entry.usage.cache_read_input_tokens || 0,
+          output_tokens: entry.usage.output_tokens || 0,
+        },
+      });
+    }
+
+    const content = entry.message?.content;
+    if (Array.isArray(content)) {
+      for (const block of content) {
+        if (block?.type === 'tool_use' && block.name === 'Skill' && block.input) {
+          skillCalls.push({
+            timestamp,
+            skill: String(block.input.skill || ''),
+            args: String(block.input.args || ''),
+          });
+        }
+      }
+    }
+  }
+
+  return { usageEntries, skillCalls };
+}
