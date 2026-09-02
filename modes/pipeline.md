@@ -11,13 +11,7 @@ even running a liveness check) on a row that has this metadata and is an obvious
 real wall-clock time for nothing: unlike the pre-screen gate below (which only saves LLM tokens,
 since it runs *after* the JD is already fetched), a mismatch caught here never costs a fetch at all.
 
-Judge each row carrying title/location metadata against the same conservative hard-stop bar the
-post-fetch pre-screen gate uses (`config/profile.yml` archetypes/clearance/location — see
-`_custom.md`'s tiered-report-depth rule): missing required clearance stated in the title, an
-unambiguously wrong professional domain in the title, or an explicit onsite-only location
-conflicting with a hard remote requirement. This is deliberately conservative and only fires on the
-same unambiguous-mismatch bar the post-fetch gate uses — a bare `- [ ] {url}` row with no
-title/location metadata has nothing to judge and falls through unchanged, same as before.
+For each row carrying title/location metadata, run `node core/preflight-check.mjs --company "{company}" --role "{title}" --text "{title} {location}"` (a bare `- [ ] {url}` row with no title/location metadata has nothing to check and falls through unchanged, same as before). This deterministic, zero-token check catches the two unambiguous hard stops a script can judge safely: a clearance requirement the candidate's `config/profile.yml` `clearance.status`/`accepts_sponsorship` can't meet, and an explicit onsite-only requirement against a `location.work_mode: remote_only` candidate. If `gate.pass` is `false`, treat it as a metadata-prefilter mismatch using `gate.reason`. A "wrong professional domain" judgment call is NOT attempted by the script (too fuzzy for reliable regex) and is not part of this pre-fetch pass — it's still caught later by the post-fetch pre-screen gate's archetype judgment below, same as today.
 
 Log every filtered row to `data/discard.log` with a `metadata-prefilter:` prefix (distinguishable
 from the post-fetch gate's `pre-screen mismatch:` prefix, so the two are auditable separately), and
@@ -44,7 +38,7 @@ This complements — does not replace — the per-URL liveness gate in `auto-pip
 
 Read `spend_tier` from `config/profile.yml` (see `modes/_shared.md` -- Spend Tier section; defaults to `standard` if absent).
 
-- **`standard` or `premium` tier:** Before running the full A-F evaluation on a pending URL that survived the liveness sweep, run a cheap pre-screen pass using the tier's economy-equivalent model (see the mapping table in `modes/_shared.md`) against the candidate's North Star archetypes (`_profile.md`). If the JD is an obvious mismatch, skip the full evaluation: mark it `- [x] #-- | {url} | skipped (pre-screen mismatch: {reason})` in "Processed" and continue to the next URL.
+- **`standard` or `premium` tier:** Before running the tier's cheap archetype pass below, run `node core/preflight-check.mjs --company "{company}" --role "{role}" --jd-file <extracted JD file>` against the already-extracted JD text. If `gate.pass` is `false`, skip the LLM pass entirely and treat it as a pre-screen mismatch using `gate.reason` — no model call needed for a clearance or onsite-only hard stop the script already caught for free. Otherwise, run the existing cheap pre-screen pass using the tier's economy-equivalent model (see the mapping table in `modes/_shared.md`) against the candidate's North Star archetypes (`_profile.md`) for the softer, ambiguous fit judgment the script doesn't attempt. If that pass also finds an obvious mismatch, skip the full evaluation: mark it `- [x] #-- | {url} | skipped (pre-screen mismatch: {reason})` in "Processed" and continue to the next URL.
 - **`economy` tier:** No gate. The tier is already the cheapest available. Every surviving pending URL goes straight to the full evaluation.
 - This gate only applies to pipeline/batch processing. It never applies to a single interactive evaluation.
 

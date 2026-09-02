@@ -103,9 +103,7 @@ Batch runs process large backlogs unattended, so every offer must be judged for 
 1. Read `modes/_profile.md` and `config/profile.yml` for the candidate's archetypes, clearance posture, location policy, and experience floor.
 2. Judge the loaded JD against those in a quick pass — do not skip reading the real JD text first.
    
-   **Clearance gate specifically:** Search the JD for keywords: "Secret", "Top Secret", "TS/SCI", "SCI", "TS", "security clearance", "active clearance", "DoD clearance", "clearance required". If any clearance is mentioned, read `config/profile.yml` → `clearance.status` and `clearance.accepts_sponsorship`:
-   - If candidate's `clearance.status` is "None" AND `clearance.accepts_sponsorship` is false → this is a HARD STOP
-   - If candidate's `clearance.status` is "None" AND `clearance.accepts_sponsorship` is true → soft gate (not a hard stop; proceed to full evaluation, note the requirement in Block A)
+   **Clearance gate specifically:** Run `node core/preflight-check.mjs --company "{company}" --role "{role}" --jd-file <extracted JD file>` — it searches the JD for clearance keywords and checks them against `config/profile.yml` → `clearance.status`/`clearance.accepts_sponsorship` deterministically, with zero tokens. If `gate.pass` is `false` and `gate.reason` mentions clearance, this is a HARD STOP. If the JD mentions clearance but `gate.pass` is `true` (candidate accepts sponsorship), this is a soft gate — not a hard stop; proceed to full evaluation and note the requirement in Block A.
 
 3. **Obvious hard-stop mismatch** (missing required clearance when not accepting sponsorship, wrong professional domain, experience floor off by 3+ years, hard geo/onsite conflict, or another disqualifier your profile marks as a hard stop) → take the **short-report path**:
    - Write the same report header as Step 3 below (Date, Archetype, Score, Legitimacy, Work Auth, URL, PDF, Batch ID).
