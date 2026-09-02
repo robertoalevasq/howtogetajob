@@ -15,6 +15,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { isMainModule } from './is-main.mjs';
 import { resolveColumns, parseTrackerRow, normalizeTextKey } from './tracker-parse.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -134,4 +135,59 @@ export function checkGate(text, profile = {}) {
   }
 
   return clean;
+}
+
+function parseArgs(argv) {
+  const args = { company: null, role: null, text: '', jdFile: null, profile: null };
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--company') args.company = argv[++i];
+    else if (argv[i] === '--role') args.role = argv[++i];
+    else if (argv[i] === '--text') args.text = argv[++i];
+    else if (argv[i] === '--jd-file') args.jdFile = argv[++i];
+    else if (argv[i] === '--profile') args.profile = argv[++i];
+  }
+  return args;
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  if (!args.company || !args.role) {
+    console.error('Usage: node preflight-check.mjs --company <c> --role <r> [--text <string>] [--jd-file <path>] [--profile <path>]');
+    process.exit(1);
+  }
+
+  let text = args.text || '';
+  if (args.jdFile) {
+    if (!existsSync(args.jdFile)) {
+      console.error(`❌  --jd-file not found: ${args.jdFile}`);
+      process.exit(1);
+    }
+    text += (text ? '\n' : '') + readFileSync(args.jdFile, 'utf-8');
+  }
+
+  const yaml = (await import('js-yaml')).default;
+  const profilePath = args.profile || join(ROOT, 'config', 'profile.yml');
+  let profile = {};
+  if (existsSync(profilePath)) {
+    try {
+      profile = yaml.load(readFileSync(profilePath, 'utf-8')) || {};
+    } catch (err) {
+      console.error(`⚠️  Could not parse ${profilePath}: ${err.message} — gate running with an empty profile.`);
+    }
+  }
+
+  const result = {
+    duplicate: checkDuplicate({ company: args.company, role: args.role }),
+    gate: checkGate(text, profile),
+    advertisedComp: extractAdvertisedComp(text),
+  };
+  console.log(JSON.stringify(result));
+  process.exit(0);
+}
+
+if (isMainModule(import.meta.url)) {
+  main().catch((err) => {
+    console.error('❌ preflight-check failed:', err.message);
+    process.exit(1);
+  });
 }
