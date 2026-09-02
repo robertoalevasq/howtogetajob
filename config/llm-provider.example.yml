@@ -1,0 +1,30 @@
+# config/llm-provider.example.yml
+# career-ops — Ollama Cloud task delegation config.
+# Copy this file to config/llm-provider.yml to enable it:
+#   cp config/llm-provider.example.yml config/llm-provider.yml
+# Absent file = the feature is a complete no-op: every pipeline/auto-pipeline
+# run behaves exactly like it always has, with Claude doing every step itself.
+#
+# Tried in order per delegated task: ollama_cloud, then ollama_local, then
+# Claude does the task itself inline. See
+# docs/superpowers/specs/2026-09-02-ollama-cloud-delegation-design.md.
+
+ollama_cloud:
+  enabled: true
+  base_url: https://ollama.com/v1
+  model: gpt-oss:20b
+  api_key_env: OLLAMA_API_KEY   # set OLLAMA_API_KEY in your .env — never put the key here
+  timeout_ms: 60000
+
+ollama_local:
+  enabled: true
+  base_url: http://localhost:11434/v1
+  model: qwen2.5:14b-instruct-q4_K_M   # sized for ~8GB VRAM; change to whatever you've pulled
+  timeout_ms: 120000
+
+# Per-task on/off switches. Set any to false to keep that one task in Claude
+# even when a provider above is enabled.
+tasks:
+  comp_market_estimate: true
+  block_g_signals: true
+  risk_summary_draft: true

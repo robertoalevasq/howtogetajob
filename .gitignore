@@ -67,6 +67,7 @@ writing-samples/*
 config/profile.yml
 config/cv-facts.json
 config/benchmarks.yml
+config/llm-provider.yml
 portals.yml
 _profile.md
 _custom.md
