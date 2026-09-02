@@ -96,3 +96,41 @@ export function checkDuplicate({ company, role }, { applicationsPath } = {}) {
   }
   return notFound;
 }
+
+const CLEARANCE_KEYWORDS_RE = /\b(top secret|ts\/sci|\bsci\b|security clearance|active clearance|dod clearance|clearance required|secret clearance)\b/i;
+const ONSITE_KEYWORDS_RE = /\b(onsite only|on-site only|no remote|in-office only|must (?:be |work )?on-?site|5 days? (?:a week )?in (?:the )?office)\b/i;
+
+/**
+ * Deterministic hard-stop keyword gate: clearance the candidate can't meet,
+ * or an explicit onsite-only requirement against a strictly remote-only
+ * candidate. Deliberately narrow — see Global Constraints in the plan this
+ * came from for what this does NOT attempt (domain-fit, archetype judgment).
+ *
+ * @param {string} text - JD text, or title+location metadata, to scan.
+ * @param {{clearance?: {status?: string, accepts_sponsorship?: boolean}, location?: {work_mode?: string}}} [profile]
+ * @returns {{pass: boolean, reason: string|null}}
+ */
+export function checkGate(text, profile = {}) {
+  const clean = { pass: true, reason: null };
+  if (!text) return clean;
+  const p = profile || {};
+
+  const clearanceMatch = text.match(CLEARANCE_KEYWORDS_RE);
+  if (clearanceMatch) {
+    const clearance = p.clearance || {};
+    const status = clearance.status || 'None';
+    const acceptsSponsorship = clearance.accepts_sponsorship === true;
+    if (status === 'None' && !acceptsSponsorship) {
+      return { pass: false, reason: `clearance mismatch: JD requires "${clearanceMatch[0]}", candidate clearance.status is "${status}" with no sponsorship` };
+    }
+  }
+
+  if (p.location?.work_mode === 'remote_only') {
+    const onsiteMatch = text.match(ONSITE_KEYWORDS_RE);
+    if (onsiteMatch) {
+      return { pass: false, reason: `location mismatch: JD requires "${onsiteMatch[0]}", candidate work_mode is "remote_only"` };
+    }
+  }
+
+  return clean;
+}
