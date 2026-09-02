@@ -14,6 +14,7 @@ import { existsSync, readFileSync, readdirSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { homedir } from 'os';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -93,4 +94,79 @@ export function getActiveTaskStatus(wsDir) {
   } catch {
     return { state: 'no_run', staleMs: null, lastUpdateAgo: null, step: null };
   }
+}
+
+/**
+ * Compute this hub's Claude-Code-style encoded path prefix, used to find
+ * this hub's own project directories under ~/.claude/projects/. Claude Code
+ * encodes a launch path by replacing ':', '\\', and '_' with '-' while
+ * preserving case — and has been observed emitting both upper- and
+ * lower-case drive letters for the same hub across different sessions, so
+ * callers must match against this prefix case-insensitively.
+ *
+ * @param {string} [reposRoot]
+ * @returns {string}
+ */
+export function hubProjectDirPrefix(reposRoot = ROOT) {
+  return reposRoot.replace(/[:\\_]/g, '-');
+}
+
+const WORKSPACE_MARKER = '-workspaces-';
+
+/**
+ * Given one ~/.claude/projects/ directory name, determine whether it
+ * belongs to this hub's own root, one of its workspaces, or an unrelated
+ * project on the same machine.
+ *
+ * @param {string} dirName
+ * @param {string} prefix - From hubProjectDirPrefix().
+ * @returns {{scope: 'hub'} | {scope: 'workspace', slug: string} | {scope: 'other'}}
+ */
+export function classifyProjectDir(dirName, prefix) {
+  const lowerDir = dirName.toLowerCase();
+  const lowerPrefix = prefix.toLowerCase();
+  if (lowerDir === lowerPrefix) return { scope: 'hub' };
+  const markerLower = (lowerPrefix + WORKSPACE_MARKER);
+  if (!lowerDir.startsWith(markerLower)) return { scope: 'other' };
+  const slug = dirName.slice((prefix + WORKSPACE_MARKER).length);
+  if (!slug) return { scope: 'other' };
+  return { scope: 'workspace', slug };
+}
+
+function walkJsonlFiles(dir) {
+  const out = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...walkJsonlFiles(full));
+    else if (entry.isFile() && entry.name.endsWith('.jsonl')) out.push(full);
+  }
+  return out;
+}
+
+/**
+ * Find every .jsonl transcript file under ~/.claude/projects/ that belongs
+ * to this hub (its own root, or one of its workspaces) — never files from
+ * unrelated projects on the same machine. Searches recursively, since
+ * subagent transcripts live one level deeper (observed real layout:
+ * "{project-dir}/{sessionId}/subagents/{agentId}.jsonl").
+ *
+ * @param {string} [reposRoot]
+ * @param {string} [claudeHome] - Override for tests; defaults to `~/.claude`.
+ * @returns {{path: string, scope: 'hub'|'workspace', slug: string|null}[]}
+ */
+export function findHubTranscriptFiles(reposRoot = ROOT, claudeHome = join(homedir(), '.claude')) {
+  const projectsDir = join(claudeHome, 'projects');
+  if (!existsSync(projectsDir)) return [];
+  const prefix = hubProjectDirPrefix(reposRoot);
+  const results = [];
+  for (const entry of readdirSync(projectsDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const classification = classifyProjectDir(entry.name, prefix);
+    if (classification.scope === 'other') continue;
+    const dirPath = join(projectsDir, entry.name);
+    for (const file of walkJsonlFiles(dirPath)) {
+      results.push({ path: file, scope: classification.scope, slug: classification.slug || null });
+    }
+  }
+  return results;
 }
