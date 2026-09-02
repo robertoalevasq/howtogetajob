@@ -136,6 +136,7 @@ export const SYSTEM_PATHS = [
   'modes/agent-inbox.md',
   'modes/reply-watch.md',
   'modes/outcome.md',
+  'modes/delegate/',
   'modes/ar/',
   'modes/da/',
   'modes/de/',
@@ -194,6 +195,7 @@ export const SYSTEM_PATHS = [
   'fonts/',
   'examples/',
   'config/profile.example.yml',
+  'config/llm-provider.example.yml',
   '.env.example',
   '.editorconfig',
   '.agents/',
@@ -292,6 +294,7 @@ const BOOTSTRAP_PATHS = [
 const USER_PATHS = [
   'cv.md',
   'config/profile.yml',
+  'config/llm-provider.yml',
   '_profile.md',
   '_custom.md',
   '_brief.md',
