@@ -153,14 +153,14 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.company || !args.role) {
     console.error('Usage: node preflight-check.mjs --company <c> --role <r> [--text <string>] [--jd-file <path>] [--profile <path>]');
-    process.exit(1);
+    return 1;
   }
 
   let text = args.text || '';
   if (args.jdFile) {
     if (!existsSync(args.jdFile)) {
       console.error(`❌  --jd-file not found: ${args.jdFile}`);
-      process.exit(1);
+      return 1;
     }
     text += (text ? '\n' : '') + readFileSync(args.jdFile, 'utf-8');
   }
@@ -182,12 +182,9 @@ async function main() {
     advertisedComp: extractAdvertisedComp(text),
   };
   console.log(JSON.stringify(result));
-  process.exit(0);
+  return 0;
 }
 
 if (isMainModule(import.meta.url)) {
-  main().catch((err) => {
-    console.error('❌ preflight-check failed:', err.message);
-    process.exit(1);
-  });
+  process.exitCode = await main();
 }
