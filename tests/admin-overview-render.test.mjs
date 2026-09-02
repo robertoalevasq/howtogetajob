@@ -104,13 +104,20 @@ test('end-to-end: rendering a snapshot built from a transcript with secret conve
     execFileSync(process.execPath, [
       join(REPO_ROOT, 'core', 'admin-overview-snapshot.mjs'), snapshotPath,
     ], { encoding: 'utf-8', env: { ...process.env, CAREER_OPS_ADMIN_OVERVIEW_REPO_ROOT: dir, CAREER_OPS_ADMIN_OVERVIEW_CLAUDE_HOME: claudeHome } });
+
+    // Sanity check: verify the snapshot actually ingested transcript data (proves the risky code path ran)
+    const snapshot = JSON.parse(readFileSync(snapshotPath, 'utf-8'));
+    assert.ok(
+      snapshot.tokenUsageByWorkspace?.alice && Object.keys(snapshot.tokenUsageByWorkspace.alice).length > 0,
+      'SANITY CHECK FAILED: transcript ingestion did not run (no token usage data for alice)'
+    );
+
     execFileSync(process.execPath, [
       join(REPO_ROOT, 'core', 'admin-overview-render.mjs'), snapshotPath, outPath,
     ], { encoding: 'utf-8' });
 
     const html = readFileSync(outPath, 'utf-8');
     assert.ok(!html.includes(secretText), 'PRIVACY VIOLATION: transcript conversation content leaked into rendered HTML');
-    assert.match(html, /alice/); // sanity: the pipeline actually ran and found the workspace
   } finally {
     rmSync(dir, { recursive: true, force: true });
     rmSync(claudeHome, { recursive: true, force: true });

@@ -46,7 +46,7 @@ function renderRunCountsSection(runCountsByWorkspace) {
   for (const [slug, byDay] of Object.entries(runCountsByWorkspace)) {
     for (const [day, modes] of Object.entries(byDay)) {
       for (const [mode, count] of Object.entries(modes)) {
-        rows.push(`<tr><td>${escapeHtml(slug)}</td><td>${escapeHtml(day)}</td><td>${escapeHtml(mode)}</td><td>${count}</td></tr>`);
+        rows.push(`<tr><td>${escapeHtml(slug)}</td><td>${escapeHtml(day)}</td><td>${escapeHtml(mode)}</td><td>${escapeHtml(count)}</td></tr>`);
       }
     }
   }
@@ -58,7 +58,7 @@ function renderTokenUsageSection(tokenUsageByWorkspace) {
   for (const [slug, byDay] of Object.entries(tokenUsageByWorkspace)) {
     for (const [day, totals] of Object.entries(byDay)) {
       const total = totals.input_tokens + totals.cache_creation_input_tokens + totals.cache_read_input_tokens + totals.output_tokens;
-      rows.push(`<tr><td>${escapeHtml(slug)}</td><td>${escapeHtml(day)}</td><td>${total.toLocaleString()}</td></tr>`);
+      rows.push(`<tr><td>${escapeHtml(slug)}</td><td>${escapeHtml(day)}</td><td>${escapeHtml(total.toLocaleString())}</td></tr>`);
     }
   }
   return rows.join('\n');
