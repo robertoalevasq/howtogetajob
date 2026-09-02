@@ -255,3 +255,37 @@ export function extractUsageAndSkillCalls(filePath) {
 
   return { usageEntries, skillCalls };
 }
+
+// Ordered so a more specific pattern (e.g. "auto-pipeline") is checked
+// before a broader one that could also match the same text. Best-effort
+// only — this reads free-text prompt args, not a structured command, so
+// anything not clearly matching one of these lands in 'unclassified'
+// rather than being guessed into the wrong bucket.
+const RUN_CLASSIFICATION_PATTERNS = [
+  ['auto-pipeline', /auto-pipeline|evaluate this jd/i],
+  ['cycle', /\bcycle mode\b/i],
+  ['pipeline', /\bpipeline mode\b/i],
+  ['scan', /\bscan mode\b/i],
+  ['tracker', /\btracker mode\b/i],
+  ['pdf', /\bpdf mode\b/i],
+  ['oferta', /\boferta\b/i],
+  ['batch', /\bbatch mode\b/i],
+  ['apply', /\bapply mode\b/i],
+];
+
+/**
+ * Best-effort classification of a career-ops Skill invocation's free-text
+ * `args` into a mode name, based on the same prompt patterns documented in
+ * core/AGENTS.md's Skill Modes table. Never guesses: unrecognized text
+ * returns 'unclassified' rather than being folded into the wrong bucket.
+ *
+ * @param {string} argsText
+ * @returns {string}
+ */
+export function classifyRunFromArgs(argsText) {
+  if (!argsText) return 'unclassified';
+  for (const [name, pattern] of RUN_CLASSIFICATION_PATTERNS) {
+    if (pattern.test(argsText)) return name;
+  }
+  return 'unclassified';
+}
