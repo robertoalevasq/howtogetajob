@@ -16,7 +16,6 @@ import { existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { resolveColumns, parseTrackerRow, normalizeTextKey } from './tracker-parse.mjs';
-import { isMainModule } from './is-main.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
