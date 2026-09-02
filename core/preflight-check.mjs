@@ -97,7 +97,8 @@ export function checkDuplicate({ company, role }, { applicationsPath } = {}) {
   return notFound;
 }
 
-const CLEARANCE_KEYWORDS_RE = /\b(top secret|ts\/sci|\bsci\b|security clearance|active clearance|dod clearance|clearance required|secret clearance)\b/i;
+const CLEARANCE_KEYWORDS_RE = /\b(top secret|ts\/sci|security clearance|active clearance|dod clearance|clearance required|secret clearance)\b/i;
+const CLEARANCE_SCI_RE = /\bSCI\b/;   // case-sensitive: avoids matching "sci-fi" (which is virtually always lowercase); real clearance usage is uppercase
 const ONSITE_KEYWORDS_RE = /\b(onsite only|on-site only|no remote|in-office only|must (?:be |work )?on-?site|5 days? (?:a week )?in (?:the )?office)\b/i;
 
 /**
@@ -115,7 +116,7 @@ export function checkGate(text, profile = {}) {
   if (!text) return clean;
   const p = profile || {};
 
-  const clearanceMatch = text.match(CLEARANCE_KEYWORDS_RE);
+  const clearanceMatch = text.match(CLEARANCE_KEYWORDS_RE) || text.match(CLEARANCE_SCI_RE);
   if (clearanceMatch) {
     const clearance = p.clearance || {};
     const status = clearance.status || 'None';

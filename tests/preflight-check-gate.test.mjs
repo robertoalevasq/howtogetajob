@@ -42,6 +42,21 @@ try {
   const g8 = mod.checkGate('Some JD text.', undefined);
   if (g7.pass === true && g8.pass === true) pass('checkGate handles empty text and missing profile without throwing');
   else fail(`checkGate empty-input handling => ${JSON.stringify(g7)} / ${JSON.stringify(g8)}`);
+
+  // Sci-fi false-positive fix: lowercase "sci-fi" should NOT trigger clearance hard-stop
+  const g9 = mod.checkGate('This is a sci-fi themed adventure game studio.', { clearance: { status: 'None', accepts_sponsorship: false } });
+  if (g9.pass === true) pass('checkGate does not false-positive on "sci-fi" (case-sensitive SCI check)');
+  else fail(`checkGate sci-fi false-positive => ${JSON.stringify(g9)}`);
+
+  // But uppercase SCI should still trigger the hard-stop
+  const g10 = mod.checkGate('We require a TS/SCI clearance for this role.', { clearance: { status: 'None', accepts_sponsorship: false } });
+  if (g10.pass === false && /clearance/.test(g10.reason)) pass('checkGate still catches uppercase SCI in TS/SCI context');
+  else fail(`checkGate uppercase SCI still blocks => ${JSON.stringify(g10)}`);
+
+  // Standalone uppercase SCI should trigger
+  const g11 = mod.checkGate('Must have an active SCI clearance.', { clearance: { status: 'None', accepts_sponsorship: false } });
+  if (g11.pass === false && /clearance/.test(g11.reason)) pass('checkGate catches standalone uppercase SCI');
+  else fail(`checkGate standalone SCI blocks => ${JSON.stringify(g11)}`);
 } catch (err) {
   fail(`preflight-check gate tests crashed: ${err.stack || err.message}`);
 }
