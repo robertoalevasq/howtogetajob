@@ -73,3 +73,34 @@ test('findHubTranscriptFiles returns an empty array when ~/.claude/projects does
     rmSync(claudeHome, { recursive: true, force: true });
   }
 });
+
+test('findHubTranscriptFiles gracefully skips unreadable directories and returns files from readable ones', () => {
+  const reposRoot = join(mkdtempSync(join(tmpdir(), 'admin-overview-repo-')), 'career-ops');
+  mkdirSync(reposRoot, { recursive: true });
+  const claudeHome = mkdtempSync(join(tmpdir(), 'admin-overview-claude-'));
+  try {
+    const prefix = reposRoot.replace(/[:\\_]/g, '-');
+    const hubDir = join(claudeHome, 'projects', prefix);
+    const wsDir = join(claudeHome, 'projects', `${prefix}-workspaces-bob`);
+    mkdirSync(hubDir, { recursive: true });
+    mkdirSync(wsDir, { recursive: true });
+    writeFileSync(join(hubDir, 'session1.jsonl'), '{}\n');
+    writeFileSync(join(wsDir, 'session2.jsonl'), '{}\n');
+
+    // Create a file where a subdirectory is expected in hubDir,
+    // making that path unreadable as a directory.
+    const brokenSubdir = join(hubDir, 'broken-subdir');
+    writeFileSync(brokenSubdir, 'not a directory\n');
+
+    const found = findHubTranscriptFiles(reposRoot, claudeHome);
+    // Should find both session1.jsonl (from hub) and session2.jsonl (from workspace),
+    // despite the presence of the broken-subdir file.
+    assert.equal(found.length, 2);
+    const paths = found.map((f) => f.path).sort();
+    assert.ok(paths.some((p) => p.includes('session1.jsonl')));
+    assert.ok(paths.some((p) => p.includes('session2.jsonl')));
+  } finally {
+    rmSync(claudeHome, { recursive: true, force: true });
+    rmSync(dirname(reposRoot), { recursive: true, force: true });
+  }
+});

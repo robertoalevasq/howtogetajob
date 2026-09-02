@@ -135,10 +135,19 @@ export function classifyProjectDir(dirName, prefix) {
 
 function walkJsonlFiles(dir) {
   const out = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...walkJsonlFiles(full));
-    else if (entry.isFile() && entry.name.endsWith('.jsonl')) out.push(full);
+  try {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        try {
+          out.push(...walkJsonlFiles(full));
+        } catch {
+          // Skip inaccessible subdirectories; continue walking siblings
+        }
+      } else if (entry.isFile() && entry.name.endsWith('.jsonl')) out.push(full);
+    }
+  } catch {
+    // If the directory itself cannot be read, return whatever files we found so far
   }
   return out;
 }
@@ -159,13 +168,24 @@ export function findHubTranscriptFiles(reposRoot = ROOT, claudeHome = join(homed
   if (!existsSync(projectsDir)) return [];
   const prefix = hubProjectDirPrefix(reposRoot);
   const results = [];
-  for (const entry of readdirSync(projectsDir, { withFileTypes: true })) {
+  let entries;
+  try {
+    entries = readdirSync(projectsDir, { withFileTypes: true });
+  } catch {
+    // If projects dir itself cannot be read, return empty (graceful degradation)
+    return [];
+  }
+  for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const classification = classifyProjectDir(entry.name, prefix);
     if (classification.scope === 'other') continue;
     const dirPath = join(projectsDir, entry.name);
-    for (const file of walkJsonlFiles(dirPath)) {
-      results.push({ path: file, scope: classification.scope, slug: classification.slug || null });
+    try {
+      for (const file of walkJsonlFiles(dirPath)) {
+        results.push({ path: file, scope: classification.scope, slug: classification.slug || null });
+      }
+    } catch {
+      // Skip a project dir that cannot be walked; continue with the next one
     }
   }
   return results;
