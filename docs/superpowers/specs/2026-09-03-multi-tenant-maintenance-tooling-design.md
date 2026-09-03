@@ -106,11 +106,24 @@ recursively. For every key path present in the template:
   overwrites or removes. If a user deliberately deleted a key they didn't
   want, re-running the backfill won't resurrect it — an accepted tradeoff,
   the same one `--repair` already makes for junctions.
-- YAML comments and key ordering in the live file are not required to be
-  preserved byte-for-byte, but the write should stay a minimal diff:
-  append new keys under their existing parent map where the parent already
-  exists, or append the whole new subtree at the position matching the
-  template when the parent itself is missing.
+- **Comments must survive.** `config/profile.example.yml` is 75% comments
+  (259/346 lines) and `templates/portals.example.yml` is 42% comments
+  (835/1976 lines) — real per-workspace files inherit that documentation.
+  A plain parse-with-`js-yaml`-then-`yaml.dump()` round-trip would silently
+  delete all of it; `core/fix-slugs.mjs` already treats exactly this
+  problem as real enough to avoid (it edits `portals.yml` via raw text
+  splicing rather than parse+dump, for the same reason). This design adds
+  the `yaml` package (eemeli/yaml) as a new dependency and uses its
+  `Document` API instead of `js-yaml`: `parseDocument()` on both the live
+  file and the template, walk the template's `YAMLMap` structure to find
+  key paths present in the template but absent from the live document
+  (stopping at the shallowest missing point — a whole missing subtree is
+  copied in one step, not rebuilt key-by-key), then `liveDoc.setIn(path,
+  templateDoc.getIn(path, true).clone())` for each and `liveDoc.toString()`
+  to write back. Because the inserted value is a cloned `yaml` Node (not a
+  plain JS value), its attached comments move with it; everything else in
+  the live document's CST is untouched, so existing comments and formatting
+  survive byte-for-byte.
 
 **CLI:**
 ```
@@ -197,7 +210,10 @@ workspaces/*/workspace.json ──► listWorkspaces() ──► doctor-all.mjs 
   is added; a key missing in a nested map is added without disturbing
   sibling keys; an existing key (including falsy values) is never modified;
   `--check` reports without writing; `--apply` writes; malformed YAML is
-  reported as an error, not thrown.
+  reported as an error, not thrown; **a live file's pre-existing comments
+  and untouched keys survive byte-for-byte after a backfill write**
+  (regression coverage for the comment-loss risk this design specifically
+  avoids by using the `yaml` package instead of `js-yaml`).
 - `doctor-all.mjs`: coverage that it aggregates N workspace fixtures
   correctly, that one failing workspace doesn't suppress the others'
   results, and that the summary line matches the per-workspace detail.
