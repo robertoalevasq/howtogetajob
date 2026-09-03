@@ -57,9 +57,60 @@ test('renderHtml surfaces the unclassified run-count bucket, never hiding it', (
   assert.match(html, /unclassified/i);
 });
 
-test('renderHtml produces a complete HTML document starting with a doctype', () => {
+test('renderHtml produces a fragment (title/style/body only, no document wrapper) for the Artifact publish contract', () => {
   const html = renderHtml(sampleSnapshot());
-  assert.match(html.trim(), /^<!doctype html>/i);
+  assert.match(html, /<title>career-ops admin overview<\/title>/);
+  assert.doesNotMatch(html, /<!doctype/i);
+  assert.doesNotMatch(html, /<html[\s>]/i);
+  assert.doesNotMatch(html, /<head[\s>]/i);
+  assert.doesNotMatch(html, /<body[\s>]/i);
+});
+
+test('renderActiveTaskRow excludes a "done" state — finished runs must not clutter the active-tasks view forever', () => {
+  const snapshot = sampleSnapshot();
+  snapshot.workspaces[0].activeTask = { state: 'done', staleMs: null, lastUpdateAgo: '2 days ago', step: { id: '4-pdf', label: 'PDF Generation' } };
+  const html = renderHtml(snapshot);
+  assert.doesNotMatch(html, /PDF Generation/);
+});
+
+test('renderHtml shows the empty-state message when every workspace is done/no_run, never a stale row', () => {
+  const snapshot = sampleSnapshot();
+  snapshot.workspaces[0].activeTask = { state: 'done', staleMs: null, lastUpdateAgo: '2 days ago', step: { id: '4-pdf', label: 'PDF Generation' } };
+  snapshot.workspaces[1].activeTask = { state: 'no_run', staleMs: null, lastUpdateAgo: null, step: null };
+  const html = renderHtml(snapshot);
+  assert.match(html, /No workspace currently has an in-progress task/);
+});
+
+test('renderHtml still shows a row for a "stalled" state', () => {
+  const snapshot = sampleSnapshot();
+  snapshot.workspaces[0].activeTask = { state: 'stalled', staleMs: 999999, lastUpdateAgo: '1h ago', step: { id: '2-pipeline', label: 'Pipeline Processing' } };
+  const html = renderHtml(snapshot);
+  assert.match(html, /stalled/i);
+  assert.match(html, /Pipeline Processing/);
+});
+
+test('renderHtml sorts days within a workspace in descending order and caps to the most recent 30', () => {
+  const snapshot = sampleSnapshot();
+  const byDay = {};
+  for (let i = 1; i <= 32; i++) {
+    const day = `2026-01-${String(i).padStart(2, '0')}`;
+    byDay[day] = { input_tokens: i, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 0 };
+  }
+  snapshot.tokenUsageByWorkspace = { alice: byDay };
+  const html = renderHtml(snapshot);
+  const tokenSection = html.slice(html.indexOf('<h2>Token usage by day</h2>'), html.indexOf('<h2>Run counts by day</h2>'));
+
+  // The two oldest days (Jan 1 and Jan 2) must be excluded — only the most
+  // recent 30 of 32 days render.
+  assert.doesNotMatch(tokenSection, /2026-01-01/);
+  assert.doesNotMatch(tokenSection, /2026-01-02/);
+  assert.match(tokenSection, /2026-01-03/);
+  assert.match(tokenSection, /2026-01-32/);
+
+  // Days must render in descending order (most recent first).
+  const idx32 = tokenSection.indexOf('2026-01-32');
+  const idx03 = tokenSection.indexOf('2026-01-03');
+  assert.ok(idx32 >= 0 && idx03 >= 0 && idx32 < idx03, 'expected 2026-01-32 to render before 2026-01-03 (descending order)');
 });
 
 test('CLI reads a snapshot JSON file and writes rendered HTML to the given output path', () => {

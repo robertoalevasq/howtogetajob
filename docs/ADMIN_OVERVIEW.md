@@ -3,8 +3,8 @@
 Two scripts do all the work, zero LLM tokens:
 
 ```bash
-node core/admin-overview-snapshot.mjs /tmp/admin-overview-snapshot.json
-node core/admin-overview-render.mjs /tmp/admin-overview-snapshot.json /tmp/admin-overview.html
+node core/admin-overview-snapshot.mjs .tmp/admin-overview-snapshot.json
+node core/admin-overview-render.mjs .tmp/admin-overview-snapshot.json .tmp/admin-overview.html
 ```
 
 The first gathers workspace roster, tracker stats, active-task status, and
@@ -15,7 +15,7 @@ step needs Claude — they're both plain Node scripts.
 ## One-time: publish the artifact
 
 In an interactive Claude Code session, run the two commands above, then ask
-Claude to publish `/tmp/admin-overview.html` as an Artifact. Keep the
+Claude to publish `.tmp/admin-overview.html` as an Artifact. Keep the
 resulting URL — every future scheduled run redeploys to that same URL.
 
 ## Scheduled refresh (Windows Task Scheduler)
@@ -24,6 +24,9 @@ resulting URL — every future scheduled run redeploys to that same URL.
 2. Trigger: whatever interval you want (e.g. every 30 minutes).
 3. Action: Start a program.
    - Program: `claude`
+     (If Task Scheduler can't find `claude` directly, use `cmd /c claude` as
+     the program instead, or provide the full path to the `claude`
+     executable/shim.)
    - Arguments:
      ```
      -p "[HEADLESS] This is a non-interactive, unattended invocation — no human is present to answer a question this turn, and there is no future turn to come back to: this is a single, one-shot invocation that ends when this response ends. Run `node core/admin-overview-snapshot.mjs .tmp/admin-overview-snapshot.json` then `node core/admin-overview-render.mjs .tmp/admin-overview-snapshot.json .tmp/admin-overview.html`, then republish the admin-overview Artifact (URL: <paste the URL from the one-time publish step above>) from the resulting .tmp/admin-overview.html file. Do not ask any questions. If either script fails, report the error in your final message and stop — do not attempt to publish a partial or fabricated snapshot."

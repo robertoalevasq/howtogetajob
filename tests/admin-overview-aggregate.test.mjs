@@ -79,6 +79,44 @@ test('aggregateHistory buckets hub-scope files under "hub", separate from any wo
   }
 });
 
+test('aggregateHistory dedupes token usage from duplicate JSONL lines sharing the same message.id', () => {
+  // Claude Code writes one JSONL line per content block of a single
+  // assistant API response, and every line repeats the SAME message.usage
+  // and message.id. Summing naively double-counts a single real response.
+  const { dir, filePath } = writeTranscript([
+    { type: 'assistant', timestamp: '2026-08-31T10:00:00.000Z',
+      message: { id: 'msg_dup1', role: 'assistant', content: [],
+        usage: { input_tokens: 100, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 50 } } },
+    { type: 'assistant', timestamp: '2026-08-31T10:00:00.500Z',
+      message: { id: 'msg_dup1', role: 'assistant', content: [],
+        usage: { input_tokens: 100, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 50 } } },
+  ]);
+  try {
+    const result = aggregateHistory([{ path: filePath, scope: 'workspace', slug: 'alice' }], ['alice']);
+    assert.equal(result.tokenUsageByWorkspace.alice['2026-08-31'].input_tokens, 100);
+    assert.equal(result.tokenUsageByWorkspace.alice['2026-08-31'].output_tokens, 50);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('aggregateHistory dedupes skill-call run counts from duplicate JSONL lines sharing the same message.id', () => {
+  const { dir, filePath } = writeTranscript([
+    { type: 'assistant', timestamp: '2026-08-31T10:00:00.000Z', message: { id: 'msg_dup2', role: 'assistant', content: [
+      { type: 'tool_use', name: 'Skill', input: { skill: 'career-ops', args: 'cycle' } },
+    ] } },
+    { type: 'assistant', timestamp: '2026-08-31T10:00:00.500Z', message: { id: 'msg_dup2', role: 'assistant', content: [
+      { type: 'tool_use', name: 'Skill', input: { skill: 'career-ops', args: 'cycle' } },
+    ] } },
+  ]);
+  try {
+    const result = aggregateHistory([{ path: filePath, scope: 'workspace', slug: 'alice' }], ['alice']);
+    assert.equal(result.runCountsByWorkspace.alice['2026-08-31'].cycle, 1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('aggregateHistory returns empty aggregates (not a throw) for an empty file list', () => {
   const result = aggregateHistory([], ['alice']);
   assert.deepEqual(result.tokenUsageByWorkspace, {});

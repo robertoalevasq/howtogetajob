@@ -97,6 +97,47 @@ test('extractUsageAndSkillCalls returns empty arrays (not a throw) for a nonexis
   assert.deepEqual(result, { usageEntries: [], skillCalls: [] });
 });
 
+test('extractUsageAndSkillCalls includes messageId on both usage entries and skill calls', () => {
+  const { dir, filePath } = writeFixture([
+    {
+      type: 'assistant', timestamp: '2026-08-31T17:26:00.000Z',
+      message: {
+        id: 'msg_ABC123',
+        role: 'assistant',
+        content: [{ type: 'tool_use', name: 'Skill', input: { skill: 'career-ops', args: 'cycle' } }],
+        usage: { input_tokens: 10, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 5 },
+      },
+    },
+  ]);
+  try {
+    const result = extractUsageAndSkillCalls(filePath);
+    assert.equal(result.usageEntries[0].messageId, 'msg_ABC123');
+    assert.equal(result.skillCalls[0].messageId, 'msg_ABC123');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('extractUsageAndSkillCalls defaults messageId to null when message.id is absent', () => {
+  const { dir, filePath } = writeFixture([
+    {
+      type: 'assistant', timestamp: '2026-08-31T17:27:00.000Z',
+      message: {
+        role: 'assistant',
+        content: [{ type: 'tool_use', name: 'Skill', input: { skill: 'career-ops', args: 'cycle' } }],
+        usage: { input_tokens: 1, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 1 },
+      },
+    },
+  ]);
+  try {
+    const result = extractUsageAndSkillCalls(filePath);
+    assert.equal(result.usageEntries[0].messageId, null);
+    assert.equal(result.skillCalls[0].messageId, null);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('extractUsageAndSkillCalls never includes message content anywhere in its return value', () => {
   const secretText = 'THIS-IS-PRIVATE-CONVERSATION-CONTENT-12345';
   const { dir, filePath } = writeFixture([

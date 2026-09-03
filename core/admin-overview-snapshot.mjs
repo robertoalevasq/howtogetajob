@@ -10,7 +10,7 @@
  * field (message content, tool results, file contents). See
  * docs/superpowers/specs/2026-09-02-admin-overview-design.md.
  */
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -28,7 +28,13 @@ const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 export function listWorkspaces(reposRoot = ROOT) {
   const workspacesDir = join(reposRoot, 'workspaces');
   if (!existsSync(workspacesDir)) return [];
-  const slugs = readdirSync(workspacesDir, { withFileTypes: true })
+  let entries;
+  try {
+    entries = readdirSync(workspacesDir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const slugs = entries
     .filter((e) => e.isDirectory())
     .map((e) => e.name);
   const result = [];
@@ -66,6 +72,7 @@ export function getTrackerStats(wsDir) {
       cwd: wsDir,
       encoding: 'utf-8',
       timeout: 30_000,
+      env: { ...process.env, CAREER_OPS_WORKSPACE: wsDir },
     });
     return JSON.parse(out);
   } catch {
@@ -89,6 +96,7 @@ export function getActiveTaskStatus(wsDir) {
       cwd: wsDir,
       encoding: 'utf-8',
       timeout: 30_000,
+      env: { ...process.env, CAREER_OPS_WORKSPACE: wsDir },
     });
     const data = JSON.parse(out);
     return { ...data.liveness, step: data.step || null };
@@ -202,7 +210,7 @@ export function findHubTranscriptFiles(reposRoot = ROOT, claudeHome = join(homed
  * return value. A malformed line is skipped, never thrown.
  *
  * @param {string} filePath
- * @returns {{usageEntries: {timestamp: string, usage: object}[], skillCalls: {timestamp: string, skill: string, args: string}[]}}
+ * @returns {{usageEntries: {timestamp: string, usage: object, messageId: string|null}[], skillCalls: {timestamp: string, skill: string, args: string, messageId: string|null}[]}}
  */
 export function extractUsageAndSkillCalls(filePath) {
   const usageEntries = [];
@@ -227,6 +235,7 @@ export function extractUsageAndSkillCalls(filePath) {
     }
     const timestamp = entry.timestamp;
     if (!timestamp) continue;
+    const messageId = entry.message?.id ?? null;
 
     if (entry.message?.usage && typeof entry.message.usage === 'object') {
       usageEntries.push({
@@ -237,6 +246,7 @@ export function extractUsageAndSkillCalls(filePath) {
           cache_read_input_tokens: entry.message.usage.cache_read_input_tokens || 0,
           output_tokens: entry.message.usage.output_tokens || 0,
         },
+        messageId,
       });
     }
 
@@ -248,6 +258,7 @@ export function extractUsageAndSkillCalls(filePath) {
             timestamp,
             skill: String(block.input.skill || ''),
             args: String(block.input.args || ''),
+            messageId,
           });
         }
       }
@@ -271,17 +282,38 @@ const RUN_CLASSIFICATION_PATTERNS = [
   ['pdf', /\bpdf mode\b/i],
 ];
 
+// Real Skill tool-call `args` are slash-command style — a bare mode token,
+// optionally prefixed with '/' and followed by more free-text argv (e.g.
+// "cycle", "pdf reports/484-company-2026-08-03.md") — not the prose form
+// documented as EXAMPLE prompts in core/AGENTS.md. This is the known set of
+// legitimate career-ops modes from AGENTS.md's Skill Modes table, checked
+// first against a leading bare token before falling back to prose matching.
+const KNOWN_MODE_TOKENS = new Set([
+  'cycle', 'pipeline', 'scan', 'tracker', 'pdf', 'auto-pipeline',
+  'apply', 'apply-batch', 'batch', 'oferta', 'contacto', 'deep', 'email',
+  'cover', 'triage',
+]);
+
 /**
- * Best-effort classification of a career-ops Skill invocation's free-text
- * `args` into a mode name, based on the same prompt patterns documented in
- * core/AGENTS.md's Skill Modes table. Never guesses: unrecognized text
- * returns 'unclassified' rather than being folded into the wrong bucket.
+ * Best-effort classification of a career-ops Skill invocation's `args` into
+ * a mode name. Real invocations are slash-command style (a bare leading mode
+ * token, e.g. "cycle" or "pdf reports/484-company-2026-08-03.md"), which is
+ * checked first; the prose patterns documented in core/AGENTS.md's Skill
+ * Modes table (e.g. "Run career-ops cycle mode...") are a fallback for
+ * prompts written in that form. Never guesses: unrecognized text returns
+ * 'unclassified' rather than being folded into the wrong bucket.
  *
  * @param {string} argsText
  * @returns {string}
  */
 export function classifyRunFromArgs(argsText) {
   if (!argsText) return 'unclassified';
+
+  const leadingToken = argsText.trim().match(/^\/?([a-z][a-z-]*)\b/i);
+  if (leadingToken && KNOWN_MODE_TOKENS.has(leadingToken[1].toLowerCase())) {
+    return leadingToken[1].toLowerCase();
+  }
+
   for (const [name, pattern] of RUN_CLASSIFICATION_PATTERNS) {
     if (pattern.test(argsText)) return name;
   }
@@ -289,7 +321,7 @@ export function classifyRunFromArgs(argsText) {
 }
 
 function dayKey(isoTimestamp) {
-  return isoTimestamp.slice(0, 10); // "2026-08-31T..." -> "2026-08-31"
+  return String(isoTimestamp).slice(0, 10); // "2026-08-31T..." -> "2026-08-31"
 }
 
 function bucketKeyFor(scope, slug, knownSlugs) {
@@ -312,13 +344,30 @@ function bucketKeyFor(scope, slug, knownSlugs) {
 export function aggregateHistory(files, knownSlugs) {
   const tokenUsageByWorkspace = {};
   const runCountsByWorkspace = {};
+  // Claude Code writes one JSONL line per content block of a single
+  // assistant API response, and every one of those lines repeats the SAME
+  // message.usage object and can carry the SAME message.id. Summing every
+  // line naively double/triple-counts a single real API response. Track
+  // seen message ids per bucket (one Set for usage, a separate one for
+  // skill calls, since they represent different things being counted) and
+  // skip a line whose message id was already accumulated for that bucket.
+  // Deliberately keyed only by bucket, not by bucket+day — a null messageId
+  // (can't dedupe) always accumulates, since undercounting that rare case
+  // would be worse than overcounting it.
+  const seenUsageMessageIds = {};
+  const seenSkillMessageIds = {};
 
   for (const file of files) {
     const bucket = bucketKeyFor(file.scope, file.slug, knownSlugs);
     const { usageEntries, skillCalls } = extractUsageAndSkillCalls(file.path);
 
     if (!tokenUsageByWorkspace[bucket]) tokenUsageByWorkspace[bucket] = {};
-    for (const { timestamp, usage } of usageEntries) {
+    if (!seenUsageMessageIds[bucket]) seenUsageMessageIds[bucket] = new Set();
+    for (const { timestamp, usage, messageId } of usageEntries) {
+      if (messageId != null) {
+        if (seenUsageMessageIds[bucket].has(messageId)) continue;
+        seenUsageMessageIds[bucket].add(messageId);
+      }
       const day = dayKey(timestamp);
       if (!tokenUsageByWorkspace[bucket][day]) {
         tokenUsageByWorkspace[bucket][day] = { input_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 0 };
@@ -331,8 +380,13 @@ export function aggregateHistory(files, knownSlugs) {
     }
 
     if (!runCountsByWorkspace[bucket]) runCountsByWorkspace[bucket] = {};
-    for (const { timestamp, skill, args } of skillCalls) {
+    if (!seenSkillMessageIds[bucket]) seenSkillMessageIds[bucket] = new Set();
+    for (const { timestamp, skill, args, messageId } of skillCalls) {
       if (!skill.includes('career-ops')) continue; // only career-ops invocations count as a "run"
+      if (messageId != null) {
+        if (seenSkillMessageIds[bucket].has(messageId)) continue;
+        seenSkillMessageIds[bucket].add(messageId);
+      }
       const day = dayKey(timestamp);
       const mode = classifyRunFromArgs(args);
       if (!runCountsByWorkspace[bucket][day]) runCountsByWorkspace[bucket][day] = {};
@@ -379,6 +433,7 @@ async function main() {
   const reposRoot = process.env.CAREER_OPS_ADMIN_OVERVIEW_REPO_ROOT || ROOT;
   const claudeHome = process.env.CAREER_OPS_ADMIN_OVERVIEW_CLAUDE_HOME || join(homedir(), '.claude');
   const snapshot = buildSnapshot(reposRoot, claudeHome);
+  mkdirSync(dirname(outPath), { recursive: true });
   writeFileSync(outPath, JSON.stringify(snapshot, null, 2), 'utf-8');
   console.log(`admin-overview-snapshot: wrote ${outPath} (${snapshot.workspaces.length} workspace(s))`);
   return 0;

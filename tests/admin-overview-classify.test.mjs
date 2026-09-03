@@ -34,3 +34,18 @@ test('classifyRunFromArgs returns unclassified for text matching no known patter
 test('classifyRunFromArgs returns unclassified for empty/missing text', () => {
   assert.equal(classifyRunFromArgs(''), 'unclassified');
 });
+
+// Real Skill tool-call args are slash-command style bare mode tokens, not
+// the prose EXAMPLE prompts documented in core/AGENTS.md.
+test('classifyRunFromArgs recognizes a bare mode token', () => {
+  assert.equal(classifyRunFromArgs('cycle'), 'cycle');
+});
+
+test('classifyRunFromArgs recognizes a bare mode token with trailing args', () => {
+  assert.equal(classifyRunFromArgs('pdf reports/484-company-2026-08-03.md'), 'pdf');
+});
+
+test('classifyRunFromArgs recognizes apply-batch without colliding with batch', () => {
+  assert.equal(classifyRunFromArgs('apply-batch'), 'apply-batch');
+  assert.equal(classifyRunFromArgs('batch'), 'batch');
+});
