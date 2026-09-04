@@ -159,3 +159,17 @@ test('applyFile makes no write at all when nothing is missing', () => {
     assert.equal(readFileSync(livePath, 'utf8'), before);
   });
 });
+
+test('applyFile preserves nested key comments from the template', () => {
+  withTempDir((dir) => {
+    const livePath = join(dir, 'live.yml');
+    const templatePath = join(dir, 'template.yml');
+    writeFileSync(livePath, 'narrative:\n  superpowers: [foo]\n');
+    writeFileSync(templatePath, 'narrative:\n  superpowers: []\n  # docs for deal_breakers\n  deal_breakers: [bar]\n');
+    applyFile(livePath, templatePath);
+    const after = readFileSync(livePath, 'utf8');
+    assert.match(after, /# docs for deal_breakers/);
+    const result = parseDocument(after).toJS();
+    assert.deepEqual(result, { narrative: { superpowers: ['foo'], deal_breakers: ['bar'] } });
+  });
+});

@@ -81,19 +81,33 @@ export function applyFile(liveFilePath, templateFilePath) {
   const templateDoc = parseDocument(readFileSync(templateFilePath, 'utf8'));
 
   for (const path of missing) {
-    // For top-level keys in a mapping, directly copy the entire item (key+value+comments)
-    // from template to preserve comments attached to the pair.
-    if (path.length === 1 && isMap(liveDoc.contents) && isMap(templateDoc.contents)) {
-      const key = path[0];
-      const templateItem = templateDoc.contents.items.find(item => item.key.value === key);
-      if (templateItem) {
-        liveDoc.contents.items.push(templateItem);
-      }
+    const lastKey = path[path.length - 1];
+    const parentPath = path.slice(0, -1);
+
+    // Get parent maps from both documents
+    let liveParentMap, templateParentMap;
+    if (parentPath.length === 0) {
+      // Top-level key
+      liveParentMap = liveDoc.contents;
+      templateParentMap = templateDoc.contents;
     } else {
-      // For nested paths, use setIn which handles the tree structure.
-      const node = templateDoc.getIn(path, true);
-      liveDoc.setIn(path, node);
+      // Nested key - navigate to parent
+      liveParentMap = liveDoc.getIn(parentPath, true);
+      templateParentMap = templateDoc.getIn(parentPath, true);
     }
+
+    // If parent is a map in both documents, copy the Pair from template to preserve comments
+    if (isMap(liveParentMap) && isMap(templateParentMap)) {
+      const templatePair = templateParentMap.items.find(item => item.key.value === lastKey);
+      if (templatePair) {
+        liveParentMap.items.push(templatePair);
+        continue;
+      }
+    }
+
+    // Fallback to setIn if parent isn't a map or Pair not found
+    const node = templateDoc.getIn(path, true);
+    liveDoc.setIn(path, node);
   }
 
   writeFileSync(liveFilePath, liveDoc.toString());
