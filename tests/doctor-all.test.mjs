@@ -84,3 +84,21 @@ test('checkAllWorkspaces includes template-drift findings from backfill-template
     assert.equal(result.healthy, false);
   });
 });
+
+test('checkAllWorkspaces reports autoCopied templates in doctor output', () => {
+  withTempRepo((dir) => {
+    const wsDir = join(dir, 'workspaces', 'auto-copied');
+    const modesDir = join(wsDir, 'modes');
+    mkdirSync(modesDir, { recursive: true });
+    writeFileSync(join(wsDir, 'workspace.json'), JSON.stringify({ slug: 'auto-copied' }));
+    // Create a modes/_profile.template.md so doctor.mjs can auto-copy it
+    // when _profile.md is missing (which it is).
+    writeFileSync(join(modesDir, '_profile.template.md'), '# Test profile template\n');
+
+    const results = checkAllWorkspaces(dir, REPO_ROOT);
+    const [result] = results;
+    // doctor.mjs will have auto-copied _profile.md from the template,
+    // so it should appear in autoCopied array.
+    assert.ok(result.doctor?.autoCopied?.includes('_profile.md'));
+  });
+});

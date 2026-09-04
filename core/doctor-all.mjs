@@ -2,8 +2,15 @@
 // doctor-all.mjs — runs doctor.mjs's prerequisite/leftover check AND
 // backfill-templates.mjs's template-drift check against every provisioned
 // workspace in one pass, so a broken or out-of-date workspace is caught
-// before its user hits it. Purely observational — never writes anything;
-// applying a fix stays a deliberate `backfill-templates.mjs --apply` call.
+// before its user hits it. Never calls applyWorkspace — the two backfill
+// target files (config/profile.yml, portals.yml) are only ever read here;
+// applying a fix stays a deliberate, separate `backfill-templates.mjs --apply`
+// invocation. This does NOT extend to doctor.mjs itself: doctor.mjs's
+// existing onboardingState() auto-copies missing _profile.md/_custom.md/
+// _brief.md from their templates — the same idempotent, one-time side effect
+// any direct `doctor.mjs --json` call already has. It's never silent:
+// doctor.mjs's own `autoCopied` field is passed through per-workspace and
+// surfaced below whenever non-empty.
 
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
@@ -65,13 +72,16 @@ async function main() {
     console.log(JSON.stringify({ workspaces: results, summary: summarize(results) }));
   } else {
     for (const r of results) {
-      if (r.error) { console.log(`${r.slug}: ERROR — ${r.error}`); continue; }
-      if (r.healthy) { console.log(`${r.slug}: ok`); continue; }
-      const issues = [];
-      if (r.doctor?.onboardingNeeded) issues.push(`missing: ${r.doctor.missing.join(', ')}`);
-      if (r.doctor?.templateLeftovers?.length) issues.push(`${r.doctor.templateLeftovers.length} template-leftover warning(s)`);
-      if (r.drift.length) issues.push(`template drift in ${r.drift.map((d) => d.file).join(', ')}`);
-      console.log(`${r.slug}: ${issues.join('; ')}`);
+      if (r.error) { console.log(`${r.slug}: ERROR — ${r.error}`); }
+      else if (r.healthy) { console.log(`${r.slug}: ok`); }
+      else {
+        const issues = [];
+        if (r.doctor?.onboardingNeeded) issues.push(`missing: ${r.doctor.missing.join(', ')}`);
+        if (r.doctor?.templateLeftovers?.length) issues.push(`${r.doctor.templateLeftovers.length} template-leftover warning(s)`);
+        if (r.drift.length) issues.push(`template drift in ${r.drift.map((d) => d.file).join(', ')}`);
+        console.log(`${r.slug}: ${issues.join('; ')}`);
+      }
+      if (r.doctor?.autoCopied?.length) console.log(`  → auto-copied ${r.doctor.autoCopied.join(', ')} from templates`);
     }
     console.log(summarize(results));
   }
