@@ -103,9 +103,25 @@ recursively. For every key path present in the template:
   value, including `null`/`false`/an empty array — it is left untouched.
   This mirrors `provision-workspace.mjs --repair`'s additive-only
   philosophy for junctions: the tool only ever adds what's missing, never
-  overwrites or removes. If a user deliberately deleted a key they didn't
-  want, re-running the backfill won't resurrect it — an accepted tradeoff,
-  the same one `--repair` already makes for junctions.
+  overwrites or removes. The flip side is worth stating plainly: a key a
+  user *deliberately deleted* is structurally indistinguishable from one
+  that was never set up, so `--apply` **will** re-add it — exactly as
+  `--repair` recreates a junction someone deleted. That is a real limitation
+  of a purely structural additive approach, not a protected use case:
+  deleting a key is not a supported way to opt out of a field.
+- **Type mismatches between the live value and the template's** are handled
+  explicitly rather than crashing (a plain `setIn` throws "Expected YAML
+  collection at X" on both shapes below):
+  - Live parent holds **null** (`narrative:` with nothing under it, or an
+    explicit `narrative: null`) where the template has a map: the null is
+    promoted to an empty map and the template's child keys are inserted
+    into it. A null carries no user data, so this is still additive-only.
+    (Consequence: an explicit `null` opts out of a *leaf* key, which is
+    left untouched, but not out of a *map*-valued one.)
+  - Live parent holds a **real scalar or sequence** (`narrative: 1`) where
+    the template has a map: a genuine type conflict. That path is skipped —
+    never overwritten — and reported as an error for that file so a human
+    resolves it. Sibling paths in the same file still apply normally.
 - **Comments must survive.** `config/profile.example.yml` is 75% comments
   (259/346 lines) and `templates/portals.example.yml` is 42% comments
   (835/1976 lines) — real per-workspace files inherit that documentation.
@@ -122,8 +138,10 @@ recursively. For every key path present in the template:
   templateDoc.getIn(path, true).clone())` for each and `liveDoc.toString()`
   to write back. Because the inserted value is a cloned `yaml` Node (not a
   plain JS value), its attached comments move with it; everything else in
-  the live document's CST is untouched, so existing comments and formatting
-  survive byte-for-byte.
+  the live document's CST is untouched, so existing comments and untouched
+  values survive. Incidental formatting elsewhere in the file (e.g.
+  flow-collection spacing) may be renormalized by the round-trip — the
+  guarantee is comment and value preservation, not a byte-identical diff.
 
 **CLI:**
 ```
@@ -224,7 +242,7 @@ workspaces/*/workspace.json ──► listWorkspaces() ──► doctor-all.mjs 
   sibling keys; an existing key (including falsy values) is never modified;
   `--check` reports without writing; `--apply` writes; malformed YAML is
   reported as an error, not thrown; **a live file's pre-existing comments
-  and untouched keys survive byte-for-byte after a backfill write**
+  and untouched keys survive a backfill write**
   (regression coverage for the comment-loss risk this design specifically
   avoids by using the `yaml` package instead of `js-yaml`).
 - `doctor-all.mjs`: coverage that it aggregates N workspace fixtures
