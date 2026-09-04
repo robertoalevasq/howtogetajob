@@ -12,7 +12,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseDocument, isMap } from 'yaml';
+import { parseDocument, isMap, isScalar, YAMLMap } from 'yaml';
 import { isMainModule } from './is-main.mjs';
 import { listWorkspaces } from './admin-overview-snapshot.mjs';
 
@@ -68,50 +68,107 @@ export function checkFile(liveFilePath, templateFilePath) {
   return { missing: findMissingKeyPaths(templateDoc.contents, liveDoc.contents), error: null };
 }
 
+function formatPath(path) {
+  return path.join('.');
+}
+
 /**
- * Write every missing key path from `checkFile` into the live file, cloned
- * from the template so its attached comments move along with it. No-op
- * (no write at all) when nothing is missing.
- * @returns {string[][]} paths written
+ * A live parent that holds no value at all — `narrative:` with nothing under
+ * it, an explicit `narrative: null`, or a document with empty contents. The
+ * `yaml` package models the first two as a Scalar whose `.value` is null, so
+ * an `isMap` check alone can't tell them apart from a real scalar value.
+ * @param {unknown} node
+ */
+function isNullNode(node) {
+  return node === null || node === undefined || (isScalar(node) && node.value === null);
+}
+
+/**
+ * Write every missing key path from `checkFile` into the live file, taking
+ * the whole `Pair` node from the template document so its attached comments
+ * move along with it. No-op (no write at all) when nothing is missing.
+ *
+ * **Never throws.** Two live-file shapes need explicit handling because a
+ * plain `setIn` throws on both ("Expected YAML collection at X"):
+ *   - the live parent is null (`narrative:` / `narrative: null`) where the
+ *     template has a map — a null value carries no user data, so it is
+ *     promoted to an empty map and the child Pair inserted there. Still
+ *     additive-only: nothing the user wrote is lost.
+ *   - the live parent is a real scalar or a sequence (`narrative: 1`) where
+ *     the template has a map — a genuine type conflict that silently
+ *     overwriting would destroy. That one path is skipped, reported in
+ *     `conflicts`, and summarised in `error` so a human can resolve it.
+ * @returns {{ written: string[][], conflicts: string[][], error: string|null }}
  */
 export function applyFile(liveFilePath, templateFilePath) {
   const { missing, error } = checkFile(liveFilePath, templateFilePath);
-  if (error || missing.length === 0) return [];
+  if (error) return { written: [], conflicts: [], error };
+  if (missing.length === 0) return { written: [], conflicts: [], error: null };
   const liveDoc = parseDocument(readFileSync(liveFilePath, 'utf8'));
   const templateDoc = parseDocument(readFileSync(templateFilePath, 'utf8'));
+
+  /** @type {string[][]} */ const written = [];
+  /** @type {string[][]} */ const conflicts = [];
 
   for (const path of missing) {
     const lastKey = path[path.length - 1];
     const parentPath = path.slice(0, -1);
 
-    // Get parent maps from both documents
-    let liveParentMap, templateParentMap;
-    if (parentPath.length === 0) {
-      // Top-level key
-      liveParentMap = liveDoc.contents;
-      templateParentMap = templateDoc.contents;
-    } else {
-      // Nested key - navigate to parent
-      liveParentMap = liveDoc.getIn(parentPath, true);
-      templateParentMap = templateDoc.getIn(parentPath, true);
+    // Get the parent node from both documents (parentPath always exists in the
+    // live doc — findMissingKeyPaths stops at the shallowest missing point).
+    const liveParent = parentPath.length === 0 ? liveDoc.contents : liveDoc.getIn(parentPath, true);
+    const templateParent = parentPath.length === 0 ? templateDoc.contents : templateDoc.getIn(parentPath, true);
+
+    // The template Pair (not just its value) is what carries the attached
+    // comments we want to move across. findMissingKeyPaths only descends
+    // through template maps, so this lookup normally always succeeds.
+    const templatePair = isMap(templateParent)
+      ? templateParent.items.find((item) => /** @type {any} */ (item.key).value === lastKey)
+      : undefined;
+    if (!templatePair) {
+      conflicts.push(path);
+      continue;
     }
 
-    // If parent is a map in both documents, copy the Pair from template to preserve comments
-    if (isMap(liveParentMap) && isMap(templateParentMap)) {
-      const templatePair = templateParentMap.items.find(item => item.key.value === lastKey);
-      if (templatePair) {
-        liveParentMap.items.push(templatePair);
-        continue;
+    if (isMap(liveParent)) {
+      liveParent.items.push(templatePair);
+      written.push(path);
+      continue;
+    }
+
+    if (isNullNode(liveParent)) {
+      const promoted = new YAMLMap();
+      // A comment sitting before a block map's FIRST key attaches to the map
+      // node, not to that key's Pair — pushing Pairs alone would drop it. A
+      // null live parent means every template child under it is missing, so
+      // the promoted map is a faithful copy of the template's block and that
+      // comment belongs on it. Nested parents only: at the document root the
+      // equivalent comment is the template file's whole header, which is not
+      // ours to graft onto someone's live file.
+      if (parentPath.length > 0 && isMap(templateParent)) {
+        promoted.commentBefore = templateParent.commentBefore;
+        promoted.comment = templateParent.comment;
       }
+      promoted.items.push(templatePair);
+      if (parentPath.length === 0) liveDoc.contents = promoted;
+      else liveDoc.setIn(parentPath, promoted);
+      written.push(path);
+      continue;
     }
 
-    // Fallback to setIn if parent isn't a map or Pair not found
-    const node = templateDoc.getIn(path, true);
-    liveDoc.setIn(path, node);
+    // Live parent holds a real value (scalar/sequence) where the template has
+    // a map: not safe to overwrite, not possible to nest into. Needs a human.
+    conflicts.push(path);
   }
 
-  writeFileSync(liveFilePath, liveDoc.toString());
-  return missing;
+  if (written.length > 0) writeFileSync(liveFilePath, liveDoc.toString());
+  return {
+    written,
+    conflicts,
+    error: conflicts.length
+      ? `cannot backfill (live value is not a map): ${conflicts.map(formatPath).join(', ')}`
+      : null,
+  };
 }
 
 /** @returns {{ file: string, missing: string[][], error: string|null }[]} */
@@ -122,16 +179,12 @@ export function checkWorkspace(wsDir, reposRoot = ROOT) {
   }));
 }
 
-/** @returns {{ file: string, written: string[][] }[]} */
+/** @returns {{ file: string, written: string[][], conflicts: string[][], error: string|null }[]} */
 export function applyWorkspace(wsDir, reposRoot = ROOT) {
   return TEMPLATE_PAIRS.map(({ live, template }) => ({
     file: live,
-    written: applyFile(join(wsDir, live), join(reposRoot, template)),
+    ...applyFile(join(wsDir, live), join(reposRoot, template)),
   }));
-}
-
-function formatPath(path) {
-  return path.join('.');
 }
 
 function resolveTargets(argv, reposRoot) {
@@ -159,24 +212,41 @@ async function main() {
 
   const results = targets.map(({ slug, dir }) => {
     if (!existsSync(dir)) return { slug, error: `no such workspace: ${slug}`, files: [] };
-    const files = apply ? applyWorkspace(dir, reposRoot) : checkWorkspace(dir, reposRoot);
-    return { slug, error: null, files };
+    // Per-target isolation: whatever one workspace hits (an unwritable file, a
+    // surprise from the yaml package) becomes that workspace's own `error` and
+    // never aborts the remaining targets of an --all run. This is the spec's
+    // explicit error-isolation requirement.
+    try {
+      const files = apply ? applyWorkspace(dir, reposRoot) : checkWorkspace(dir, reposRoot);
+      return { slug, error: null, files };
+    } catch (err) {
+      return { slug, error: /** @type {Error} */ (err).message, files: [] };
+    }
   });
 
-  const anyIssue = results.some((r) => r.error || r.files.some((f) => ((apply ? f.written : f.missing) || []).length > 0 || f.error));
+  // Exit code semantics: an error is always a failure. Missing fields are a
+  // failure for --check (that is what --check is for) but NOT for --apply —
+  // there, writing them is the success case.
+  const anyError = results.some((r) => r.error || r.files.some((f) => f.error));
+  const anyMissing = !apply && results.some((r) => r.files.some((f) => (f.missing || []).length > 0));
 
   if (jsonOut) {
     console.log(JSON.stringify(results));
   } else {
     for (const r of results) {
       if (r.error) { console.log(`${r.slug}: ${r.error}`); continue; }
-      const parts = r.files
-        .filter((f) => ((apply ? f.written : f.missing) || []).length > 0)
-        .map((f) => `${f.file} ${apply ? 'wrote' : 'missing'} ${(apply ? f.written : f.missing).map(formatPath).join(', ')}`);
+      const parts = [];
+      for (const f of r.files) {
+        const paths = (apply ? f.written : f.missing) || [];
+        if (paths.length > 0) parts.push(`${f.file} ${apply ? 'wrote' : 'missing'} ${paths.map(formatPath).join(', ')}`);
+        // Without this a file-level error printed nothing at all, so the run
+        // said "up to date" while still exiting 1.
+        if (f.error) parts.push(`${f.file} ERROR: ${f.error}`);
+      }
       console.log(parts.length ? `${r.slug}: ${parts.join('; ')}` : `${r.slug}: up to date`);
     }
   }
-  if (!apply && anyIssue) process.exit(1);
+  if (anyError || anyMissing) process.exit(1);
 }
 
 if (isMainModule(import.meta.url)) {
