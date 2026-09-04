@@ -16,7 +16,7 @@ const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 /**
  * Send `text` to every provisioned workspace's bound chat_id.
  * @param {string} text
- * @param {{ reposRoot?: string, send?: (chatId: string, text: string) => Promise<void>, dryRun?: boolean }} [opts]
+ * @param {{ reposRoot?: string, send?: (chatId: string, text: string) => Promise<boolean|void>, dryRun?: boolean }} [opts]
  * @returns {Promise<{ sent: {slug: string, chatId: string}[], skipped: {slug: string, reason: string}[] }>}
  */
 export async function broadcast(text, opts = {}) {
@@ -34,9 +34,21 @@ export async function broadcast(text, opts = {}) {
       continue;
     }
     try {
-      await send(ws.chatId, text);
-      sent.push({ slug: ws.slug, chatId: ws.chatId });
+      // sendCannedReply does not throw on a failed send — it catches
+      // internally (a missing bot token, an unresolvable chat, a hook that
+      // blew up), logs, and returns false. Relying on an exception here meant
+      // every workspace landed in `sent` even when nothing was delivered.
+      // Only an explicit `false` counts as a failure, so a caller-injected
+      // send that resolves undefined still reports as sent.
+      const ok = await send(ws.chatId, text);
+      if (ok === false) {
+        skipped.push({ slug: ws.slug, reason: 'send failed — see logs above' });
+      } else {
+        sent.push({ slug: ws.slug, chatId: ws.chatId });
+      }
     } catch (err) {
+      // Defensive: a caller-supplied `send` can still throw even though the
+      // real one does not.
       skipped.push({ slug: ws.slug, reason: /** @type {Error} */ (err).message });
     }
   }

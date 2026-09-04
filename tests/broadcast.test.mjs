@@ -65,7 +65,27 @@ test('broadcast --dry-run (dryRun: true) sends nothing', async () => {
   });
 });
 
-test('broadcast continues to the next workspace if one send fails', async () => {
+test('broadcast counts a send that returns false as skipped, not sent', async () => {
+  // This is the REAL failure signal: sendCannedReply catches internally and
+  // returns false (missing bot token, unresolvable chat) — it does not throw.
+  // Before this, every workspace with a chat_id landed in `sent` even when
+  // nothing was delivered.
+  await withTempRoot(async (dir) => {
+    seedWorkspace(dir, 'alice', '111');
+    seedWorkspace(dir, 'bob', '222');
+    const send = async (chatId) => chatId !== '111';
+
+    const { sent, skipped } = await broadcast('hello', { reposRoot: dir, send });
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].chatId, '222');
+    assert.equal(skipped.length, 1);
+    assert.equal(skipped[0].slug, 'alice');
+    assert.match(skipped[0].reason, /send failed/i);
+  });
+});
+
+test('broadcast continues to the next workspace if one send throws', async () => {
+  // Defensive: the real send does not throw, but a caller-injected one can.
   await withTempRoot(async (dir) => {
     seedWorkspace(dir, 'alice', '111');
     seedWorkspace(dir, 'bob', '222');
@@ -79,5 +99,16 @@ test('broadcast continues to the next workspace if one send fails', async () => 
     assert.equal(skipped.length, 1);
     assert.equal(skipped[0].slug, 'alice');
     assert.match(skipped[0].reason, /telegram down/);
+  });
+});
+
+test('broadcast treats a send resolving undefined as sent — only an explicit false is a failure', async () => {
+  await withTempRoot(async (dir) => {
+    seedWorkspace(dir, 'alice', '111');
+    const send = async () => { /* resolves undefined */ };
+
+    const { sent, skipped } = await broadcast('hello', { reposRoot: dir, send });
+    assert.equal(sent.length, 1);
+    assert.equal(skipped.length, 0);
   });
 });

@@ -397,9 +397,15 @@ Return a brief summary of actions taken.`;
  * below. Scoped by `only: 'telegram'`, so it is never a blanket bypass (see
  * loadPlugins in plugins/_engine.mjs).
  *
+ * Returns true when the message actually went out, false on either failure
+ * class below. It still never throws — the poll loop must not break on a send
+ * — but callers that need to know (core/broadcast.mjs reports per-workspace
+ * send results) have to be able to tell success from a swallowed failure.
+ *
  * @param {string|number} chatId
  * @param {string} text
  * @param {typeof runHook} [hook] - overridable for tests.
+ * @returns {Promise<boolean>} true if the message was sent, false otherwise.
  */
 export async function sendCannedReply(chatId, text, hook = runHook) {
   try {
@@ -417,9 +423,12 @@ export async function sendCannedReply(chatId, text, hook = runHook) {
     if (!telegramResult || !telegramResult.ok || !telegramResult.result?.sent) {
       const reason = telegramResult?.error || telegramResult?.result?.error || 'no telegram result';
       console.error(`[telegram-monitor] Canned reply to ${chatId} did not send: ${reason}`);
+      return false;
     }
+    return true;
   } catch (err) {
     console.error(`[telegram-monitor] Could not send canned reply to ${chatId}: ${err.message}`);
+    return false;
   }
 }
 

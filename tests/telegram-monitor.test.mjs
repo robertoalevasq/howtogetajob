@@ -83,8 +83,9 @@ test('sendCannedReply runs the telegram notify hook with forceEnabled — the re
     calls.push({ kind, payload, opts });
     return [{ id: 'telegram', ok: true, result: { sent: true, chats: [{ chatId: payload.chatId, sent: true }] } }];
   };
-  await sendCannedReply('491507842', 'Please enter your access code to continue.', fakeHook);
+  const ok = await sendCannedReply('491507842', 'Please enter your access code to continue.', fakeHook);
 
+  assert.equal(ok, true, 'a delivered message must report success to callers like broadcast.mjs');
   assert.equal(calls.length, 1);
   assert.equal(calls[0].kind, 'notify');
   assert.equal(calls[0].opts.only, 'telegram');
@@ -104,21 +105,26 @@ test('sendCannedReply logs when notify() reports an in-band failure (sent: false
   const logged = [];
   const original = console.error;
   console.error = (...args) => logged.push(args.join(' '));
+  let ok;
   try {
-    await sendCannedReply('491507842', 'hi', fakeHook);
+    ok = await sendCannedReply('491507842', 'hi', fakeHook);
   } finally {
     console.error = original;
   }
+  // Logging alone is not enough: broadcast.mjs has to be able to tell this
+  // apart from a real send, and the only channel for that is the return value.
+  assert.equal(ok, false);
   assert.ok(logged.length > 0, 'expected a logged failure');
   assert.match(logged[0], /did not send/);
   assert.match(logged[0], /TELEGRAM_BOT_TOKEN not set/);
 });
 
-test('sendCannedReply swallows a failing hook rather than breaking the poll loop', async () => {
+test('sendCannedReply swallows a failing hook rather than breaking the poll loop, and reports false', async () => {
   await quietErrors(async () => {
-    await assert.doesNotReject(
-      sendCannedReply('1', 'hi', async () => { throw new Error('network down'); }),
-    );
+    const promise = sendCannedReply('1', 'hi', async () => { throw new Error('network down'); });
+    await assert.doesNotReject(promise);
+    // Swallowed, but not invisible — the caller still learns it failed.
+    assert.equal(await promise, false);
   });
 });
 
