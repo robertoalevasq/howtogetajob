@@ -129,3 +129,59 @@ export function applyWorkspace(wsDir, reposRoot = ROOT) {
     written: applyFile(join(wsDir, live), join(reposRoot, template)),
   }));
 }
+
+function formatPath(path) {
+  return path.join('.');
+}
+
+function resolveTargets(argv, reposRoot) {
+  if (argv.includes('--all')) {
+    return listWorkspaces(reposRoot).map((w) => ({ slug: w.slug, dir: w.dir }));
+  }
+  const slug = argv.find((a) => !a.startsWith('--') && a !== reposRoot);
+  if (!slug) return null;
+  return [{ slug, dir: join(reposRoot, 'workspaces', slug) }];
+}
+
+async function main() {
+  const argv = process.argv.slice(2);
+  const rootIdx = argv.indexOf('--repos-root');
+  const reposRoot = rootIdx !== -1 ? argv[rootIdx + 1] : ROOT;
+  const cleanArgv = rootIdx !== -1 ? argv.filter((a, i) => i !== rootIdx && i !== rootIdx + 1) : argv;
+  const jsonOut = cleanArgv.includes('--json');
+  const apply = cleanArgv.includes('--apply');
+
+  const targets = resolveTargets(cleanArgv, reposRoot);
+  if (!targets) {
+    console.error('Usage: node core/backfill-templates.mjs <slug> [--check|--apply] [--json] | --all [--check|--apply] [--json]');
+    process.exit(1);
+  }
+
+  const results = targets.map(({ slug, dir }) => {
+    if (!existsSync(dir)) return { slug, error: `no such workspace: ${slug}`, files: [] };
+    const files = apply ? applyWorkspace(dir, reposRoot) : checkWorkspace(dir, reposRoot);
+    return { slug, error: null, files };
+  });
+
+  const anyIssue = results.some((r) => r.error || r.files.some((f) => ((apply ? f.written : f.missing) || []).length > 0 || f.error));
+
+  if (jsonOut) {
+    console.log(JSON.stringify(results));
+  } else {
+    for (const r of results) {
+      if (r.error) { console.log(`${r.slug}: ${r.error}`); continue; }
+      const parts = r.files
+        .filter((f) => ((apply ? f.written : f.missing) || []).length > 0)
+        .map((f) => `${f.file} ${apply ? 'wrote' : 'missing'} ${(apply ? f.written : f.missing).map(formatPath).join(', ')}`);
+      console.log(parts.length ? `${r.slug}: ${parts.join('; ')}` : `${r.slug}: up to date`);
+    }
+  }
+  if (!apply && anyIssue) process.exit(1);
+}
+
+if (isMainModule(import.meta.url)) {
+  main().catch((err) => {
+    console.error(`❌ backfill-templates: ${err.message}`);
+    process.exit(1);
+  });
+}

@@ -1,9 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseDocument } from 'yaml';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { dirname } from 'node:path';
 import { findMissingKeyPaths, checkFile, applyFile } from '../core/backfill-templates.mjs';
 
 function withTempDir(fn) {
@@ -171,5 +174,85 @@ test('applyFile preserves nested key comments from the template', () => {
     assert.match(after, /# docs for deal_breakers/);
     const result = parseDocument(after).toJS();
     assert.deepEqual(result, { narrative: { superpowers: ['foo'], deal_breakers: ['bar'] } });
+  });
+});
+
+// CLI tests
+
+// Matches the established pattern in tests/doctor-workspace-isolation.test.mjs
+// and tests/doctor-template-leftovers.test.mjs: join() off a REPO_ROOT
+// resolved via fileURLToPath, not a raw file:// URL pathname (which carries
+// a leading "/" before the drive letter on Windows, e.g. "/C:/Users/...").
+const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const CLI = join(REPO_ROOT, 'core', 'backfill-templates.mjs');
+
+function runCli(args, opts = {}) {
+  try {
+    const stdout = execFileSync('node', [CLI, ...args], { encoding: 'utf8', ...opts });
+    return { stdout, status: 0 };
+  } catch (err) {
+    return { stdout: err.stdout?.toString() ?? '', status: err.status };
+  }
+}
+
+test('CLI --check reports missing fields and exits 1 when something is missing', () => {
+  withTempDir((dir) => {
+    mkdirSync(join(dir, 'workspaces', 'alice', 'config'), { recursive: true });
+    writeFileSync(join(dir, 'workspaces', 'alice', 'config', 'profile.yml'), 'a: 1\n');
+    mkdirSync(join(dir, 'config'), { recursive: true });
+    writeFileSync(join(dir, 'config', 'profile.example.yml'), 'a: 1\nb: 2\n');
+    mkdirSync(join(dir, 'templates'), { recursive: true });
+    writeFileSync(join(dir, 'templates', 'portals.example.yml'), 'x: 1\n');
+
+    const { stdout, status } = runCli(['alice', '--check', '--json', '--repos-root', dir]);
+    const [result] = JSON.parse(stdout);
+    assert.equal(result.slug, 'alice');
+    assert.ok(result.files.find((f) => f.file === 'config/profile.yml').missing.length > 0);
+    assert.equal(status, 1);
+  });
+});
+
+test('CLI --apply writes missing fields and exits 0', () => {
+  withTempDir((dir) => {
+    mkdirSync(join(dir, 'workspaces', 'alice', 'config'), { recursive: true });
+    writeFileSync(join(dir, 'workspaces', 'alice', 'config', 'profile.yml'), 'a: 1\n');
+    mkdirSync(join(dir, 'config'), { recursive: true });
+    writeFileSync(join(dir, 'config', 'profile.example.yml'), 'a: 1\nb: 2\n');
+    mkdirSync(join(dir, 'templates'), { recursive: true });
+    writeFileSync(join(dir, 'templates', 'portals.example.yml'), 'x: 1\n');
+
+    const { status } = runCli(['alice', '--apply', '--repos-root', dir]);
+    assert.equal(status, 0);
+    const after = readFileSync(join(dir, 'workspaces', 'alice', 'config', 'profile.yml'), 'utf8');
+    assert.match(after, /b: 2/);
+  });
+});
+
+test('CLI --all --check --json covers every workspace via listWorkspaces()', () => {
+  withTempDir((dir) => {
+    for (const slug of ['alice', 'bob']) {
+      mkdirSync(join(dir, 'workspaces', slug, 'config'), { recursive: true });
+      writeFileSync(join(dir, 'workspaces', slug, 'config', 'profile.yml'), 'a: 1\n');
+      writeFileSync(join(dir, 'workspaces', slug, 'workspace.json'), JSON.stringify({ slug }));
+    }
+    mkdirSync(join(dir, 'config'), { recursive: true });
+    writeFileSync(join(dir, 'config', 'profile.example.yml'), 'a: 1\nb: 2\n');
+    mkdirSync(join(dir, 'templates'), { recursive: true });
+    writeFileSync(join(dir, 'templates', 'portals.example.yml'), 'x: 1\n');
+
+    const { stdout } = runCli(['--all', '--check', '--json', '--repos-root', dir]);
+    const results = JSON.parse(stdout);
+    assert.equal(results.length, 2);
+    assert.deepEqual(results.map((r) => r.slug).sort(), ['alice', 'bob']);
+  });
+});
+
+test('CLI reports an unknown slug without crashing', () => {
+  withTempDir((dir) => {
+    mkdirSync(join(dir, 'workspaces'), { recursive: true });
+    const { stdout, status } = runCli(['ghost', '--check', '--json', '--repos-root', dir]);
+    const [result] = JSON.parse(stdout);
+    assert.ok(result.error);
+    assert.equal(status, 1);
   });
 });
