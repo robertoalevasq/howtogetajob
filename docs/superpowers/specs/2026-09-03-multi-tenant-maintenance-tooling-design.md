@@ -157,8 +157,21 @@ A thin aggregator, not a rewrite of `doctor.mjs`:
   `4/4 workspaces healthy` or `1 workspace needs attention: thomas-acosta
   (2 missing template fields)`.
 - `--json` for scripting; a plain-text table by default.
-- Purely observational — never writes anything. Applying a backfill fix
-  stays a deliberate, separate `backfill-templates.mjs --apply` invocation.
+- Never calls `applyWorkspace` — the two backfill target files
+  (`config/profile.yml`, `portals.yml`) are only ever read here; writing
+  them stays a deliberate, separate `backfill-templates.mjs --apply`
+  invocation. **This does not extend to `doctor.mjs` itself**: `doctor.mjs
+  --json`'s existing, pre-existing `onboardingState()` auto-copies
+  `_profile.md`/`_custom.md`/`_brief.md` from their templates into the
+  target directory whenever one is missing and its template is reachable —
+  the same idempotent, one-time side effect any direct `doctor.mjs --json`
+  invocation already has (including the mandatory AGENTS.md session-start
+  check). `doctor-all.mjs` inherits this unchanged, since it must invoke
+  `doctor.mjs` unmodified (no reusable export exists) rather than
+  reimplementing its checks. It is never silent: `doctor.mjs`'s own
+  `autoCopied` field is passed through in each workspace's aggregated
+  result and surfaced in the human-readable summary line whenever
+  non-empty.
 
 ### 3. "What's new" broadcast (`core/broadcast.mjs`)
 
