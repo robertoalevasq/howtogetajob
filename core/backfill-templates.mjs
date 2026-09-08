@@ -208,9 +208,12 @@ function jsonItemIdentity(item) {
 export function findMissingJsonPaths(templateValue, liveValue, path = []) {
   const missing = [];
   if (Array.isArray(templateValue)) {
-    if (!Array.isArray(liveValue)) {
+    if (liveValue === undefined) {
       if (templateValue.length > 0) missing.push({ path, value: templateValue, arrayAppend: true });
       return missing;
+    }
+    if (!Array.isArray(liveValue)) {
+      return missing; // existing scalar/object where array expected — never overwrite
     }
     const liveIdentities = new Set(liveValue.map(jsonItemIdentity));
     const newItems = templateValue.filter((item) => !liveIdentities.has(jsonItemIdentity(item)));

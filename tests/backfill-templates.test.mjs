@@ -480,6 +480,27 @@ test('findMissingJsonPaths returns empty when live already has everything the te
   assert.deepEqual(missing, []);
 });
 
+test('findMissingJsonPaths never overwrites an existing non-array value where the template expects an array', () => {
+  const missing = findMissingJsonPaths(
+    { a: { tags: ['x', 'y'] } },
+    { a: { tags: 'not-an-array' } },
+  );
+  assert.deepEqual(missing, []);
+});
+
+test('applyJsonFile leaves an existing non-array value untouched when the template expects an array there', () => {
+  withTempDir((dir) => {
+    const livePath = join(dir, 'live.json');
+    const templatePath = join(dir, 'template.json');
+    writeFileSync(livePath, JSON.stringify({ a: { tags: 'not-an-array' } }));
+    writeFileSync(templatePath, JSON.stringify({ a: { tags: ['x', 'y'] } }));
+    const result = applyJsonFile(livePath, templatePath);
+    assert.deepEqual(result.written, []);
+    const after = JSON.parse(readFileSync(livePath, 'utf8'));
+    assert.deepEqual(after, { a: { tags: 'not-an-array' } });
+  });
+});
+
 test('checkJsonFile reports missing paths without writing anything', () => {
   withTempDir((dir) => {
     const livePath = join(dir, 'live.json');
