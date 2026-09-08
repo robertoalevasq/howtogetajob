@@ -49,3 +49,33 @@ test('classifyRunFromArgs recognizes apply-batch without colliding with batch', 
   assert.equal(classifyRunFromArgs('apply-batch'), 'apply-batch');
   assert.equal(classifyRunFromArgs('batch'), 'batch');
 });
+
+// Real Telegram-router dispatches are prose, not a bare leading token — e.g.
+// "Route Telegram message per modes/telegram.md: /apply 939 from Ernesto
+// (chatId 88...)". Found live 2026-09-08: every one of these fell through to
+// 'unclassified' because the prose fallback list had no apply entry at all,
+// which hid apply's real token cost inside 'unclassified' workspace-wide.
+test('classifyRunFromArgs recognizes a prose-embedded /apply command with a report number', () => {
+  assert.equal(
+    classifyRunFromArgs('Route Telegram message per modes/telegram.md: /apply 939 from Ernesto (chatId 8859195406, messageId 605).'),
+    'apply'
+  );
+});
+
+test('classifyRunFromArgs recognizes a prose-embedded /apply-batch command', () => {
+  assert.equal(
+    classifyRunFromArgs('Route Telegram message per modes/telegram.md: /apply-batch from Ernesto.'),
+    'apply-batch'
+  );
+});
+
+// A bare mention of the mode name in running prose (not a literal slash
+// command) must NOT match — this is exactly the false-positive class found
+// live during investigation: modes/apply.md's own doc text ("`apply` mode's
+// account-creation flow") and file paths like "modes/apply.md" or
+// "data/.apply-secrets.json" get pulled into context/tool-result text
+// constantly and must never be misread as a real invocation.
+test('classifyRunFromArgs does not misclassify a file-path or doc mention of apply', () => {
+  assert.equal(classifyRunFromArgs('See modes/apply.md Step 5-alt item 7 and data/.apply-secrets.json for details.'), 'unclassified');
+  assert.equal(classifyRunFromArgs("The `apply` mode's account-creation flow always stops for consent."), 'unclassified');
+});

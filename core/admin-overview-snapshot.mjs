@@ -273,6 +273,19 @@ export function extractUsageAndSkillCalls(filePath) {
 // only — this reads free-text prompt args, not a structured command, so
 // anything not clearly matching one of these lands in 'unclassified'
 // rather than being guessed into the wrong bucket.
+// The apply-batch/apply pair requires a literal leading '/' (the real
+// Telegram slash-command form a router dispatch always embeds, e.g.
+// "/apply 939" or "/apply-batch") rather than a bare mode-name mention.
+// Unlike the other prose patterns below, a bare "apply mode" or "apply"
+// match would false-positive constantly: modes/apply.md's own doc text
+// ("`apply` mode's account-creation flow"), file paths like
+// "modes/apply.md" or "data/.apply-secrets.json", and this very
+// classifier's own doc comments all mention the word "apply" far more
+// often than a real invocation does. Found live 2026-09-08: every real
+// Telegram-routed apply dispatch is prose ("Route Telegram message per
+// modes/telegram.md: /apply 939 from Ernesto..."), so it needs a fallback
+// pattern too, not just the leading-bare-token check below — but that
+// fallback must anchor on the slash to stay precise.
 const RUN_CLASSIFICATION_PATTERNS = [
   ['auto-pipeline', /auto-pipeline|evaluate this jd/i],
   ['cycle', /\bcycle mode\b/i],
@@ -280,6 +293,8 @@ const RUN_CLASSIFICATION_PATTERNS = [
   ['scan', /\bscan mode\b/i],
   ['tracker', /\btracker mode\b/i],
   ['pdf', /\bpdf mode\b/i],
+  ['apply-batch', /\/apply-batch\b/i],
+  ['apply', /\/apply\s+\S+/i],
 ];
 
 // Real Skill tool-call `args` are slash-command style — a bare mode token,
