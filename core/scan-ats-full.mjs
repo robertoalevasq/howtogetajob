@@ -47,6 +47,7 @@ import { buildTitleFilter, buildLocationFilter, buildContentFilter, matchedTitle
 import { SEED_SOURCES, toPortalEntry } from '../seeds/vc-portfolios.mjs';
 import { normalizeCompany } from './tracker-utils.mjs';
 import { isMainModule } from './is-main.mjs';
+import { acquirePipelineLock, LockTimeoutError } from './pipeline-lock.mjs';
 import { workspaceRoot } from './workspace-root.mjs';
 
 // ── Config ──────────────────────────────────────────────────────────
@@ -597,6 +598,43 @@ async function filterLive(offers) {
 
 async function main() {
   const opts = parseArgs(process.argv);
+
+  // A full sweep is a single, long-lived OS process (unlike `cycle`, which
+  // spans many separate claude -p invocations over hours — see
+  // cycle-lock.mjs's own comment on why it uses heartbeat-refresh instead of
+  // PID liveness). That makes the PID-liveness model pipeline-lock.mjs
+  // already provides the right fit here, reused as-is rather than building a
+  // second lock idiom. Found live 2026-09-04 (leonie's workspace): a single
+  // cycle run's own "if it exits, re-run with --resume" retry logic (see
+  // modes/cycle.md's Pass B polling loop) briefly had 6 concurrent
+  // scan-ats-full.mjs processes racing the same checkpoint file — no data
+  // loss (the checkpoint write itself is already safe), but real wasted
+  // compute/network from duplicated sweeping, self-healed only because
+  // something eventually killed the extras down to 1. This lock makes a
+  // second launch against the same checkpoint fail fast and clearly instead
+  // of quietly racing. Skipped for --dry-run: it never reads or writes the
+  // checkpoint (see the !opts.dryRun gates throughout this function), so two
+  // dry runs — or a dry run alongside a real sweep — have nothing to race on.
+  if (!opts.dryRun) {
+    let sweepLock;
+    try {
+      sweepLock = await acquirePipelineLock(getCheckpointPath());
+    } catch (err) {
+      if (err instanceof LockTimeoutError) {
+        console.error(`Error: another scan-ats-full.mjs sweep is already running against ${getCheckpointPath()} — wait for it to finish (or crash out) rather than starting a second one. If you're certain no real sweep is running, the stale lock will self-clear on its own once its recorded PID is confirmed dead.`);
+        process.exit(1);
+      }
+      throw err;
+    }
+    // process 'exit' fires synchronously on every termination path this
+    // function has — a normal return, an uncaught exception, or any of the
+    // many process.exit() calls scattered through the rest of main() — so
+    // this one registration covers all of them without threading a
+    // try/finally through 400+ pre-existing lines. release() is fully
+    // synchronous (see pipeline-lock.mjs), safe to call from an 'exit' handler.
+    process.on('exit', () => sweepLock.release());
+  }
+
   let checkpoint = null;
   if (opts.resume) {
     const cp = loadCheckpoint();
