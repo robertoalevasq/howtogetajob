@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-import { telegramOffsetPath, telegramDaemonLockPath, accessCodesPath, accessCodeAttemptsPath, onboardingDir, onboardingStatePath, botIdentityCachePath } from '../core/hub-paths.mjs';
+import { telegramOffsetPath, telegramDaemonLockPath, accessCodesPath, accessCodeAttemptsPath, onboardingDir, onboardingStatePath, botIdentityCachePath, dispatchLogPath } from '../core/hub-paths.mjs';
 
 // REPO_ROOT, not core/ itself: hub-paths.mjs lives at core/hub-paths.mjs
 // (#workspace-multitenancy Task 1), and its two paths must land at the true
@@ -84,4 +84,16 @@ test('botIdentityCachePath resolves under the repo-root data/ regardless of cwd,
   }
   const fakeRoot = join(tmpdir(), 'fake-repo');
   assert.equal(botIdentityCachePath({ repoRoot: fakeRoot }), join(fakeRoot, 'data', 'telegram-bot-identity.json'));
+});
+
+test('dispatchLogPath resolves under the repo-root data/ regardless of cwd, and accepts a repoRoot override', () => {
+  const original = process.cwd();
+  process.chdir(AWAY_FROM_REPO);
+  try {
+    assert.equal(dispatchLogPath(), join(REPO_ROOT, 'data', 'dispatch-log.jsonl'));
+  } finally {
+    process.chdir(original);
+  }
+  const fakeRoot = join(tmpdir(), 'fake-repo');
+  assert.equal(dispatchLogPath({ repoRoot: fakeRoot }), join(fakeRoot, 'data', 'dispatch-log.jsonl'));
 });

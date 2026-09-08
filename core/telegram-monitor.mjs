@@ -31,11 +31,11 @@
  */
 
 import { spawn, execSync } from 'child_process';
-import { existsSync, readFileSync } from 'fs';
-import { resolve, dirname, join } from 'path';
+import { existsSync, readFileSync, appendFileSync, mkdirSync } from 'fs';
+import { resolve, dirname, join, basename } from 'path';
 import { fileURLToPath } from 'url';
 import { acquirePipelineLock } from './pipeline-lock.mjs';
-import { telegramDaemonLockPath } from './hub-paths.mjs';
+import { telegramDaemonLockPath, dispatchLogPath } from './hub-paths.mjs';
 import { routeMessages } from './telegram-router.mjs';
 import { runHook } from '../plugins/_engine.mjs';
 import { isMainModule } from './is-main.mjs';
@@ -212,6 +212,93 @@ function logPollError(result) {
   if ((result.messages || []).length === 0 && result.error) {
     console.error(`[telegram-monitor] poll returned no messages: ${result.error}`);
   }
+}
+
+const REPEAT_LOG_EVERY = 20;
+
+/**
+ * Factory for a daemon-loop-scoped logger that collapses a run of BYTE-
+ * IDENTICAL poll-failure messages into one line every REPEAT_LOG_EVERY
+ * occurrences instead of one line per occurrence, and returns the current
+ * streak length (so callers can reuse it as a consecutive-failure counter —
+ * see maybeAlertOperator()). Call with a falsy `message` on a clean poll to
+ * reset the streak to 0.
+ *
+ * Found live 2026-09-04: a stuck webhook produced 21,190 consecutive,
+ * byte-identical "webhook is active" 409 lines over roughly a day — one per
+ * poll, backed off 5s apart — completely burying the ONE line that actually
+ * explained what happened ("terminated by setWebhook request") under a wall
+ * of noise nobody was going to scroll through live. Collapsing repeats keeps
+ * a genuinely new error (a different message) visible immediately while a
+ * stuck, unchanging one stays visible periodically instead of drowning
+ * everything else out.
+ *
+ * A fresh instance's state must survive across poll iterations, so — same
+ * reason as createRoutingQueue() — this is constructed once, outside the
+ * loop, not recreated per iteration.
+ *
+ * @param {(msg: string) => void} [log]
+ * @returns {(message: string | null | undefined) => number}
+ */
+export function createPollErrorLogger(log = console.error) {
+  let lastMessage = null;
+  let streak = 0;
+  return function logPollErrorCollapsed(message) {
+    if (!message) {
+      lastMessage = null;
+      streak = 0;
+      return 0;
+    }
+    if (message === lastMessage) {
+      streak += 1;
+      if (streak % REPEAT_LOG_EVERY === 0) {
+        log(`[telegram-monitor] poll returned no messages: ${message} (repeated ${streak}x)`);
+      }
+      return streak;
+    }
+    lastMessage = message;
+    streak = 1;
+    log(`[telegram-monitor] poll returned no messages: ${message}`);
+    return streak;
+  };
+}
+
+// First alert once a failure streak has run long enough to rule out a single
+// transient blip (12 failures * the 5s DAEMON_POLL_ERROR_BACKOFF_MS pace
+// below ≈ 1 minute of continuous failure), then remind roughly every 5
+// minutes while it's still broken — frequent enough to matter, not so
+// frequent that a multi-hour outage spams whoever's listening.
+const OPERATOR_ALERT_THRESHOLD = 12;
+const OPERATOR_ALERT_REPEAT_EVERY = 60;
+
+/** @param {number} consecutiveFailures */
+export function shouldAlertOperator(consecutiveFailures) {
+  if (consecutiveFailures < OPERATOR_ALERT_THRESHOLD) return false;
+  return (consecutiveFailures - OPERATOR_ALERT_THRESHOLD) % OPERATOR_ALERT_REPEAT_EVERY === 0;
+}
+
+/**
+ * Push a poll-failure alert to CAREER_OPS_OPERATOR_CHAT_ID (hub .env,
+ * optional — see .env.example) once a failure streak crosses
+ * shouldAlertOperator()'s threshold. This is a plain sendMessage call
+ * (sendCannedReply), unaffected by whatever is breaking getUpdates —
+ * inbound polling and outbound sending are separate Telegram API calls, so
+ * this still gets through even during an active-webhook outage.
+ *
+ * Silent no-op when CAREER_OPS_OPERATOR_CHAT_ID isn't configured — this
+ * hub-wide daemon failure previously had NO alert path at all (only a log
+ * file, per createPollErrorLogger()'s own incident note), so this is purely
+ * additive: unset stays exactly as before.
+ *
+ * @param {number} streak
+ * @param {string} errorMessage
+ * @param {string | null} operatorChatId
+ * @param {(chatId: string, text: string) => Promise<boolean>} [send] - overridable for tests.
+ */
+export async function maybeAlertOperator(streak, errorMessage, operatorChatId, send = sendCannedReply) {
+  if (!operatorChatId || !shouldAlertOperator(streak)) return;
+  const text = `⚠️ Telegram polling has failed ${streak} times in a row: ${errorMessage}\nEvery workspace is affected until this clears. If the error mentions a webhook, it should self-heal on the next poll (see plugins/telegram/index.mjs); otherwise this needs a human look.`;
+  await send(operatorChatId, text);
 }
 
 // An onboarding turn is one short question-and-answer — 10 minutes is
@@ -623,6 +710,59 @@ async function defaultResolveBrowserArgs(dispatch) {
   return resolveBrowserMcpArgs(resolveReportForDispatch(dispatch), dispatch.cwd);
 }
 
+// Task-starting commands map directly to a known mode; yes/no/skip/cancel are
+// confirmation replies to WHATEVER happens to be pending, not commands with a
+// mode of their own — the router can't know that without doing the routing
+// work itself (reading data/telegram-state.md's pending confirmations), so
+// those and any non-command message are 'reply'. Deliberately a strict
+// subset of parseCommand's recognized set, not a 1:1 mirror of it.
+const DISPATCH_COMMAND_TO_MODE = {
+  apply: 'apply', applyall: 'apply-batch', scan: 'scan', search: 'search',
+  run: 'cycle', cycle: 'cycle', pdf: 'pdf', editpdf: 'pdf',
+  status: 'status', settings: 'settings', help: 'help',
+};
+
+/**
+ * Best-effort, deterministic mode label for a routing dispatch's messages —
+ * derived purely from parseCommand (no LLM, no ambiguity), for dispatch-log
+ * purposes only. 'reply' covers both a genuine confirmation reply and any
+ * unrecognized text; this function makes no attempt to resolve what a reply
+ * is actually answering (that's modes/telegram.md's job, not the router's).
+ *
+ * @param {Array<{text?: string}>} messages
+ * @returns {string}
+ */
+export function deriveDispatchCommand(messages) {
+  for (const msg of messages || []) {
+    const parsed = parseCommand((msg.text || '').trim());
+    if (parsed.isCommand && DISPATCH_COMMAND_TO_MODE[parsed.command]) {
+      return DISPATCH_COMMAND_TO_MODE[parsed.command];
+    }
+  }
+  return 'reply';
+}
+
+/**
+ * Appends one dispatch-log entry (JSONL) before a routing dispatch is
+ * spawned. Never lets a logging failure break real routing — this is
+ * observability, not a functional requirement, so any error here is caught
+ * and reported non-fatally.
+ *
+ * @param {{chatId: string, cwd: string}} dispatch
+ * @param {string} command
+ */
+function defaultLogDispatch(dispatch, command) {
+  try {
+    const workspace = dispatch.cwd === dirname(ROOT) ? 'hub' : basename(dispatch.cwd);
+    const entry = { dispatchedAt: new Date().toISOString(), chatId: String(dispatch.chatId), workspace, command };
+    const logPath = dispatchLogPath();
+    mkdirSync(dirname(logPath), { recursive: true });
+    appendFileSync(logPath, JSON.stringify(entry) + '\n', 'utf-8');
+  } catch (err) {
+    console.error(`[telegram-monitor] dispatch-log write failed (non-fatal, routing continues): ${err.message}`);
+  }
+}
+
 /**
  * Guarded single-shot Claude invocation for one routed dispatch: builds the
  * right prompt for its kind (routing vs. onboarding), invokes it with that
@@ -648,8 +788,20 @@ async function defaultResolveBrowserArgs(dispatch) {
  * @param {{chatId: string, cwd: string, kind: 'routing'|'onboarding', messages: any[], state: object|null}} dispatch
  * @param {(prompt: string, cwd: string, timeoutMs?: number, model?: string, extraArgs?: string[]) => Promise<void>} [invoke] - overridable for tests.
  * @param {(dispatch: object) => Promise<string[]>} [resolveBrowserArgs] - overridable for tests; defaults to resolving report + browser session for real.
+ * @param {(dispatch: object, command: string) => void} [logDispatch] - overridable for tests; defaults to appending to hub-paths.mjs's dispatchLogPath().
  */
-export async function dispatchOne(dispatch, invoke = invokeClaudeRoutingOnce, resolveBrowserArgs = defaultResolveBrowserArgs) {
+export async function dispatchOne(dispatch, invoke = invokeClaudeRoutingOnce, resolveBrowserArgs = defaultResolveBrowserArgs, logDispatch = defaultLogDispatch) {
+  // Written BEFORE the claude -p call, from data the router already knows
+  // deterministically — never dependent on whether the dispatched session
+  // bothers to call the Skill tool (routing dispatches, unlike interactive
+  // ones, often don't: the routed instruction is already in the prompt
+  // text). Closes an observability gap token-efficiency-log.mjs found live
+  // 2026-09-08. Onboarding is out of scope — it doesn't go through
+  // modes/telegram.md's command routing at all.
+  if (dispatch.kind === 'routing') {
+    logDispatch(dispatch, deriveDispatchCommand(dispatch.messages));
+  }
+
   const prompt = dispatch.kind === 'onboarding'
     ? buildOnboardingPrompt(dispatch)
     : buildRoutingPrompt(dispatch.messages);
@@ -857,14 +1009,19 @@ async function daemonLoop() {
   // state survives across poll iterations — see createRoutingQueue()'s own
   // doc comment for why this can't be recreated each iteration.
   const routeDispatch = createRoutingQueue();
+  // Same reasoning: the failure streak this tracks must survive across
+  // iterations — see createPollErrorLogger()'s own doc comment.
+  const logPollErrorCollapsed = createPollErrorLogger();
+  const operatorChatId = process.env.CAREER_OPS_OPERATOR_CHAT_ID || null;
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
       const result = await pollTelegram(DAEMON_LONGPOLL_SECONDS);
       const messages = result.messages || [];
-      logPollError(result);
       if (result.error) {
+        const streak = logPollErrorCollapsed(result.error);
+        await maybeAlertOperator(streak, result.error, operatorChatId);
         // A poll that failed in-band (telegram-poll.mjs caught a 409/502/abort
         // and reported it with exit code 0, per logPollError's own doc comment)
         // returns near-instantly — none of the natural pacing a successful
@@ -883,6 +1040,7 @@ async function daemonLoop() {
         await new Promise(r => setTimeout(r, DAEMON_POLL_ERROR_BACKOFF_MS));
         continue;
       }
+      logPollErrorCollapsed(null); // clean poll — reset the failure streak
       if (messages.length > 0) {
         const dispatches = await routeMessages(messages, { repoRoot: REPO_ROOT, sendReply: sendCannedReply });
         // Routing fired non-blocking, onboarding awaited one at a time —

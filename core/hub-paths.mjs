@@ -45,3 +45,13 @@ export function onboardingStatePath(chatId, opts = {}) {
 export function botIdentityCachePath(opts = {}) {
   return join(opts.repoRoot || REPO_ROOT, 'data', 'telegram-bot-identity.json');
 }
+
+// A record of what telegram-monitor.mjs dispatched, written deterministically
+// by the router BEFORE it spawns `claude -p` — never dependent on whether the
+// dispatched session bothers to call the Skill tool. Closes an observability
+// gap token-efficiency-log.mjs found live 2026-09-08: many real headless
+// dispatches never invoke Skill at all (the routed command already lives in
+// the prompt text), so transcript-mining alone can't classify their mode.
+export function dispatchLogPath(opts = {}) {
+  return join(opts.repoRoot || REPO_ROOT, 'data', 'dispatch-log.jsonl');
+}

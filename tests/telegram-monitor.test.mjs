@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import {
   buildRoutingPrompt, buildOnboardingPrompt, dispatchOne, sendCannedReply, fanOutDispatches, createRoutingQueue,
   resolveReportForDispatch, resolveBrowserMcpArgs, checkCdpAlive,
+  createPollErrorLogger, shouldAlertOperator, maybeAlertOperator, deriveDispatchCommand,
 } from '../core/telegram-monitor.mjs';
 import { writeBrowserSessions, browserSessionsStatePath, launchHolder } from '../core/apply-browser-holder.mjs';
 
@@ -66,12 +67,66 @@ test('dispatchOne calls invoke with the routing prompt, the dispatch cwd, NO tim
     chatId: '1', cwd: '/fake/workspace/alice', kind: 'routing',
     messages: [{ chatId: '1', text: '/status' }], state: null,
   };
-  await dispatchOne(dispatch, fakeInvoke);
+  await dispatchOne(dispatch, fakeInvoke, undefined, () => {});
   assert.equal(calls.length, 1);
   assert.equal(calls[0].cwd, '/fake/workspace/alice');
   assert.equal(calls[0].model, undefined);
   assert.match(calls[0].prompt, /modes\/telegram\.md/);
   assert.equal(calls[0].timeoutMs, undefined);
+});
+
+// ── dispatch logging (deriveDispatchCommand + dispatchOne's logDispatch call) ──
+
+test('deriveDispatchCommand maps a recognized task-starting command to its mode', () => {
+  assert.equal(deriveDispatchCommand([{ text: '/apply 939' }]), 'apply');
+  assert.equal(deriveDispatchCommand([{ text: '/applyall' }]), 'apply-batch');
+  assert.equal(deriveDispatchCommand([{ text: '/scan' }]), 'scan');
+  assert.equal(deriveDispatchCommand([{ text: '/run' }]), 'cycle');
+  assert.equal(deriveDispatchCommand([{ text: '/pdf 42' }]), 'pdf');
+  assert.equal(deriveDispatchCommand([{ text: '/editpdf 42' }]), 'pdf');
+  assert.equal(deriveDispatchCommand([{ text: '/status' }]), 'status');
+  assert.equal(deriveDispatchCommand([{ text: '/settings' }]), 'settings');
+  assert.equal(deriveDispatchCommand([{ text: '/help' }]), 'help');
+});
+
+test('deriveDispatchCommand labels a confirmation-reply command (yes/no/skip/cancel) as "reply", not a mode', () => {
+  // The router can't know what these are answering without doing the actual
+  // routing work (reading telegram-state.md's pending confirmations) —
+  // that's deliberately left to the dispatched session, not guessed here.
+  assert.equal(deriveDispatchCommand([{ text: '/yes' }]), 'reply');
+  assert.equal(deriveDispatchCommand([{ text: '/skip' }]), 'reply');
+});
+
+test('deriveDispatchCommand labels free text and a pasted URL as "reply"', () => {
+  assert.equal(deriveDispatchCommand([{ text: '1' }]), 'reply');
+  assert.equal(deriveDispatchCommand([{ text: 'https://boards.greenhouse.io/acme/jobs/1' }]), 'reply');
+});
+
+test('deriveDispatchCommand takes the first recognized command across multiple queued messages', () => {
+  assert.equal(deriveDispatchCommand([{ text: 'hello' }, { text: '/scan' }, { text: '/pdf 1' }]), 'scan');
+});
+
+test('deriveDispatchCommand returns "reply" for an empty or missing messages array', () => {
+  assert.equal(deriveDispatchCommand([]), 'reply');
+  assert.equal(deriveDispatchCommand(undefined), 'reply');
+});
+
+test('dispatchOne calls logDispatch with the derived command for a routing dispatch, before invoke', async () => {
+  const order = [];
+  const fakeInvoke = async () => { order.push('invoke'); };
+  const fakeLogDispatch = (dispatch, command) => { order.push({ logDispatch: command, chatId: dispatch.chatId }); };
+  const dispatch = { chatId: '7', cwd: '/fake/workspace/alice', kind: 'routing', messages: [{ text: '/scan' }], state: null };
+  await dispatchOne(dispatch, fakeInvoke, undefined, fakeLogDispatch);
+  assert.deepEqual(order, [{ logDispatch: 'scan', chatId: '7' }, 'invoke']);
+});
+
+test('dispatchOne never calls logDispatch for an onboarding dispatch', async () => {
+  const fakeInvoke = async () => {};
+  let called = false;
+  const fakeLogDispatch = () => { called = true; };
+  const dispatch = { chatId: '7', cwd: '/fake/workspace', kind: 'onboarding', messages: [{ text: 'Alice' }], state: { currentStep: 'name' } };
+  await dispatchOne(dispatch, fakeInvoke, undefined, fakeLogDispatch);
+  assert.equal(called, false);
 });
 
 test('sendCannedReply runs the telegram notify hook with forceEnabled — the repo root has no config/plugins.yml', async () => {
@@ -550,7 +605,7 @@ test('dispatchOne resolves and threads browser-session extraArgs for a ROUTING d
     chatId: '1', cwd: '/fake/workspace/alice', kind: 'routing',
     messages: [{ chatId: '1', text: '/apply 937' }], state: null,
   };
-  await dispatchOne(dispatch, fakeInvoke, async () => ['--mcp-config', '{"fake":true}', '--strict-mcp-config']);
+  await dispatchOne(dispatch, fakeInvoke, async () => ['--mcp-config', '{"fake":true}', '--strict-mcp-config'], () => {});
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0].extraArgs, ['--mcp-config', '{"fake":true}', '--strict-mcp-config']);
 });
@@ -566,4 +621,82 @@ test('dispatchOne passes an empty extraArgs array for an ONBOARDING dispatch —
   await dispatchOne(dispatch, fakeInvoke, async () => { resolveBrowserCalled = true; return []; });
   assert.equal(calls[0].extraArgs.length, 0);
   assert.equal(resolveBrowserCalled, false, 'onboarding never needs a browser session — resolving one would be wasted work on the hot path for every onboarding message');
+});
+
+// createPollErrorLogger — collapsing a run of identical poll-failure lines
+// (found live 2026-09-04: a stuck webhook produced 21,190 consecutive
+// byte-identical 409 lines over roughly a day with no alert of any kind).
+
+test('createPollErrorLogger logs the first occurrence of a message immediately and returns streak 1', () => {
+  const logged = [];
+  const log = createPollErrorLogger((msg) => logged.push(msg));
+  const streak = log('webhook is active');
+  assert.equal(streak, 1);
+  assert.equal(logged.length, 1);
+  assert.match(logged[0], /webhook is active/);
+});
+
+test('createPollErrorLogger suppresses repeats of the SAME message except every 20th, but keeps counting the streak', () => {
+  const logged = [];
+  const log = createPollErrorLogger((msg) => logged.push(msg));
+  let lastStreak;
+  for (let i = 0; i < 25; i++) lastStreak = log('webhook is active');
+  assert.equal(lastStreak, 25, 'streak keeps counting even while logging is suppressed');
+  // One line for the first occurrence, one more at the 20th repeat.
+  assert.equal(logged.length, 2);
+  assert.match(logged[1], /repeated 20x/);
+});
+
+test('createPollErrorLogger logs immediately and resets the streak when the message CHANGES', () => {
+  const logged = [];
+  const log = createPollErrorLogger((msg) => logged.push(msg));
+  log('webhook is active');
+  log('webhook is active');
+  const streak = log('terminated by setWebhook request'); // the real transition event
+  assert.equal(streak, 1, 'a genuinely new error must never be swallowed as a repeat');
+  assert.equal(logged.length, 2);
+  assert.match(logged[1], /terminated by setWebhook request/);
+});
+
+test('createPollErrorLogger: passing a falsy message resets the streak', () => {
+  const logged = [];
+  const log = createPollErrorLogger((msg) => logged.push(msg));
+  log('webhook is active');
+  log('webhook is active');
+  const resetStreak = log(null);
+  assert.equal(resetStreak, 0);
+  const streak = log('webhook is active');
+  assert.equal(streak, 1, 'streak must start over, not continue from before the reset');
+});
+
+// shouldAlertOperator / maybeAlertOperator
+
+test('shouldAlertOperator is false below the threshold', () => {
+  for (let i = 0; i < 12; i++) assert.equal(shouldAlertOperator(i), false);
+});
+
+test('shouldAlertOperator fires at the threshold, then again every repeat interval, never in between', () => {
+  assert.equal(shouldAlertOperator(12), true);
+  for (let i = 13; i < 72; i++) assert.equal(shouldAlertOperator(i), false, `must not fire again at ${i}`);
+  assert.equal(shouldAlertOperator(72), true);
+});
+
+test('maybeAlertOperator does nothing when no operator chat_id is configured, even past threshold', async () => {
+  let sent = false;
+  await maybeAlertOperator(50, 'some error', null, async () => { sent = true; });
+  assert.equal(sent, false);
+});
+
+test('maybeAlertOperator does nothing below threshold even with a configured chat_id', async () => {
+  let sent = false;
+  await maybeAlertOperator(3, 'some error', 'operator-chat', async () => { sent = true; });
+  assert.equal(sent, false);
+});
+
+test('maybeAlertOperator sends to the operator chat_id once past threshold, including the error text', async () => {
+  const calls = [];
+  await maybeAlertOperator(12, 'webhook is active', 'operator-chat', async (chatId, text) => { calls.push({ chatId, text }); });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].chatId, 'operator-chat');
+  assert.match(calls[0].text, /webhook is active/);
 });
