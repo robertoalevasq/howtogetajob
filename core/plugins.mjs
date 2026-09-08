@@ -201,6 +201,24 @@ async function cmdRun(args) {
   }
   if (!manifest.hooks.includes(hook)) { console.error(`Plugin "${id}" does not expose a "${hook}" hook (has: ${manifest.hooks.join(', ')}).`); process.exit(1); }
 
+  // notify --help / -h: must short-circuit here, before the enabled/configured
+  // gate below and before any message text is built — exactly like --help on
+  // any other CLI, it has to work regardless of whether the plugin is
+  // otherwise set up. Scoped to the EXACT single remaining token so a real
+  // message that happens to start with "--help ..." (multiple tokens) still
+  // sends normally, never mistaken for a usage request.
+  // Found live 2026-09-01 through 2026-09-08 (6 occurrences across 2
+  // workspaces): with no --help handling at all, an operator-side probe of
+  // this CLI's own usage fell through as literal message text and was
+  // actually sent to a real candidate's Telegram chat as "--help".
+  if (hook === 'notify') {
+    const messageArgs = positional.slice(hookArgStart);
+    if (messageArgs.length === 1 && (messageArgs[0] === '--help' || messageArgs[0] === '-h')) {
+      console.log(`Usage: node plugins.mjs run ${id} notify "<message>" [--file <path>]... [--edit <messageId>] [--embed-file <path>] [--chat-id <id>] [--dry-run]`);
+      return;
+    }
+  }
+
   // dotenv must load BEFORE the missingEnv gate check below reads
   // process.env — otherwise a genuinely-present .env var reads as "missing"
   // simply because nothing has loaded the file into process.env yet, and
