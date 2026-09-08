@@ -171,20 +171,160 @@ export function applyFile(liveFilePath, templateFilePath) {
   };
 }
 
+export const JSON_TEMPLATE_PAIRS = [
+  { live: '.claude/settings.json', template: '.claude/settings.json' },
+];
+
+/**
+ * Identity key for a JSON array item, used to decide whether a template
+ * item already exists in a live array. Hook-matcher objects (which carry a
+ * `matcher` field) are identified by that field, since two hook entries for
+ * the same matcher are the same registration even if their command differs
+ * — this never overwrites an existing entry's command, only skips adding a
+ * duplicate. Everything else (plain strings in permissions.allow, etc.) is
+ * identified by exact value.
+ * @param {any} item
+ */
+function jsonItemIdentity(item) {
+  if (item && typeof item === 'object' && !Array.isArray(item) && 'matcher' in item) {
+    return `matcher:${item.matcher}`;
+  }
+  return `value:${JSON.stringify(item)}`;
+}
+
+/**
+ * Key paths (and, for arrays, groups of missing items) present in
+ * templateValue but absent from liveValue. Mirrors findMissingKeyPaths's
+ * "stop at the shallowest missing point" rule for objects. For arrays,
+ * diffs item-by-item using jsonItemIdentity so a template array can gain
+ * new entries without ever touching an existing live entry. Never reports
+ * a path where live already holds a scalar value, even a different one —
+ * additive-only, same as the YAML side.
+ * @param {any} templateValue
+ * @param {any} liveValue
+ * @param {string[]} path
+ * @returns {{path: string[], value: any, arrayAppend?: boolean}[]}
+ */
+export function findMissingJsonPaths(templateValue, liveValue, path = []) {
+  const missing = [];
+  if (Array.isArray(templateValue)) {
+    if (!Array.isArray(liveValue)) {
+      if (templateValue.length > 0) missing.push({ path, value: templateValue, arrayAppend: true });
+      return missing;
+    }
+    const liveIdentities = new Set(liveValue.map(jsonItemIdentity));
+    const newItems = templateValue.filter((item) => !liveIdentities.has(jsonItemIdentity(item)));
+    if (newItems.length > 0) missing.push({ path, value: newItems, arrayAppend: true });
+    return missing;
+  }
+  if (templateValue && typeof templateValue === 'object') {
+    if (liveValue === undefined) {
+      missing.push({ path, value: templateValue });
+      return missing;
+    }
+    if (typeof liveValue !== 'object' || liveValue === null || Array.isArray(liveValue)) {
+      return missing; // existing scalar/array where object expected — never overwrite
+    }
+    for (const key of Object.keys(templateValue)) {
+      const childPath = [...path, key];
+      if (!(key in liveValue)) {
+        missing.push({ path: childPath, value: templateValue[key] });
+      } else {
+        missing.push(...findMissingJsonPaths(templateValue[key], liveValue[key], childPath));
+      }
+    }
+    return missing;
+  }
+  return missing; // scalar template value: never overwrite an existing live value
+}
+
+/**
+ * Compare one (live, template) JSON file pair. Never throws — a missing
+ * file or a parse error is reported in the return value. Same return shape
+ * as checkFile so callers can treat YAML and JSON pairs identically.
+ * @returns {{ missing: string[][], error: string|null }}
+ */
+export function checkJsonFile(liveFilePath, templateFilePath) {
+  if (!existsSync(liveFilePath) || !existsSync(templateFilePath)) {
+    return { missing: [], error: null };
+  }
+  let liveValue, templateValue;
+  try {
+    liveValue = JSON.parse(readFileSync(liveFilePath, 'utf8'));
+    templateValue = JSON.parse(readFileSync(templateFilePath, 'utf8'));
+  } catch (err) {
+    return { missing: [], error: /** @type {Error} */ (err).message };
+  }
+  const entries = findMissingJsonPaths(templateValue, liveValue);
+  return { missing: entries.map((e) => e.path), error: null };
+}
+
+/**
+ * Write every missing key/array-item from checkJsonFile into the live file.
+ * No-op (no write at all) when nothing is missing. Same return shape as
+ * applyFile, minus `conflicts` — a JSON type conflict (live scalar where
+ * template wants an object) is silently skipped, same non-destructive rule,
+ * without needing YAML's richer conflict reporting for this simpler shape.
+ * @returns {{ written: string[][], error: string|null }}
+ */
+export function applyJsonFile(liveFilePath, templateFilePath) {
+  if (!existsSync(liveFilePath) || !existsSync(templateFilePath)) {
+    return { written: [], error: null };
+  }
+  let liveValue, templateValue;
+  try {
+    liveValue = JSON.parse(readFileSync(liveFilePath, 'utf8'));
+    templateValue = JSON.parse(readFileSync(templateFilePath, 'utf8'));
+  } catch (err) {
+    return { written: [], error: /** @type {Error} */ (err).message };
+  }
+  const entries = findMissingJsonPaths(templateValue, liveValue);
+  if (entries.length === 0) return { written: [], error: null };
+
+  for (const { path, value, arrayAppend } of entries) {
+    let target = liveValue;
+    for (const key of path.slice(0, -1)) {
+      if (typeof target[key] !== 'object' || target[key] === null || Array.isArray(target[key])) {
+        target[key] = {};
+      }
+      target = target[key];
+    }
+    const lastKey = path[path.length - 1];
+    if (arrayAppend) {
+      if (!Array.isArray(target[lastKey])) target[lastKey] = [];
+      target[lastKey].push(...value);
+    } else {
+      target[lastKey] = value;
+    }
+  }
+  writeFileSync(liveFilePath, JSON.stringify(liveValue, null, 2) + '\n');
+  return { written: entries.map((e) => e.path), error: null };
+}
+
 /** @returns {{ file: string, missing: string[][], error: string|null }[]} */
 export function checkWorkspace(wsDir, reposRoot = ROOT) {
-  return TEMPLATE_PAIRS.map(({ live, template }) => ({
+  const yamlResults = TEMPLATE_PAIRS.map(({ live, template }) => ({
     file: live,
     ...checkFile(join(wsDir, live), join(reposRoot, template)),
   }));
+  const jsonResults = JSON_TEMPLATE_PAIRS.map(({ live, template }) => ({
+    file: live,
+    ...checkJsonFile(join(wsDir, live), join(reposRoot, template)),
+  }));
+  return [...yamlResults, ...jsonResults];
 }
 
-/** @returns {{ file: string, written: string[][], conflicts: string[][], error: string|null }[]} */
+/** @returns {{ file: string, written: string[][], conflicts?: string[][], error: string|null }[]} */
 export function applyWorkspace(wsDir, reposRoot = ROOT) {
-  return TEMPLATE_PAIRS.map(({ live, template }) => ({
+  const yamlResults = TEMPLATE_PAIRS.map(({ live, template }) => ({
     file: live,
     ...applyFile(join(wsDir, live), join(reposRoot, template)),
   }));
+  const jsonResults = JSON_TEMPLATE_PAIRS.map(({ live, template }) => ({
+    file: live,
+    ...applyJsonFile(join(wsDir, live), join(reposRoot, template)),
+  }));
+  return [...yamlResults, ...jsonResults];
 }
 
 function resolveTargets(argv, reposRoot) {
