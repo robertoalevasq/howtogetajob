@@ -1,0 +1,517 @@
+<title>Hub Control</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #f5f7f9;
+    --surface: #ffffff;
+    --surface-2: #eef1f4;
+    --border: #dbe1e7;
+    --text-primary: #10161c;
+    --text-secondary: #4c5866;
+    --text-muted: #8993a1;
+    --accent: #0c8f92;
+    --accent-strong: #076669;
+    --accent-soft: #e2f4f3;
+    --good: #1e9e5a;
+    --warning: #b06f08;
+    --critical: #c93f49;
+    --neutral-status: #6b7280;
+    --shadow: 0 1px 2px rgba(16, 22, 28, 0.04), 0 8px 24px -12px rgba(16, 22, 28, 0.12);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0b1216;
+      --surface: #121b20;
+      --surface-2: #19232a;
+      --border: #263139;
+      --text-primary: #e8edf0;
+      --text-secondary: #aab5bf;
+      --text-muted: #6d7883;
+      --accent: #34d3d6;
+      --accent-strong: #6fe4e6;
+      --accent-soft: #122b2b;
+      --good: #3ecb80;
+      --warning: #e4a63f;
+      --critical: #f27078;
+      --neutral-status: #8b96a1;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0b1216;
+    --surface: #121b20;
+    --surface-2: #19232a;
+    --border: #263139;
+    --text-primary: #e8edf0;
+    --text-secondary: #aab5bf;
+    --text-muted: #6d7883;
+    --accent: #34d3d6;
+    --accent-strong: #6fe4e6;
+    --accent-soft: #122b2b;
+    --good: #3ecb80;
+    --warning: #e4a63f;
+    --critical: #f27078;
+    --neutral-status: #8b96a1;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
+  }
+
+  * { box-sizing: border-box; }
+  html { color-scheme: light dark; }
+  body {
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: 'Public Sans', system-ui, -apple-system, sans-serif;
+    margin: 0;
+    padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 5vw, 3.5rem) 4rem;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent-strong); }
+
+  .page { max-width: 74rem; margin: 0 auto; display: flex; flex-direction: column; gap: 2.75rem; }
+
+  /* Header */
+  .eyebrow {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent-strong);
+    margin: 0 0 0.5rem;
+  }
+  h1 {
+    font-family: 'Archivo', system-ui, sans-serif;
+    font-weight: 800;
+    font-size: clamp(1.9rem, 4vw, 2.6rem);
+    letter-spacing: -0.01em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .header-meta {
+    margin-top: 0.6rem;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+  }
+  .header-meta span.dim { color: var(--text-muted); }
+
+  /* KPI strip */
+  .kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .kpi-tile {
+    background: var(--surface);
+    padding: 1.2rem 1.3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .kpi-value {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-weight: 600;
+    font-size: 1.9rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  .kpi-label {
+    font-size: 0.74rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+
+  /* Section headers */
+  section { display: flex; flex-direction: column; gap: 1rem; }
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  h2 {
+    font-family: 'Archivo', system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 1.25rem;
+    margin: 0;
+    letter-spacing: -0.005em;
+  }
+  .section-note { font-size: 0.85rem; color: var(--text-muted); margin: 0; }
+
+  /* Workspace cards */
+  .ws-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(19.5rem, 1fr));
+    gap: 1rem;
+  }
+  .ws-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.25rem 1.3rem 1.4rem;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+  .ws-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
+  .ws-card-head h3 {
+    font-family: 'Archivo', system-ui, sans-serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin: 0;
+  }
+  .ws-slug {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin: 0.15rem 0 0;
+  }
+  .pill {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.28rem 0.6rem;
+    border-radius: 999px;
+    white-space: nowrap;
+    border: 1px solid transparent;
+  }
+  .pill-neutral { background: var(--surface-2); color: var(--text-secondary); border-color: var(--border); }
+  .pill-accent { background: var(--accent-soft); color: var(--accent-strong); }
+  .pill-warning { background: color-mix(in srgb, var(--warning) 16%, var(--surface)); color: var(--warning); }
+  .pill-muted { background: var(--surface-2); color: var(--text-muted); border-color: var(--border); }
+
+  .ws-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.9rem;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+  }
+  .ws-meta .ok::before { content: "●"; color: var(--good); margin-right: 0.35rem; font-size: 0.6rem; vertical-align: middle; }
+  .ws-meta .off::before { content: "●"; color: var(--text-muted); margin-right: 0.35rem; font-size: 0.6rem; vertical-align: middle; }
+
+  .ws-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem 1rem;
+    padding-top: 0.7rem;
+    border-top: 1px solid var(--border);
+  }
+  .stat { display: flex; flex-direction: column; gap: 0.15rem; }
+  .stat-label { font-size: 0.68rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted); }
+  .stat-value {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.95rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Token usage small multiples */
+  .usage-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 1rem;
+  }
+  .usage-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.1rem 1.2rem 1rem;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+  .usage-panel.is-system { border-style: dashed; }
+  .usage-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; }
+  .usage-head h4 { margin: 0; font-family: 'Archivo', system-ui, sans-serif; font-size: 0.92rem; font-weight: 700; }
+  .usage-tag {
+    font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600;
+    color: var(--text-muted); border: 1px solid var(--border); border-radius: 5px; padding: 0.08rem 0.35rem;
+  }
+  .usage-total {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+  .bars { display: flex; align-items: flex-end; gap: 4px; height: 60px; }
+  .bar {
+    flex: 1;
+    min-width: 5px;
+    height: var(--h);
+    background: var(--accent);
+    border-radius: 3px 3px 1px 1px;
+    opacity: 0.9;
+  }
+  .bar:hover { opacity: 1; }
+  .usage-range {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.68rem;
+    color: var(--text-muted);
+  }
+
+  /* Run activity bars */
+  .mode-list {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.1rem 1.3rem;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .mode-row { display: grid; grid-template-columns: 7.5rem 1fr 2.6rem; align-items: center; gap: 0.75rem; }
+  .mode-label { font-size: 0.82rem; color: var(--text-secondary); font-weight: 600; }
+  .mode-track { background: var(--surface-2); border-radius: 999px; height: 10px; overflow: hidden; }
+  .mode-fill { height: 100%; background: var(--accent); border-radius: 999px; }
+  .mode-value {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.82rem;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-primary);
+  }
+
+  .empty-state {
+    background: var(--surface);
+    border: 1px dashed var(--border);
+    border-radius: 14px;
+    padding: 1.5rem;
+    color: var(--text-muted);
+    font-size: 0.88rem;
+    text-align: center;
+  }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding-top: 1.2rem;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .ws-card, .usage-panel, .kpi-tile { transition: transform 0.15s ease; }
+  }
+</style>
+
+<div class="page">
+  <header>
+    <p class="eyebrow">career-ops &middot; hub owner</p>
+    <h1>Hub Control</h1>
+    <p class="header-meta" id="header-meta">Loading snapshot&hellip;</p>
+  </header>
+
+  <div class="kpi-strip" id="kpi-strip"></div>
+
+  <section>
+    <div class="section-head">
+      <h2>Workspaces</h2>
+      <p class="section-note">Every provisioned workspace under <code>workspaces/</code> &mdash; new ones appear here automatically.</p>
+    </div>
+    <div class="ws-grid" id="ws-grid"></div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Token usage, last 14 days</h2>
+      <p class="section-note">Daily totals mined from local session transcripts.</p>
+    </div>
+    <div class="usage-grid" id="usage-grid"></div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Run activity by mode</h2>
+      <p class="section-note">career-ops skill invocations across all workspaces, all time.</p>
+    </div>
+    <div class="mode-list" id="mode-list"></div>
+  </section>
+
+  <footer id="footer-note"></footer>
+</div>
+
+<!--
+  SNAPSHOT_PLACEHOLDER is replaced by core/render-hub-control.mjs with the
+  JSON from admin-overview-snapshot.mjs's buildSnapshot(). It is embedded in
+  a script[type=application/json] tag (parsed via textContent, not evaluated
+  as JS) so no JS-string-literal escaping is needed for quotes, backslashes,
+  or U+2028/U+2029 -- the only character the renderer must still neutralize
+  is a literal "</script" sequence, which would otherwise close this tag
+  early regardless of its type attribute.
+-->
+<script type="application/json" id="snapshot-data">__SNAPSHOT_JSON__</script>
+<script>
+  const SNAPSHOT = JSON.parse(document.getElementById('snapshot-data').textContent);
+
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function fmtInt(n) { return Number(n ?? 0).toLocaleString('en-US'); }
+  function fmtCompact(n) { return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(Number(n ?? 0)); }
+  function fmtScore(n) { return (n === null || n === undefined) ? '—' : Number(n).toFixed(1); }
+  function fmtPct(n) { if (n === null || n === undefined) return '—'; const r = Math.round(n * 10) / 10; return (r % 1 === 0 ? r.toFixed(0) : r.toFixed(1)) + '%'; }
+
+  function stateMeta(state) {
+    if (state === 'running') return { label: 'Running', cls: 'pill-accent' };
+    if (state === 'stalled') return { label: 'Stalled', cls: 'pill-warning' };
+    if (state === 'no_run') return { label: 'Never run', cls: 'pill-muted' };
+    return { label: 'Idle', cls: 'pill-neutral' };
+  }
+
+  function renderHeader() {
+    const el = document.getElementById('header-meta');
+    const generated = new Date(SNAPSHOT.generatedAt);
+    const genStr = isNaN(generated) ? SNAPSHOT.generatedAt : generated.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+    el.innerHTML = `Generated ${escapeHtml(genStr)} &middot; <span class="dim">${SNAPSHOT.workspaces.length} workspace${SNAPSHOT.workspaces.length === 1 ? '' : 's'} tracked</span>`;
+  }
+
+  function renderKpis() {
+    const ws = SNAPSHOT.workspaces;
+    const tracked = ws.reduce((s, w) => s + (w.trackerStats?.tracker?.total || 0), 0);
+    const applied = ws.reduce((s, w) => s + (w.trackerStats?.funnel?.everApplied || 0), 0);
+    const bound = ws.filter((w) => w.chatId).length;
+    const active = ws.filter((w) => w.activeTask?.state === 'running' || w.activeTask?.state === 'stalled').length;
+
+    const tiles = [
+      { label: 'Workspaces', value: fmtInt(ws.length) },
+      { label: 'Tracked roles', value: fmtInt(tracked) },
+      { label: 'Ever applied', value: fmtInt(applied) },
+      { label: 'Telegram-bound', value: `${bound}/${ws.length}` },
+      { label: 'Active right now', value: fmtInt(active) },
+    ];
+    document.getElementById('kpi-strip').innerHTML = tiles.map((t) => `
+      <div class="kpi-tile">
+        <span class="kpi-value">${t.value}</span>
+        <span class="kpi-label">${escapeHtml(t.label)}</span>
+      </div>`).join('');
+  }
+
+  function renderWorkspaceCard(w) {
+    const t = w.trackerStats?.tracker || {};
+    const funnel = w.trackerStats?.funnel || {};
+    const scan = w.trackerStats?.scan || {};
+    const runs = w.trackerStats?.runs || {};
+    const state = stateMeta(w.activeTask?.state);
+    const boundClass = w.chatId ? 'ok' : 'off';
+
+    return `
+    <article class="ws-card">
+      <div class="ws-card-head">
+        <div>
+          <h3>${escapeHtml(w.displayName)}</h3>
+          <p class="ws-slug">${escapeHtml(w.slug)}</p>
+        </div>
+        <span class="pill ${state.cls}">${state.label}</span>
+      </div>
+      <div class="ws-meta">
+        <span class="${boundClass}">${w.chatId ? 'Telegram bound' : 'Not bound'}</span>
+        <span>Created ${escapeHtml(w.createdAt || '—')}</span>
+        <span>Last active ${escapeHtml(w.activeTask?.lastUpdateAgo || '—')}</span>
+      </div>
+      <div class="ws-stats">
+        <div class="stat"><span class="stat-label">Tracked</span><span class="stat-value">${fmtInt(t.total)}</span></div>
+        <div class="stat"><span class="stat-label">Applied</span><span class="stat-value">${fmtInt(funnel.everApplied)}</span></div>
+        <div class="stat"><span class="stat-label">Avg / top score</span><span class="stat-value">${fmtScore(t.avgScore)} / ${fmtScore(t.topScore)}</span></div>
+        <div class="stat"><span class="stat-label">PDF coverage</span><span class="stat-value">${fmtPct(t.pdfPct)}</span></div>
+        <div class="stat"><span class="stat-label">Companies scanned</span><span class="stat-value">${fmtInt(scan.distinctCompanies)}</span></div>
+        <div class="stat"><span class="stat-label">Scan runs</span><span class="stat-value">${fmtInt(runs.totalRuns)}</span></div>
+      </div>
+    </article>`;
+  }
+
+  function renderWorkspaces() {
+    document.getElementById('ws-grid').innerHTML = SNAPSHOT.workspaces.map(renderWorkspaceCard).join('');
+  }
+
+  function bucketDisplay(key) {
+    if (key === 'hub') return { label: 'Hub (dev / system)', tag: 'system' };
+    if (key === 'deleted-or-renamed') return { label: 'Deleted / renamed', tag: 'archived' };
+    const match = SNAPSHOT.workspaces.find((w) => w.slug === key);
+    return { label: match ? match.displayName : key, tag: null };
+  }
+
+  function dayTotal(entry) {
+    return (entry.input_tokens || 0) + (entry.cache_creation_input_tokens || 0) + (entry.cache_read_input_tokens || 0) + (entry.output_tokens || 0);
+  }
+
+  function renderUsagePanel(key, byDay) {
+    const days = Object.keys(byDay).sort().slice(-14);
+    if (days.length === 0) return '';
+    const totals = days.map((d) => dayTotal(byDay[d]));
+    const max = Math.max(...totals, 1);
+    const grandTotal = totals.reduce((a, b) => a + b, 0);
+    const meta = bucketDisplay(key);
+
+    const bars = days.map((d, i) => {
+      const pct = Math.max(4, Math.round((totals[i] / max) * 100));
+      return `<div class="bar" style="--h:${pct}%" title="${escapeHtml(d)}: ${fmtCompact(totals[i])} tokens"></div>`;
+    }).join('');
+
+    return `
+    <div class="usage-panel ${meta.tag ? 'is-system' : ''}">
+      <div class="usage-head">
+        <h4>${escapeHtml(meta.label)}</h4>
+        ${meta.tag ? `<span class="usage-tag">${meta.tag}</span>` : ''}
+      </div>
+      <div class="bars">${bars}</div>
+      <div class="usage-range">
+        <span>${escapeHtml(days[0])}</span>
+        <span class="usage-total">${fmtCompact(grandTotal)} tokens</span>
+        <span>${escapeHtml(days[days.length - 1])}</span>
+      </div>
+    </div>`;
+  }
+
+  function renderUsage() {
+    const buckets = SNAPSHOT.tokenUsageByWorkspace || {};
+    const wsSlugs = SNAPSHOT.workspaces.map((w) => w.slug).filter((s) => buckets[s]);
+    const order = [...wsSlugs, ...(buckets['hub'] ? ['hub'] : []), ...(buckets['deleted-or-renamed'] ? ['deleted-or-renamed'] : [])];
+    const html = order.map((key) => renderUsagePanel(key, buckets[key])).join('');
+    document.getElementById('usage-grid').innerHTML = html || '<div class="empty-state">No token usage recorded yet.</div>';
+  }
+
+  function renderModes() {
+    const buckets = SNAPSHOT.runCountsByWorkspace || {};
+    const totals = {};
+    for (const byDay of Object.values(buckets)) {
+      for (const modes of Object.values(byDay)) {
+        for (const [mode, count] of Object.entries(modes)) {
+          totals[mode] = (totals[mode] || 0) + count;
+        }
+      }
+    }
+    const entries = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+    if (entries.length === 0) {
+      document.getElementById('mode-list').outerHTML = '<div class="empty-state">No classified runs recorded yet.</div>';
+      return;
+    }
+    const max = entries[0][1];
+    document.getElementById('mode-list').innerHTML = entries.map(([mode, count]) => `
+      <div class="mode-row">
+        <span class="mode-label">${escapeHtml(mode)}</span>
+        <div class="mode-track"><div class="mode-fill" style="width:${Math.max(3, Math.round((count / max) * 100))}%"></div></div>
+        <span class="mode-value">${fmtInt(count)}</span>
+      </div>`).join('');
+  }
+
+  function renderFooter() {
+    document.getElementById('footer-note').textContent =
+      '"Hub (dev / system)" is the hub owner’s own build/maintenance sessions on this repo, not a job-seeker workspace. "Deleted / renamed" covers transcripts whose workspace slug no longer matches a currently provisioned workspace.';
+  }
+
+  renderHeader();
+  renderKpis();
+  renderWorkspaces();
+  renderUsage();
+  renderModes();
+  renderFooter();
+</script>
