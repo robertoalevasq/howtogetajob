@@ -234,9 +234,10 @@ close it.)
 
 1. Check whether `data/cache/ats-full-checkpoint.json` exists.
    - Exists (an earlier sweep was interrupted) → run
-     `node core/scan-ats-full.mjs --resume`
-   - Absent → run `node core/scan-ats-full.mjs` (fresh sweep, default `--since 3`
-     window unless the user asked for a wider one)
+     `node core/scan-ats-full.mjs --resume --ats greenhouse,lever,ashby,workday --include-undated` (must repeat the same `--ats`/`--include-undated` the checkpoint was started with, or `--resume` refuses it as an incompatible-settings mismatch)
+   - Absent → run `node core/scan-ats-full.mjs --ats greenhouse,lever,ashby,workday --include-undated` (fresh sweep, default `--since 3` window unless the user asked for a wider one). Two deviations from the bare default, found live 2026-09-03:
+     - **`--ats greenhouse,lever,ashby,workday` (iCIMS excluded):** iCIMS-hosted portals are now uniformly blocked by an AWS WAF CAPTCHA challenge (`x-amzn-waf-action: captcha` on every request, confirmed via direct curl against multiple tenants) — not a stale-dataset issue like the other vendors' 404s, a bot-detection wall no header/UA tweak clears. iCIMS contributed zero real matches while accounting for roughly a quarter of a full sweep's company count; excluding it doesn't lose any real jobs today and meaningfully shortens the sweep. Revisit only if iCIMS is ever moved to a browser-driven (Playwright) fetch path — out of scope for this pure-HTTP script.
+     - **`--include-undated`:** many tenants (e.g. some Workday sites) never expose a `postedOn` field at all, so every one of their postings was being silently dropped by the default date gate regardless of actual freshness or fit — not stale postings, just undatable ones. Measured live: on a 2,000-company sample across the four working vendors, enabling this roughly doubled real matches. `title_filter`/`location_filter` still apply normally, so this isn't an unfiltered flood — it just stops discarding otherwise-matching postings for lacking a date field.
 2. Launch it as a background shell process (not a blocking foreground call)
    so you can keep narrating progress instead of going silent for hours —
    **but "not a blocking foreground call" describes how you launch the
@@ -552,15 +553,17 @@ roll-up, not a re-print.
 
 ### Fallback (if `_custom.md` is absent or silent)
 
+This fallback fires precisely because the workspace's `_custom.md` has no "Discord Notifications"/"Telegram Notifications" section to follow — so it must be self-contained, never a pointer back into `_custom.md`. Use `core/build-digest.mjs` for the match content either way (the same deterministic renderer the reference `_custom.md` spec uses — see `workspaces/ernesto-vasquez/_custom.md`'s "Discord Notifications"/"Telegram Notifications" sections): free-form prose composed per-run is exactly how a digest silently drops the job URL, since nothing forces the model to include it every time.
+
 **Discord:**
 1. If Discord plugin is not configured (`node core/plugins.mjs list`) or `DISCORD_WEBHOOK_URL` is missing from `.env`, skip Discord delivery and log it in the final report.
 2. Collect PDF paths from Step 2 (inline) + Step 3 (safety net) for entries scoring `>= auto_pdf_score_threshold`.
-3. Send a plain-text message per `_custom.md`'s Discord Notifications Phase 1 (for every match ≥3.5, send tier marker, company, role, score, URL, one-line reason; split if message exceeds ~2000 chars).
+3. `node core/build-digest.mjs scaffold --tsv <path> [--tsv <path> ...] --min-score 3.5 > <scratch>.json` (one `--tsv` per qualifying row's file in `data/tracker-additions/`), then `node core/build-digest.mjs render --input <scratch>.json --platform discord` → send each string in the returned `messages` array via `node core/plugins.mjs run discord notify "<message>"`. This guarantees every match line carries company, role, score, tier, **the job URL pulled from the report**, and a reason — never hand-compose this text.
 4. Attach all PDFs in chunks of ≤10 files per message, labeled `"Resumes 1/N"`, `"Resumes 2/N"`, etc.
 5. Skip if zero qualifying matches.
 
 **Telegram:**
-Same as Discord: plain-text digest for all matches ≥3.5, followed by PDF attachments. Skip if zero qualifying matches or Telegram plugin not configured.
+Same match content, same scaffold JSON, rendered for the other platform: `node core/build-digest.mjs render --input <scratch>.json --platform telegram` → send each string via `node core/plugins.mjs run telegram notify "<message>"`, then the PDFs the same way. Skip if zero qualifying matches or Telegram plugin not configured.
 
 ### Notes on consistency
 
