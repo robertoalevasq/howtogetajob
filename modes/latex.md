@@ -18,8 +18,8 @@ Export a tailored, ATS-optimized CV as a `.tex` file and compile it to PDF via `
 12. Run: `node core/build-cv-latex.mjs .tmp/cv-{candidate}-{company}.json output/cv-{candidate}-{company}-{YYYY-MM-DD}.tex`
 13. Run: `node core/generate-latex.mjs output/cv-{candidate}-{company}-{YYYY-MM-DD}.tex output/cv-{candidate}-{company}-{YYYY-MM-DD}.pdf`
     *(Replace `{candidate}`, `{company}`, `{YYYY-MM-DD}` with actual values.)*
-14. **Verify JD-keyword coverage — measured, not estimated (2026-08-13):** `node core/verify-jd-coverage.mjs {jd-scratch-path} .tmp/cv-{candidate}-{company}.json --summary` (reuse the same JD scratch file Step 4's `jd-skill-gap.mjs` check already wrote — don't re-save it). Report the real percentage this prints, not a guess. If it flags `regressions` (a skill `cv.md` supports that didn't survive tailoring), consider adding one verbatim mention in a competency or bullet — never stack/repeat beyond that one occurrence (see the anti-keyword-stacking rule in `modes/pdf.md`).
-15. Report: .tex path, .pdf path, file sizes, section count, keyword coverage % (from step 14, not self-estimated)
+14. **Verify JD-keyword coverage — measured, not estimated (2026-08-13):** `node core/verify-jd-coverage.mjs {jd-scratch-path} .tmp/cv-{candidate}-{company}.json --summary` (reuse the same JD scratch file Step 4's `jd-skill-gap.mjs` check already wrote — don't re-save it). Report the real percentage this prints, not a guess. If it flags `regressions` (a skill `cv.md` supports that didn't survive tailoring), consider adding one verbatim mention in a competency or bullet — never stack/repeat beyond that one occurrence (see the anti-keyword-stacking rule in `modes/pdf.md`). **If it flags a Competencies/Skills overlap (2026-09-03):** go back to Step 11 and rebuild the JSON payload per `modes/pdf.md` § "Core Competencies vs. Skills — no overlap" before compiling — fix-before-continue, same as any other verification failure.
+15. Report: .tex path, .pdf path, file sizes, section count, keyword coverage % (from step 14, not self-estimated), and any Competencies/Skills overlap flagged
 
 **Requires:** `tectonic` (preferred — `brew install tectonic`, auto-downloads packages) or `pdflatex` (MiKTeX / TeX Live) on PATH.
 
@@ -33,10 +33,12 @@ Triggered by the `[HEADLESS]` marker (see AGENTS.md → "Headless Invocation Sig
    - Reorder experience bullets by importance to *this specific report's* role (use Block A's CV-match assessment as your guide).
    - Select top 3-4 most relevant projects from `cv.md` (use Block A/B to decide relevance).
    - Build a competency grid (6-8 keywords) from Block B's North Star section, never inventing skills.
+   - **Build `skills` from a different source than `competencies` (2026-09-03):** `competencies` is functional/thematic (see `modes/pdf.md` § "Core Competencies vs. Skills — no overlap"); `skills` is concrete tools/technologies/systems, grouped by category. When `cv.md` has one flat Skills line, don't split it across both fields — pull functional outcomes for `competencies` from Block B/Experience bullets, and reserve the flat Skills line's concrete nouns for `skills`. This step is easy to skip in a headless run because nothing upstream forces it — it was found missing live 2026-09-03 after a headless `cycle` run duplicated a candidate's entire flat Skills line across both sections on multiple reports.
 3. **Write the payload to JSON** at `.tmp/cv-{candidate}-{company}.json` (fresh every time; never hardcode content as script literals).
 4. **Compile to PDF:** exactly as Steps 12-13 above:
    - `node core/build-cv-latex.mjs .tmp/cv-{candidate}-{company}.json output/{num}-{company}-{YYYY-MM-DD}.tex`
    - `node core/generate-latex.mjs output/{num}-{company}-{YYYY-MM-DD}.tex output/{num}-{company}-{YYYY-MM-DD}.pdf`
+5. **Verify — same as Step 14 above, never skipped for being headless:** `node core/verify-jd-coverage.mjs {jd-scratch-path} .tmp/cv-{candidate}-{company}.json --summary`. If it flags a Competencies/Skills overlap, rebuild the payload (step 2) and recompile (step 4) before treating this report's PDF as done — a `[HEADLESS]` invocation still has no one to catch the duplication later, so this is the only gate that will.
 
 This ensures each report's PDF is truly tailored to its own evaluated role, not a hardcoded generic template.
 
@@ -176,6 +178,7 @@ Same ethical rules as `modes/pdf.md`:
   - JD says "RAG pipelines" → reword "LLM workflows with retrieval" to "RAG pipeline design"
   - JD says "MLOps" → reword "observability, evals" to "MLOps and observability"
 - **Never stack a keyword next to a phrase that already says the same thing** — e.g. "HR compliance verifications via HR compliance and regulatory verification" repeats the same concept three ways in one bullet. Replace the original wording with the JD term, don't add it alongside. See `modes/pdf.md`'s Keyword injection strategy section for the full failure examples and the per-bullet/whole-CV read-back check.
+- **`competencies` and `skills` must never overlap** — same anti-stacking discipline, applied across sections instead of within one bullet. See `modes/pdf.md` § "Core Competencies vs. Skills — no overlap" for the full rule (this is a shared schema between the HTML and LaTeX renderers, so the rule applies identically here). Step 14's `verify-jd-coverage.mjs` check below flags a violation automatically — treat it as a fix-before-continue, not an optional cleanup.
 
 ## Overleaf Compatibility
 

@@ -19,6 +19,15 @@
  * anti-keyword-stacking rule (line 111): guarantee presence once, never
  * stack/repeat beyond that.
  *
+ * Also flags a COMPETENCIES/SKILLS OVERLAP (added 2026-09-03, found live):
+ * `competencies` and `skills` are two different views of the candidate
+ * (see modes/pdf.md § "Core Competencies vs. Skills — no overlap") but
+ * nothing upstream previously enforced that they stay disjoint — a
+ * candidate with one flat Skills line in cv.md could end up with the same
+ * phrases duplicated across both sections (confirmed up to 88% overlap on
+ * one real tailored resume). This is a measured fact the same way JD
+ * coverage is, not left to the tailoring step's self-report.
+ *
  * Usage:
  *   node verify-jd-coverage.mjs <jd-path> <tailored-cv-json-path> [--summary]
  *
@@ -52,6 +61,50 @@ function cvJsonToText(cv) {
     if (sk.items) parts.push(sk.items);
   }
   return parts.join('\n');
+}
+
+/** Case/punctuation-insensitive normalization for phrase comparison. */
+function normPhrase(s) {
+  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+/**
+ * Flags competency phrases that also appear (verbatim or as a substring of
+ * a skills.items entry) in the skills section — see the module doc comment.
+ * Never throws on malformed/missing fields; a payload with no competencies
+ * or no skills simply has nothing to overlap.
+ *
+ * @param {object} cv - tailored CV JSON payload (modes/latex.md schema)
+ * @returns {{ overlapping: string[], pct: number }}
+ */
+export function checkCompetencySkillOverlap(cv) {
+  const competencies = Array.isArray(cv.competencies) ? cv.competencies : [];
+  if (!competencies.length) return { overlapping: [], pct: 0 };
+
+  const skillItems = [];
+  for (const sk of cv.skills || []) {
+    if (!sk || !sk.items) continue;
+    const raw = Array.isArray(sk.items) ? sk.items : String(sk.items).split(',');
+    for (const item of raw) {
+      const n = normPhrase(item);
+      if (n) skillItems.push(n);
+    }
+  }
+  if (!skillItems.length) return { overlapping: [], pct: 0 };
+
+  const skillItemSet = new Set(skillItems);
+  const skillsBlob = ` ${skillItems.join(' | ')} `;
+
+  const overlapping = competencies.filter(c => {
+    const nc = normPhrase(c);
+    if (!nc) return false;
+    // Exact match against a single skills.items entry, or the competency
+    // phrase appears whole within the joined skills blob (handles a skills
+    // category that lists several comma-separated items as one entry).
+    return skillItemSet.has(nc) || skillsBlob.includes(` ${nc} `) || skillsBlob.includes(`|${nc} `) || skillsBlob.includes(` ${nc}|`);
+  });
+
+  return { overlapping, pct: Math.round((overlapping.length / competencies.length) * 100) };
 }
 
 function main() {
@@ -91,6 +144,8 @@ function main() {
   const covered = post.existing.length + post.supportedByResume.length;
   const coveragePct = total > 0 ? Math.round((covered / total) * 100) : null;
 
+  const overlap = checkCompetencySkillOverlap(cv);
+
   const output = {
     ok: true,
     totalJdSkills: total,
@@ -100,12 +155,14 @@ function main() {
     supportedByResume: post.supportedByResume,
     gap: post.gap,
     regressions, // supported by cv.md pre-tailoring, missing from the final tailored text
+    competencySkillOverlap: overlap, // { overlapping: string[], pct: number } — see modes/pdf.md § "Core Competencies vs. Skills — no overlap"
   };
 
   if (summary) {
     console.log(`JD-coverage: ${coveragePct}% (${covered}/${total})`);
     if (post.gap.length) console.log(`Not in final resume at all (true gaps): ${post.gap.join(', ')}`);
     if (regressions.length) console.log(`⚠ Available in cv.md but dropped during tailoring: ${regressions.join(', ')} — consider a verbatim mention.`);
+    if (overlap.overlapping.length) console.log(`⚠ Competencies/Skills overlap (${overlap.pct}%): ${overlap.overlapping.join(', ')} — these appear in both sections; competencies should be functional/thematic, skills should be concrete tools/systems. Fix before continuing (see modes/pdf.md § "Core Competencies vs. Skills — no overlap").`);
   } else {
     console.log(JSON.stringify(output, null, 2));
   }

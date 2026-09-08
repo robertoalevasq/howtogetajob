@@ -57,8 +57,8 @@ Run `npm run jd:similarity -- {bundle-root}/jd/current.md {bundle-root}/jd/previ
     - The rendered PDF has a two-page warning threshold by default. `--max-pages=N` accepts a positive integer; pass `--max-pages=1` when the user or market prefers a one-page CV.
     - If the rendered PDF exceeds its threshold, generation warns loudly with the actual and allowed page counts plus trimming guidance, then reports and indexes the unchanged PDF so existing longer-CV flows keep working.
     - Pass `--strict-pages` only when the user or market requires a hard limit. Strict overflow leaves the draft available for inspection but does not report or index it as successful; trim lower-priority content and rerun.
-22. **Verify JD-keyword coverage — measured, not estimated (2026-08-13):** `node core/verify-jd-coverage.mjs {jd-scratch-path} .tmp/cv-{candidate}-{company}.json --summary` (reuse the same JD scratch file Step 4's `jd-skill-gap.mjs` check already wrote — don't re-save it). Use the real percentage this prints, not a guess. If it flags `regressions` (a skill `cv.md` supports that didn't survive tailoring), consider adding one verbatim mention in a competency or bullet — never stack/repeat beyond that one occurrence (see the anti-keyword-stacking rule above).
-23. Report: PDF path, number of pages, keyword coverage % (from step 22, not self-estimated), and any skill gaps from Step 4 still unaddressed
+22. **Verify JD-keyword coverage — measured, not estimated (2026-08-13):** `node core/verify-jd-coverage.mjs {jd-scratch-path} .tmp/cv-{candidate}-{company}.json --summary` (reuse the same JD scratch file Step 4's `jd-skill-gap.mjs` check already wrote — don't re-save it). Use the real percentage this prints, not a guess. If it flags `regressions` (a skill `cv.md` supports that didn't survive tailoring), consider adding one verbatim mention in a competency or bullet — never stack/repeat beyond that one occurrence (see the anti-keyword-stacking rule above). **If it flags a Competencies/Skills overlap (2026-09-03):** go back to Step 17 and rebuild the payload per "Core Competencies vs. Skills — no overlap" above before rendering — this is a hard fix-before-continue, same as a fact-gate failure, not an optional cleanup.
+23. Report: PDF path, number of pages, keyword coverage % (from step 22, not self-estimated), any Competencies/Skills overlap flagged, and any skill gaps from Step 4 still unaddressed
 
 ## ATS Rules (clean parsing)
 
@@ -219,6 +219,17 @@ Write a JSON file with this structure, then run `node core/build-cv-html.mjs <in
 | `skills[]` | object | `category` + `items` (comma-separated string or string array). |
 
 `build-cv-html.mjs` errors out (non-zero exit) if any template placeholder is left unresolved, so a malformed payload fails loudly instead of shipping a broken CV. Run `node core/build-cv-html.mjs --test` for a self-test render.
+
+### Core Competencies vs. Skills — no overlap (#found live 2026-09-03)
+
+`competencies` and `skills` are two different views of the candidate, not two lists of the same thing. A phrase that already appears in one must never be repeated — verbatim or as a trivial synonym — in the other. This is the same anti-stacking discipline as the keyword-injection rule below, applied across sections instead of within one bullet.
+
+- **`competencies`** — 6-8 broad **functional/thematic** phrases: what the candidate does and the outcomes they own (e.g. "Post-Sales Support," "Team Leadership," "Process Improvement"). These read like a scannable summary of the role, not an inventory.
+- **`skills`** — concrete **tools, technologies, systems, and certifications-adjacent items**, grouped by category (e.g. "Workday HRIS, Taleo ATS," "POS Systems, Hardware Diagnostics"). These are the specific things the candidate has hands-on experience with.
+
+**A single flat Skills line in `cv.md` is the most common trigger for this bug** — when the source material is one undifferentiated list, don't just split it in half and drop half in each field (found live 2026-09-03: a candidate's entire flat Skills line ended up duplicated near-verbatim across both sections, up to 88% overlap on one tailored resume). Instead: pull *functional* verbs/outcomes from `cv.md`'s Experience bullets for `competencies`, and reserve the flat Skills line's concrete nouns (tools, platforms, systems) for `skills`. If a phrase is genuinely both (e.g. "Bilingual" reads as either), pick the ONE section where it's most useful to a scanning recruiter and leave it out of the other.
+
+**Before finalizing the JSON payload, read both arrays back side by side** and confirm zero items overlap. `verify-jd-coverage.mjs`'s `--summary` output flags this automatically (see the verification step in this mode and in `modes/latex.md`) — treat a flagged overlap the same as a flagged keyword regression: fix it before considering the tailoring done.
 
 ### Profile photo (opt-in, market-specific)
 
