@@ -5228,7 +5228,18 @@ if (!hasBrowser) {
   } else {
     const JDS_DIR = join(ROOT, 'jds');
     const startedAt = Date.now();
-    const archiveOut = run('node', ['archive-posting.mjs', liveJobUrl], { timeout: 60000 });
+    // archive-posting.mjs now resolves its workspace-data paths (including
+    // jds/) via workspaceRoot() = CAREER_OPS_WORKSPACE || process.cwd() — the
+    // symlink-safe fix. run()'s own default cwd is CORE_DIR (one level below
+    // ROOT, a testing convenience so a bare "node archive-posting.mjs" — no
+    // core/ prefix — resolves), which is exactly the "cwd isn't trustworthy"
+    // case CAREER_OPS_WORKSPACE exists for (see core/workspace-root.mjs) —
+    // pin it to ROOT so this test's expectation (JDS_DIR = ROOT/jds) matches
+    // where the script actually writes.
+    const archiveOut = run('node', ['archive-posting.mjs', liveJobUrl], {
+      timeout: 60000,
+      env: { ...process.env, CAREER_OPS_WORKSPACE: ROOT },
+    });
 
     if (archiveOut === null) {
       fail('live archive: script exited non-zero on live URL');
@@ -6760,6 +6771,11 @@ try {
       // followup-cadence.mjs's isMain guard imports the shared ./is-main.mjs
       // helper (#workspace-multitenancy final-review Critical 2).
       copyFileSync(join(ROOT, 'core', 'is-main.mjs'), join(e2eCore, 'is-main.mjs'));
+      // followup-cadence.mjs now imports ./workspace-root.mjs too (the
+      // symlink-safe workspace-data-path fix) — same reasoning as the three
+      // copies above, it's a real sibling dependency the isolated e2e copy
+      // needs alongside it, not just the shared repo root.
+      copyFileSync(join(ROOT, 'core', 'workspace-root.mjs'), join(e2eCore, 'workspace-root.mjs'));
       copyFileSync(join(ROOT, 'tracker-aliases.json'), join(e2eTmp, 'tracker-aliases.json'));
       // 'junction' on Windows, not 'dir': a directory symlink needs
       // SeCreateSymbolicLinkPrivilege, which a normal shell lacks unless

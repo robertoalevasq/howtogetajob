@@ -57,11 +57,18 @@ import {
   normalizeStatus,
 } from './followup-cadence.mjs';
 import { isMainModule } from './is-main.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
 const CAREER_OPS = dirname(fileURLToPath(import.meta.url));
-// This script now lives in core/, one directory below the repo root; ROOT is
-// the actual repo root the exported functions' `rootDir` parameter defaults
-// to (data/, templates/ — see #workspace-multitenancy Task 1).
+// This script now lives in core/, one directory below the repo root. ROOT is
+// still CAREER_OPS's own repo root — used only for genuinely system-layer
+// lookups (templates/benchmarks.yml in resolveDefaultSilenceWindow). The
+// exported loaders' `rootDir` parameter defaults instead default to
+// workspaceRoot() (see workspace-root.mjs): under a workspace symlink
+// invocation, dirname(fileURLToPath(import.meta.url)) resolves through the
+// symlink to the shared hub root regardless of which workspace's `core`
+// symlink was used to invoke, which would silently join user-data paths
+// (tracker, follow-ups, scan-history) onto the wrong tenant's data.
 const ROOT = dirname(CAREER_OPS);
 
 const DEFAULT_STALE_AFTER_DAYS = 365;
@@ -206,7 +213,7 @@ function resolveNow(now) {
 
 // --- Source loaders (each returns {rows|clusters, loaded}; missing file -> empty + loaded:false) ---
 
-export function loadTrackerRows(rootDir = ROOT) {
+export function loadTrackerRows(rootDir = workspaceRoot()) {
   const path = resolveTrackerPath(rootDir);
   if (!existsSync(path)) return { rows: [], loaded: false };
   const content = readFileSync(path, 'utf-8');
@@ -220,13 +227,13 @@ export function loadTrackerRows(rootDir = ROOT) {
   return { rows, loaded: true };
 }
 
-export function loadFollowupRows(rootDir = ROOT, overridePath) {
+export function loadFollowupRows(rootDir = workspaceRoot(), overridePath) {
   const path = overridePath || join(rootDir, 'data/follow-ups.md');
   if (!existsSync(path)) return { rows: [], loaded: false };
   return { rows: parseFollowups(readFileSync(path, 'utf-8')), loaded: true };
 }
 
-export function loadRepostClusters(rootDir = ROOT, overridePath) {
+export function loadRepostClusters(rootDir = workspaceRoot(), overridePath) {
   const path = overridePath || join(rootDir, 'data/scan-history.tsv');
   if (!existsSync(path)) return { clusters: [], loaded: false };
   const rows = parseScanHistory(readFileSync(path, 'utf-8'));
@@ -841,9 +848,10 @@ if (isMainModule(import.meta.url)) {
     });
   } else {
     const run = async () => {
-      const tracker = loadTrackerRows(ROOT);
-      const followups = loadFollowupRows(ROOT, followupsOverride);
-      const scanHistory = loadRepostClusters(ROOT, scanHistoryOverride);
+      const root = workspaceRoot();
+      const tracker = loadTrackerRows(root);
+      const followups = loadFollowupRows(root, followupsOverride);
+      const scanHistory = loadRepostClusters(root, scanHistoryOverride);
       const statusLog = await loadStatusLogSource();
 
       // parseArgs already validated the flag as a positive integer.

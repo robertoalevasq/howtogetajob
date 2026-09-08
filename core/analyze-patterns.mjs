@@ -15,15 +15,24 @@
 
 import { readFileSync, existsSync } from 'fs';
 import { join, dirname, relative, sep } from 'path';
-import { fileURLToPath } from 'url';
 import { load as yamlLoad } from 'js-yaml';
 import { resolveColumns, parseTrackerRow, normalizeVia } from './tracker-parse.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
-const CAREER_OPS = dirname(fileURLToPath(import.meta.url));
-const APPS_FILE = existsSync(join(CAREER_OPS, '..', 'data/applications.md'))
-  ? join(CAREER_OPS, '..', 'data/applications.md')
-  : join(CAREER_OPS, '..', 'applications.md');
-const REPORTS_DIR = join(CAREER_OPS, '..', 'reports');
+// applications.md and reports/ are user-layer, per-workspace content.
+// Resolve them against workspaceRoot() (process.cwd() by default — the
+// router always spawns `claude -p` with cwd set to the target workspace)
+// instead of this script's own on-disk directory: under a workspace's core/
+// symlink, import.meta.url resolves THROUGH the symlink to the shared hub
+// root regardless of which workspace invoked it, so the old
+// dirname(fileURLToPath(...))-based root silently read/wrote the hub's copy
+// of the tracker/reports instead of the invoking workspace's own (see
+// workspace-root.mjs).
+const WORKSPACE_ROOT = workspaceRoot();
+const APPS_FILE = existsSync(join(WORKSPACE_ROOT, 'data/applications.md'))
+  ? join(WORKSPACE_ROOT, 'data/applications.md')
+  : join(WORKSPACE_ROOT, 'applications.md');
+const REPORTS_DIR = join(WORKSPACE_ROOT, 'reports');
 
 const MACHINE_SUMMARY_FIELDS = new Set([
   'company',
@@ -655,9 +664,9 @@ function analyze() {
     let reportPath = null;
     if (reportMatch) {
       const fromTracker = join(dirname(APPS_FILE), reportMatch[1]);
-      const candidate = existsSync(fromTracker) ? fromTracker : join(CAREER_OPS, '..', reportMatch[1]);
+      const candidate = existsSync(fromTracker) ? fromTracker : join(WORKSPACE_ROOT, reportMatch[1]);
 
-      const repoRelative = relative(dirname(CAREER_OPS), candidate).split(sep).join('/');
+      const repoRelative = relative(WORKSPACE_ROOT, candidate).split(sep).join('/');
       if (repoRelative.startsWith('reports/') && !repoRelative.includes('..')) {
         reportPath = existsSync(candidate) ? candidate : null;
       }

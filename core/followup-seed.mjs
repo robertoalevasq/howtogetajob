@@ -63,6 +63,7 @@ import {
   addDays,
 } from './followup-cadence.mjs';
 import { isMainModule } from './is-main.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
 const CAREER_OPS = dirname(fileURLToPath(import.meta.url));
 
@@ -158,15 +159,21 @@ export function formatPinLine(appNum, nextDate, setDate) {
 function resolveTrackerPath(override) {
   if (override) return override;
   if (process.env.CAREER_OPS_TRACKER) return process.env.CAREER_OPS_TRACKER;
-  return existsSync(join(CAREER_OPS, '..', 'data/applications.md'))
-    ? join(CAREER_OPS, '..', 'data/applications.md')
-    : join(CAREER_OPS, '..', 'applications.md');
+  // Default falls back to the ACTIVE WORKSPACE (see workspace-root.mjs), not
+  // this script's own install directory — under a workspace symlink
+  // invocation, CAREER_OPS resolves through the symlink to the shared hub
+  // root regardless of which workspace called in, which would silently read
+  // the wrong tenant's tracker.
+  const root = workspaceRoot();
+  return existsSync(join(root, 'data/applications.md'))
+    ? join(root, 'data/applications.md')
+    : join(root, 'applications.md');
 }
 
 function resolveFollowupsPath(override) {
   if (override) return override;
   if (process.env.CAREER_OPS_FOLLOWUPS) return process.env.CAREER_OPS_FOLLOWUPS;
-  return join(CAREER_OPS, '..', 'data/follow-ups.md');
+  return join(workspaceRoot(), 'data/follow-ups.md');
 }
 
 function envInt(name, fallback) {

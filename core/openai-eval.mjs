@@ -36,6 +36,7 @@ import {
 } from './reserve-report-num.mjs';
 import { TokenAccumulator, formatBreakdown, normalizeOpenAIUsage } from '../utils/token-tracker.mjs';
 import { buildBudgetedPrompt } from '../lib/context-budget.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
 const tracker = new TokenAccumulator();
 tracker.recordZeroToken('scan');
@@ -47,8 +48,13 @@ try {
 } catch { /* dotenv optional */ }
 
 // This script now lives in core/, one directory below the repo root; ROOT is
-// the actual repo root that modes/, cv.md, config/, and reports/ live under
-// (see #workspace-multitenancy Task 1).
+// the actual repo root that modes/ (SYSTEM-layer, identical across every
+// workspace) lives under (see #workspace-multitenancy Task 1). USER-layer
+// paths (cv.md, config/profile.yml, reports/) resolve through workspaceRoot()
+// instead — under a workspace symlink invocation, Node resolves
+// import.meta.url through the symlink to this file's physical hub location,
+// so anchoring user data off ROOT would silently read/write the hub root's
+// copies instead of the invoking workspace's own (see core/workspace-root.mjs).
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
 // ---------------------------------------------------------------------------
@@ -57,9 +63,9 @@ const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const PATHS = {
   shared:  join(ROOT, 'modes', '_shared.md'),
   oferta:  join(ROOT, 'modes', 'oferta.md'),
-  cv:        join(ROOT, 'cv.md'),
-  profileYml: join(ROOT, 'config', 'profile.yml'),
-  reports:    join(ROOT, 'reports'),
+  cv:        join(workspaceRoot(), 'cv.md'),
+  profileYml: join(workspaceRoot(), 'config', 'profile.yml'),
+  reports:    join(workspaceRoot(), 'reports'),
 };
 
 // ---------------------------------------------------------------------------
@@ -397,7 +403,7 @@ if (saveReport) {
       mkdirSync(PATHS.reports, { recursive: true });
     }
 
-    reservedNumbers   = await reserveReportNumbers(1, { rootDir: ROOT, reportsDir: PATHS.reports });
+    reservedNumbers   = await reserveReportNumbers(1, { rootDir: workspaceRoot(), reportsDir: PATHS.reports });
     const num         = formatReportNumber(reservedNumbers[0]);
     const today       = new Date().toISOString().split('T')[0];
     const companySlug = company.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');

@@ -27,16 +27,23 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { load as yamlLoad } from 'js-yaml';
 import { resolveColumns, parseTrackerRow } from './tracker-parse.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
-// This script now lives in core/, one directory below the repo root;
-// CAREER_OPS is the actual repo root that data/, cv.md, and config/ live
-// under (see #workspace-multitenancy Task 1).
+// This script now lives in core/, one directory below the repo root.
+// CAREER_OPS is this script's own install directory's repo root — kept only
+// for genuinely system-layer fallbacks (cv-example.md below). data/, cv.md,
+// and config/ are user-layer content and must resolve against the ACTIVE
+// WORKSPACE instead (see workspace-root.mjs): under a workspace symlink
+// invocation, dirname(dirname(fileURLToPath(import.meta.url))) resolves
+// through the symlink to the shared hub root regardless of which workspace
+// called in, which would silently analyze the wrong tenant's tracker/CV.
 const CAREER_OPS = dirname(dirname(fileURLToPath(import.meta.url)));
-const APPS_FILE = existsSync(join(CAREER_OPS, 'data/applications.md'))
-  ? join(CAREER_OPS, 'data/applications.md')
-  : join(CAREER_OPS, 'applications.md');
-const CV_FILE = join(CAREER_OPS, 'cv.md');
-const PROFILE_FILE = join(CAREER_OPS, 'config/profile.yml');
+const WORKSPACE_ROOT = workspaceRoot();
+const APPS_FILE = existsSync(join(WORKSPACE_ROOT, 'data/applications.md'))
+  ? join(WORKSPACE_ROOT, 'data/applications.md')
+  : join(WORKSPACE_ROOT, 'applications.md');
+const CV_FILE = join(WORKSPACE_ROOT, 'cv.md');
+const PROFILE_FILE = join(WORKSPACE_ROOT, 'config/profile.yml');
 
 // Bump when extraction rules change in a way that would make gap lists from
 // older runs non-comparable. The upskill mode's diff-vs-previous section only
@@ -215,7 +222,7 @@ function analyze(minReports) {
     reportsLinked += 1;
     // Tracker links are normalized relative to the tracker file's directory
     // (see merge-tracker.mjs); resolve against it, with a root-relative fallback.
-    const candidates = [join(dirname(APPS_FILE), linkMatch[1]), join(CAREER_OPS, linkMatch[1])];
+    const candidates = [join(dirname(APPS_FILE), linkMatch[1]), join(WORKSPACE_ROOT, linkMatch[1])];
     const reportPath = candidates.find(p => existsSync(p));
     if (!reportPath) continue;
     reportsRead += 1;

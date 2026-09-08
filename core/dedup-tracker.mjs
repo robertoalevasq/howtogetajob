@@ -12,17 +12,20 @@
 
 import { readFileSync, copyFileSync, existsSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
-import { fileURLToPath } from 'url';
 import {
   openTrackerTransaction, rebuildRow, resolveTrackerPath, normalizeCompany,
 } from './tracker-utils.mjs';
 import { resolveColumns, parseTrackerRow, normalizeVia } from './tracker-parse.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
-const CAREER_OPS = dirname(fileURLToPath(import.meta.url));
 // Support both layouts: data/applications.md (boilerplate) and applications.md
 // (original). CAREER_OPS_TRACKER lets tests point the script at an isolated
-// fixture so the real user tracker is never touched.
-const APPS_FILE = resolveTrackerPath(dirname(CAREER_OPS));
+// fixture so the real user tracker is never touched. The default root is
+// workspaceRoot() (process.env.CAREER_OPS_WORKSPACE || process.cwd()), not
+// this script's own on-disk location — under a workspace symlink/junction,
+// import.meta.url always resolves to the shared hub root, which would read
+// the wrong tenant's tracker (see core/workspace-root.mjs).
+const APPS_FILE = resolveTrackerPath(workspaceRoot());
 const DRY_RUN = process.argv.includes('--dry-run');
 
 // Ensure the target tracker directory exists in both normal and fixture mode.

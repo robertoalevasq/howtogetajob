@@ -25,17 +25,25 @@
  */
 
 import { readFileSync, existsSync } from 'fs';
-import { dirname, resolve } from 'path';
-import { fileURLToPath, pathToFileURL } from 'url';
+import { resolve } from 'path';
+import { pathToFileURL } from 'url';
 import { resolveColumns, parseTrackerRow } from './tracker-parse.mjs';
 import { resolvePdfIndexPath } from './tracker-utils.mjs';
 import { roleFuzzyMatch } from './role-matcher.mjs';
 import { isMainModule } from './is-main.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
-// This script now lives in core/, one directory below the repo root; ROOT is
-// the actual repo root that data/ lives under (see
-// #workspace-multitenancy Task 1).
-const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+// data/ is user-layer, per-workspace content. Resolve it against
+// workspaceRoot() (process.cwd() by default — the router always spawns
+// `claude -p` with cwd set to the target workspace) instead of this script's
+// own on-disk directory: under a workspace's core/ symlink, import.meta.url
+// resolves THROUGH the symlink to the shared hub root regardless of which
+// workspace invoked it, so the old dirname(fileURLToPath(...))-based ROOT
+// silently searched the hub's copy of the tracker instead of the invoking
+// workspace's own (see workspace-root.mjs). The CAREER_OPS_TRACKER env
+// override below still wins outright when set — this only changes its
+// DEFAULT.
+const ROOT = workspaceRoot();
 
 // "008" and "8" are the same report — zero-padded report-link form vs unpadded
 // tracker-# form (same normalization as the manifest writer in generate-pdf.mjs).

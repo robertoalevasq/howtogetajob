@@ -14,17 +14,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
-import { fileURLToPath } from 'node:url';
 import { matchCandidates, classifyReply } from './reply-matcher.mjs';
 import { resolveColumns, parseTrackerRow } from './tracker-parse.mjs';
 import {
   openTrackerTransaction, rebuildRow, resolveTrackerPath,
 } from './tracker-utils.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DEFAULT_CANDIDATES_PATH = path.join(__dirname, '..', 'data', 'reply-candidates.json');
-const APPS_FILE = resolveTrackerPath(path.dirname(__dirname));
-const FOLLOWUPS_FILE = path.join(__dirname, '..', 'data', 'follow-ups.md');
+// The default root is workspaceRoot() (process.env.CAREER_OPS_WORKSPACE ||
+// process.cwd()), not this script's own on-disk location — under a workspace
+// symlink/junction, import.meta.url always resolves to the shared hub root,
+// which would read/write the wrong tenant's data (see core/workspace-root.mjs).
+const DEFAULT_CANDIDATES_PATH = path.join(workspaceRoot(), 'data', 'reply-candidates.json');
+const APPS_FILE = resolveTrackerPath(workspaceRoot());
+const FOLLOWUPS_FILE = path.join(workspaceRoot(), 'data', 'follow-ups.md');
 
 // Helper to ask a question in the CLI
 function askQuestion(query) {

@@ -20,7 +20,6 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import readline from 'node:readline';
 import yaml from 'js-yaml';
 import { outputLanguageInstruction, parseOutputLanguage } from './profile-language.mjs';
@@ -29,13 +28,19 @@ import {
 } from './reserve-report-num.mjs';
 import { TokenAccumulator, formatBreakdown, normalizeOpenAIUsage } from '../utils/token-tracker.mjs';
 import { isMainModule } from './is-main.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// This script now lives in core/, one directory below the repo root; ROOT is
-// the actual repo root that .env, data/, reports/, and every repo-root
-// relative path passed to readFile/writeFile/fileExists below live under
-// (see #workspace-multitenancy Task 1).
-const ROOT = path.dirname(__dirname);
+// ROOT is the WORKSPACE root (see core/workspace-root.mjs), not this script's
+// own physical location. Under a workspace symlink invocation, Node resolves
+// import.meta.url through the symlink to this file's physical hub location —
+// anchoring .env, data/, reports/, and every repo-root-relative path passed
+// to readFile/writeFile/fileExists below off that physical location would
+// silently read/write the hub root's copies instead of the invoking
+// workspace's own. This is safe for modes/*.md too: every workspace carries
+// its own `modes` symlink pointing back at the shared hub modes/, so
+// workspace-root-relative resolution reaches the identical system-layer
+// content either way (see #workspace-multitenancy Task 1).
+const ROOT = workspaceRoot();
 const tracker = new TokenAccumulator();
 let activeModel = null;
 

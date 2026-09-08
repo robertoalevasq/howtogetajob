@@ -393,6 +393,51 @@ for (const flagArgs of [['--company', '--summary'], ['--company'], ['--scan-hist
 }
 
 // ============================================================================
+// 8. workspace-root default (#workspace-multitenancy) — exported loader
+//    defaults AND the CLI entry point must resolve against
+//    CAREER_OPS_WORKSPACE, not this script's own install directory. None of
+//    the tests above catch this: they all pass an explicit rootDir/override.
+//    This section deliberately omits rootDir (function) / any override flag
+//    (CLI) so the DEFAULT fallback itself is exercised.
+// ============================================================================
+console.log('\n--- 8. workspace-root default ---');
+
+{
+  const tmpDir = mkdtempSync(join(tmpdir(), 'company-history-ws-'));
+  try {
+    mkdirSync(join(tmpDir, 'data'), { recursive: true });
+    writeFileSync(join(tmpDir, 'data/applications.md'), [
+      '| # | Date | Company | Role | Score | Status | PDF | Report | Notes |',
+      '|---|------|---------|------|-------|--------|-----|--------|-------|',
+      '| 1 | 2026-01-01 | WorkspaceOnlyCo | Engineer | 4/5 | Applied | ✅ | [1](reports/1.md) | Applied 2026-01-05 |',
+    ].join('\n'));
+
+    // --- 8a. exported function default (no rootDir argument) ---
+    const prevEnv = process.env.CAREER_OPS_WORKSPACE;
+    process.env.CAREER_OPS_WORKSPACE = tmpDir;
+    try {
+      const tracker = loadTrackerRows();
+      ok('8a. loadTrackerRows(): default (no rootDir) picks up CAREER_OPS_WORKSPACE', tracker.loaded === true);
+      eq('8a. loadTrackerRows(): default parses the WORKSPACE tracker, not the repo\'s own', tracker.rows[0]?.company, 'WorkspaceOnlyCo');
+    } finally {
+      if (prevEnv === undefined) delete process.env.CAREER_OPS_WORKSPACE;
+      else process.env.CAREER_OPS_WORKSPACE = prevEnv;
+    }
+
+    // --- 8b. CLI entry point default (bare run, env-only override) ---
+    const cliOut = execFileSync('node', [scriptPath], {
+      encoding: 'utf-8', timeout: 10000, cwd: dirname(scriptPath),
+      env: { ...process.env, CAREER_OPS_WORKSPACE: tmpDir },
+    });
+    const cliJson = JSON.parse(cliOut);
+    const companyNames = cliJson.companies.map(c => c.company);
+    ok('8b. CLI default run (no --company/--summary): picks up CAREER_OPS_WORKSPACE tracker', companyNames.includes('WorkspaceOnlyCo'));
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
+// ============================================================================
 // RESULTS
 // ============================================================================
 console.log(`\n${'='.repeat(78)}`);

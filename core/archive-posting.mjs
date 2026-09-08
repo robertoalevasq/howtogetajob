@@ -19,13 +19,19 @@
 import { chromium } from 'playwright';
 import { writeFile, readFile } from 'fs/promises';
 import { existsSync, mkdirSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
+import { workspaceRoot } from './workspace-root.mjs';
 
-// This script now lives in core/, one directory below the repo root; ROOT is
-// the actual repo root that jds/ and data/ live under (see
-// #workspace-multitenancy Task 1).
-const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+// jds/ and data/pipeline.md are user-layer, per-workspace content. Resolve
+// them against workspaceRoot() (process.cwd() by default — the router
+// always spawns `claude -p` with cwd set to the target workspace) instead of
+// this script's own on-disk directory: under a workspace's core/ symlink,
+// import.meta.url resolves THROUGH the symlink to the shared hub root
+// regardless of which workspace invoked it, so the old
+// dirname(fileURLToPath(...))-based ROOT silently read/wrote the hub's copy
+// of jds/ and pipeline.md instead of the invoking workspace's own (see
+// workspace-root.mjs).
+const ROOT = workspaceRoot();
 const JDS_DIR = join(ROOT, 'jds');
 const PIPELINE_PATH = join(ROOT, 'data', 'pipeline.md');
 

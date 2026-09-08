@@ -7,6 +7,11 @@
  */
 
 import { matchInvite, normalizeCompanyName, extractPlatform } from './invite-match.mjs';
+import { execFileSync } from 'child_process';
+import { writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { tmpdir } from 'os';
 
 let passed = 0;
 let failed = 0;
@@ -117,6 +122,44 @@ eq('does not detect a platform-looking query value (Google Meet)', extractPlatfo
 eq('Zoom URL with explicit port detected as Zoom', extractPlatform('Join: https://zoom.us:443/j/123456789'), 'Zoom');
 eq('Microsoft Teams URL with explicit port detected as Microsoft Teams', extractPlatform('https://teams.microsoft.com:8443/l/meetup-join/abc'), 'Microsoft Teams');
 eq('Google Meet URL with explicit port detected as Google Meet', extractPlatform('https://meet.google.com:443/xyz-abcd-efg'), 'Google Meet');
+
+// --- workspace-root default (#workspace-multitenancy) ---
+// APPS_FILE used to be built straight from this script's own install
+// directory (dirname(fileURLToPath(import.meta.url))), with no env escape
+// hatch at all. Under a provisioned workspace (workspaces/{slug}/core is a
+// symlink back to this shared hub core/), that resolves through the symlink
+// to the hub root regardless of which workspace invoked it — silently
+// matching invites against the wrong tenant's tracker. This drives the real
+// CLI (the only way APPS_FILE's module-load-time value can be exercised
+// against a specific workspace) with CAREER_OPS_WORKSPACE set and NO other
+// override, isolated from the real tracker entirely.
+{
+  const tmpDir = mkdtempSync(join(tmpdir(), 'invite-match-ws-'));
+  try {
+    mkdirSync(join(tmpDir, 'data'), { recursive: true });
+    writeFileSync(join(tmpDir, 'data/applications.md'), [
+      '| # | Date | Company | Role | Score | Status | PDF | Report | Notes |',
+      '|---|------|---------|------|-------|--------|-----|--------|-------|',
+      '| 501 | 2026-01-01 | WorkspaceOnlyCo | Engineer | 4/5 | Applied | ✅ | [501](reports/501.md) |  |',
+    ].join('\n'));
+
+    const scriptPath = join(dirname(fileURLToPath(import.meta.url)), 'invite-match.mjs');
+    const out = execFileSync('node', [scriptPath], {
+      encoding: 'utf-8',
+      timeout: 10000,
+      input: 'Company: WorkspaceOnlyCo\n',
+      env: { ...process.env, CAREER_OPS_WORKSPACE: tmpDir },
+    });
+    const result = JSON.parse(out);
+    eq(
+      'CLI default (CAREER_OPS_WORKSPACE, no CAREER_OPS_TRACKER-style override) matches the WORKSPACE tracker row, not the hub\'s own',
+      result.candidates[0]?.appNumber,
+      501,
+    );
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) {

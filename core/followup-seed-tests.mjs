@@ -495,5 +495,66 @@ function cleanup(sandbox) {
   cleanup(sb);
 }
 
+// ── Test 18: default path resolution honors CAREER_OPS_WORKSPACE, not this
+// script's own install directory (#workspace-multitenancy). Deliberately does
+// NOT set CAREER_OPS_TRACKER/CAREER_OPS_FOLLOWUPS — those overrides exist and
+// are exercised by every other test above via run(), but that means none of
+// them can catch a regression in the DEFAULT fallback itself. This test is
+// the one that actually exercises resolveTrackerPath/resolveFollowupsPath's
+// no-override branch. The real hub's own data/follow-ups.md genuinely exists
+// on this repo (checked below), so a regression here would not just fail an
+// assertion — it would silently rewrite the hub's real tracked file. ─────────
+{
+  const realFollowups = join(REPO_ROOT, 'data', 'follow-ups.md');
+  const realFollowupsExisted = existsSync(realFollowups);
+  const realFollowupsBefore = realFollowupsExisted ? readFileSync(realFollowups, 'utf-8') : null;
+
+  const wsDir = mkdtempSync(join(tmpdir(), 'co-seed-ws-'));
+  mkdirSync(join(wsDir, 'data'), { recursive: true });
+  writeFileSync(join(wsDir, 'data', 'applications.md'), [
+    '# Applications Tracker',
+    '',
+    '| # | Date | Company | Role | Score | Status | PDF | Report | Notes |',
+    '|---|------|---------|------|-------|--------|-----|--------|-------|',
+    trackerRow(99, '2026-05-01', 'WorkspaceOnlyCo', 'Engineer', '4.0/5', 'Applied', 'Applied 2026-06-20.'),
+    '',
+  ].join('\n'));
+
+  const env = { ...process.env, CAREER_OPS_WORKSPACE: wsDir, CAREER_OPS_PROFILE: DEFAULT_CADENCE_PROFILE };
+  delete env.CAREER_OPS_TRACKER;
+  delete env.CAREER_OPS_FOLLOWUPS;
+
+  let res;
+  try {
+    const stdout = execFileSync(NODE, [SCRIPT, '99', '--json'], { cwd: REPO_ROOT, env, encoding: 'utf-8', timeout: 30000 });
+    res = { code: 0, stdout, stderr: '' };
+  } catch (e) {
+    res = { code: e.status ?? 1, stdout: e.stdout || '', stderr: e.stderr || '' };
+  }
+
+  if (res.code === 0) pass('18. default (no CAREER_OPS_TRACKER/CAREER_OPS_FOLLOWUPS override) seed exits 0 against CAREER_OPS_WORKSPACE');
+  else fail(`18. default seed against CAREER_OPS_WORKSPACE — got ${res.code}\n${res.stdout}${res.stderr}`);
+
+  const wsFollowups = join(wsDir, 'data', 'follow-ups.md');
+  if (existsSync(wsFollowups)) pass('18. follow-ups.md was written INSIDE CAREER_OPS_WORKSPACE');
+  else fail('18. follow-ups.md was written inside CAREER_OPS_WORKSPACE — file not found there');
+
+  if (existsSync(wsFollowups)) {
+    const content = readFileSync(wsFollowups, 'utf-8');
+    if (/- next #99 /.test(content)) pass('18. the seeded pin is for #99 (the workspace tracker row), inside the workspace file');
+    else fail(`18. the seeded pin is for #99 inside the workspace file — got:\n${content}`);
+  }
+
+  // The real hub's own data/follow-ups.md must be completely untouched by a
+  // run scoped to the temp workspace via CAREER_OPS_WORKSPACE.
+  const realFollowupsAfter = existsSync(realFollowups) ? readFileSync(realFollowups, 'utf-8') : null;
+  if (existsSync(realFollowups) === realFollowupsExisted) pass('18. the REAL repo root data/follow-ups.md existence is unchanged');
+  else fail('18. the REAL repo root data/follow-ups.md existence is unchanged');
+  if (realFollowupsAfter === realFollowupsBefore) pass('18. the REAL repo root data/follow-ups.md content is byte-for-byte unchanged');
+  else fail('18. the REAL repo root data/follow-ups.md content is byte-for-byte unchanged — it was mutated by a workspace-scoped run!');
+
+  rmSync(wsDir, { recursive: true, force: true });
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

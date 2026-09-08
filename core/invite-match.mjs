@@ -24,15 +24,20 @@
  */
 
 import { readFileSync, existsSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath, pathToFileURL } from 'url';
+import { join } from 'path';
 import { resolveColumns, parseTrackerRow } from './tracker-parse.mjs';
 import { isMainModule } from './is-main.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
-const CAREER_OPS = dirname(fileURLToPath(import.meta.url));
-const APPS_FILE = existsSync(join(CAREER_OPS, '..', 'data/applications.md'))
-  ? join(CAREER_OPS, '..', 'data/applications.md')
-  : join(CAREER_OPS, '..', 'applications.md');
+// APPS_FILE resolves against the ACTIVE WORKSPACE (workspace-root.mjs), not
+// this script's own install directory — dirname(fileURLToPath(import.meta.url))
+// resolves through a workspace's `core` symlink to the shared hub root
+// regardless of which workspace invoked it, which would silently match
+// invites against the wrong tenant's tracker.
+const CAREER_OPS_ROOT = workspaceRoot();
+const APPS_FILE = existsSync(join(CAREER_OPS_ROOT, 'data/applications.md'))
+  ? join(CAREER_OPS_ROOT, 'data/applications.md')
+  : join(CAREER_OPS_ROOT, 'applications.md');
 
 // --- CLI args ---
 const args = process.argv.slice(2);

@@ -23,14 +23,19 @@
 
 import { readFileSync, writeFileSync, existsSync, readdirSync, copyFileSync, realpathSync, statSync } from 'fs';
 import { join, dirname, resolve, relative, isAbsolute } from 'path';
-import { fileURLToPath } from 'url';
 import { normalizeReportLink } from './tracker-links.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
-const CAREER_OPS = dirname(fileURLToPath(import.meta.url));
-// This script now lives in core/, one directory below the repo root; ROOT is
-// the actual repo root that data/, batch/, and reports/ live under, and the
-// anchor resolveInsideRepo() needs (see #workspace-multitenancy Task 1).
-const ROOT = dirname(CAREER_OPS);
+// ROOT is the ACTIVE WORKSPACE (see workspace-root.mjs), not this script's own
+// install directory. data/pipeline.md, data/batch-state.tsv, and reports/ are
+// all user-layer content that must land inside the invoking workspace;
+// dirname(fileURLToPath(import.meta.url)) instead resolves through a
+// workspace's `core` symlink to the shared hub root regardless of which
+// workspace called in, which would silently reconcile the wrong tenant's
+// pipeline against the hub's own state — this is also the anchor
+// resolveInsideRepo() uses to keep --state/--pipeline overrides confined to
+// the active workspace (formerly the whole repo tree).
+const ROOT = workspaceRoot();
 const DRY_RUN = process.argv.includes('--dry-run');
 
 if (process.argv.includes('-h') || process.argv.includes('--help')) {
@@ -231,7 +236,11 @@ for (let i = pendStart + 1; i < pendEnd; i++) {
   const pdf = resolvePdf(reportFile);
   const num = parseInt(done.reportNum, 10);
 
-  const reportLink = normalizeReportLink(`[${num}](reports/${reportFile})`, dirname(PIPELINE_FILE), CAREER_OPS);
+  // repoRoot here must be the workspace ROOT (reports/ is user-layer content
+  // living inside the workspace) — previously this passed the script's own
+  // install directory (CAREER_OPS), which under a workspace symlink
+  // invocation is the shared hub root, not the invoking workspace.
+  const reportLink = normalizeReportLink(`[${num}](reports/${reportFile})`, dirname(PIPELINE_FILE), ROOT);
   movedProcLines.push(`- [x] ${reportLink} | ${url} | ${company} | ${role} | ${score} | PDF ${pdf}`);
   moved.push({ url, company, role, num, score });
   procUrls.add(url);

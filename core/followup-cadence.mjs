@@ -13,17 +13,28 @@
 
 import { readFileSync, existsSync } from 'fs';
 import { join, dirname, relative, sep } from 'path';
-import { fileURLToPath, pathToFileURL } from 'url';
+import { pathToFileURL } from 'url';
 import yaml from 'js-yaml';
 import { resolveColumns, parseTrackerRow } from './tracker-parse.mjs';
 import { isMainModule } from './is-main.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
-const CAREER_OPS = dirname(fileURLToPath(import.meta.url));
-const APPS_FILE = existsSync(join(CAREER_OPS, '..', 'data/applications.md'))
-  ? join(CAREER_OPS, '..', 'data/applications.md')
-  : join(CAREER_OPS, '..', 'applications.md');
-const FOLLOWUPS_FILE = join(CAREER_OPS, '..', 'data/follow-ups.md');
-const PROFILE_FILE = process.env.CAREER_OPS_PROFILE || join(CAREER_OPS, '..', 'config/profile.yml');
+// applications.md, follow-ups.md, and config/profile.yml are user-layer,
+// per-workspace content. Resolve them against workspaceRoot() (process.cwd()
+// by default — the router always spawns `claude -p` with cwd set to the
+// target workspace) instead of this script's own on-disk directory: under a
+// workspace's core/ symlink, import.meta.url resolves THROUGH the symlink to
+// the shared hub root regardless of which workspace invoked it, so the old
+// dirname(fileURLToPath(...))-based root silently read the hub's copy of the
+// tracker/follow-ups/profile instead of the invoking workspace's own (see
+// workspace-root.mjs). The CAREER_OPS_PROFILE env override still wins
+// outright when set — this only changes its DEFAULT.
+const WORKSPACE_ROOT = workspaceRoot();
+const APPS_FILE = existsSync(join(WORKSPACE_ROOT, 'data/applications.md'))
+  ? join(WORKSPACE_ROOT, 'data/applications.md')
+  : join(WORKSPACE_ROOT, 'applications.md');
+const FOLLOWUPS_FILE = join(WORKSPACE_ROOT, 'data/follow-ups.md');
+const PROFILE_FILE = process.env.CAREER_OPS_PROFILE || join(WORKSPACE_ROOT, 'config/profile.yml');
 
 
 // --- CLI args ---
@@ -441,7 +452,7 @@ export function contactLabel(contact) {
 }
 
 // --- Resolve report path ---
-export function resolveReportPath(reportField, appsFile = APPS_FILE, repoRoot = dirname(CAREER_OPS)) {
+export function resolveReportPath(reportField, appsFile = APPS_FILE, repoRoot = WORKSPACE_ROOT) {
   const match = reportField.match(/\]\(([^)]+)\)/);
   if (!match) return null;
   // Report links in the tracker are normalized relative to the tracker file's

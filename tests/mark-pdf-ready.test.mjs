@@ -12,7 +12,7 @@
 import { pass, fail, NODE, ROOT } from './helpers.mjs';
 import { join } from 'path';
 import { execFileSync } from 'child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, chmodSync } from 'fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, chmodSync, existsSync } from 'fs';
 import { tmpdir } from 'os';
 
 console.log('\nmark-pdf-ready.mjs — PDF column write path');
@@ -398,6 +398,54 @@ const TRACKER_DUP_REPORT = `# Applications Tracker
     }
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// ── 15. Workspace-root default: no CAREER_OPS_TRACKER, distinguished only by cwd ──
+// Regression coverage for the workspace-symlink data-integrity bug: this
+// script used to derive its tracker root from its own on-disk location
+// (dirname(fileURLToPath(...))), which resolves THROUGH a workspace's `core`
+// symlink/junction back to the shared hub root. CAREER_OPS_TRACKER is a
+// test-only escape hatch never set by live workspace dispatches, so every
+// other test above (which always sets it) cannot catch this bug class. This
+// test instead mirrors how the router actually invokes a workspace script:
+// only `cwd` distinguishes the workspace, with the tracker resolved via
+// workspaceRoot() = process.env.CAREER_OPS_WORKSPACE || process.cwd().
+{
+  const ws = mkdtempSync(join(tmpdir(), 'co-markpdf-wsroot-'));
+  mkdirSync(join(ws, 'data'), { recursive: true });
+  const trackerPath = join(ws, 'data', 'applications.md');
+  writeFileSync(trackerPath, TRACKER_9);
+  try {
+    const env = { ...process.env };
+    delete env.CAREER_OPS_TRACKER;
+    delete env.CAREER_OPS_WORKSPACE;
+
+    const stdout = execFileSync(NODE, [join(ROOT, 'core', 'mark-pdf-ready.mjs'), '1'], {
+      cwd: ws, env, encoding: 'utf-8', timeout: 30000, stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    const content = readFileSync(trackerPath, 'utf-8');
+
+    if (/marked PDF ready/.test(stdout)
+        && /\| 1 \| 2026-06-01 \| Acme \| Backend Engineer \| 4.2\/5 \| Evaluated \| ✅ \|/.test(content)) {
+      pass('workspace-root default: flips ❌→✅ in the cwd workspace tracker with no CAREER_OPS_TRACKER set');
+    } else {
+      fail(`workspace-root default: row not updated correctly\nstdout=${stdout}\ncontent=${content}`);
+    }
+
+    // The real repo-root tracker (present in a provisioned checkout, absent
+    // in a clean one) must never have been touched.
+    const repoRootTrackerPath = join(ROOT, 'data', 'applications.md');
+    if (existsSync(repoRootTrackerPath)) {
+      const repoRootTracker = readFileSync(repoRootTrackerPath, 'utf-8');
+      if (!repoRootTracker.includes('| 1 | 2026-06-01 | Acme | Backend Engineer | 4.2/5 | Evaluated | ✅ |')) {
+        pass('workspace-root default: repo-root tracker left untouched');
+      } else {
+        fail('workspace-root default: repo-root tracker was modified instead of the workspace one');
+      }
+    }
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
   }
 }
 

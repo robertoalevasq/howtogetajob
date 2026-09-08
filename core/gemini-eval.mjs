@@ -44,6 +44,7 @@ import {
   formatReportNumber, releaseReportNumbers, reserveReportNumbers,
 } from './reserve-report-num.mjs';
 import { buildBudgetedPrompt } from '../lib/context-budget.mjs';
+import { workspaceRoot } from './workspace-root.mjs';
 
 // ---------------------------------------------------------------------------
 // Bootstrap: load .env before anything else
@@ -60,6 +61,13 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 // ---------------------------------------------------------------------------
 // Paths
 // ---------------------------------------------------------------------------
+// ROOT stays anchored to this script's own physical location — correct for
+// SYSTEM-layer paths below (modes/, .claude/skills/, merge-tracker.mjs), which
+// are identical across every workspace and always resolve through a symlink
+// to the shared hub root. USER-layer paths (cv.md, profile, reports/,
+// tracker) must instead resolve through workspaceRoot(), or a workspace
+// symlink invocation silently reads/writes the hub root's copies instead of
+// the invoking workspace's own — see core/workspace-root.mjs.
 const ROOT = dirname(fileURLToPath(import.meta.url));
 
 const PATHS = {
@@ -68,12 +76,12 @@ const PATHS = {
   oferta:      join(ROOT, '..', 'modes', 'oferta.md'),
   // Canonical skill path referenced in Issue #344
   evaluate:    join(ROOT, '..', '.claude', 'skills', 'career-ops', 'SKILL.md'),
-  cv:          join(ROOT, '..', 'cv.md'),
-  profile:     join(ROOT, '..', '_profile.md'),
-  profileYml:  join(ROOT, '..', 'config', 'profile.yml'),
-  reports:     join(ROOT, '..', 'reports'),
-  tracker:     join(ROOT, '..', 'data', 'applications.md'),
-  trackerAdditions: join(ROOT, '..', 'data', 'tracker-additions'), // relocated from batch/ — see Task 9
+  cv:          join(workspaceRoot(), 'cv.md'),
+  profile:     join(workspaceRoot(), '_profile.md'),
+  profileYml:  join(workspaceRoot(), 'config', 'profile.yml'),
+  reports:     join(workspaceRoot(), 'reports'),
+  tracker:     join(workspaceRoot(), 'data', 'applications.md'),
+  trackerAdditions: join(workspaceRoot(), 'data', 'tracker-additions'), // relocated from batch/ — see Task 9
 };
 
 // ---------------------------------------------------------------------------
@@ -398,7 +406,7 @@ if (saveReport) {
         mkdirSync(PATHS.reports, { recursive: true });
       }
 
-      reservedNumbers   = await reserveReportNumbers(1, { rootDir: dirname(ROOT), reportsDir: PATHS.reports });
+      reservedNumbers   = await reserveReportNumbers(1, { rootDir: workspaceRoot(), reportsDir: PATHS.reports });
       const num         = formatReportNumber(reservedNumbers[0]);
       const today       = new Date().toISOString().split('T')[0];
       const companySlug = slugifyCompany(company);
@@ -445,7 +453,7 @@ ${evaluationText.replace(/---SCORE_SUMMARY---[\s\S]*?---END_SUMMARY---/, '').tri
     if (reportSaved) {
       try {
         const mergeOutput = execFileSync(process.execPath, [join(ROOT, 'merge-tracker.mjs')], {
-          cwd: ROOT,
+          cwd: workspaceRoot(),
           encoding: 'utf-8',
           stdio: ['ignore', 'pipe', 'pipe'],
         });
@@ -459,7 +467,7 @@ ${evaluationText.replace(/---SCORE_SUMMARY---[\s\S]*?---END_SUMMARY---/, '').tri
   } finally {
     if (reservedNumbers.length > 0) {
       try {
-        await releaseReportNumbers(reservedNumbers, { rootDir: dirname(ROOT), reportsDir: PATHS.reports });
+        await releaseReportNumbers(reservedNumbers, { rootDir: workspaceRoot(), reportsDir: PATHS.reports });
       } catch (err) {
         console.warn(`⚠️   Could not release report reservation: ${err.message}`);
       }

@@ -35,14 +35,11 @@
  */
 
 import { readFileSync, existsSync } from 'fs';
-import { dirname } from 'path';
-import { fileURLToPath } from 'url';
 import { extractTrackerReportNumbers, resolveColumns, parseTrackerRow } from './tracker-parse.mjs';
 import {
   rebuildRow, resolveTrackerPath, writeFileAtomic, CLI_EXIT, makeCliFailWith, acquireTrackerLockForCli,
 } from './tracker-utils.mjs';
-
-const CAREER_OPS = dirname(fileURLToPath(import.meta.url));
+import { workspaceRoot } from './workspace-root.mjs';
 
 // LOCK_TIMEOUT is not destructured here — that exit path is raised inside
 // acquireTrackerLockForCli() itself (tracker-utils.mjs), via CLI_EXIT.LOCK_TIMEOUT.
@@ -102,7 +99,11 @@ const targetReportNum = parseInt(reportSelector, 10);
 
 // ── tracker access ───────────────────────────────────────────────
 
-const APPS_FILE = resolveTrackerPath(dirname(CAREER_OPS));
+// The default root is workspaceRoot() (process.env.CAREER_OPS_WORKSPACE ||
+// process.cwd()), not this script's own on-disk location — under a workspace
+// symlink/junction, import.meta.url always resolves to the shared hub root,
+// which would read the wrong tenant's tracker (see core/workspace-root.mjs).
+const APPS_FILE = resolveTrackerPath(workspaceRoot());
 if (!existsSync(APPS_FILE)) {
   failWith(EXIT_NOT_FOUND, 'no-tracker', `No tracker found at ${APPS_FILE}`);
 }
