@@ -236,6 +236,8 @@ export const SYSTEM_PATHS = [
   '.editorconfig',
   '.github/',
   'package.json',
+  '.mcp.json',
+  'archive/.gitkeep',
   'test/cv-templates.test.mjs',
   'test/cover-resolver.test.mjs',
   'test/pipeline-lock.test.mjs',
