@@ -257,7 +257,31 @@ export default {
     // ctx.fetch's own abort timer (default 10s) must outlive Telegram's own
     // long-poll timeout, or the request gets cut off before Telegram ever
     // gets a chance to respond.
-    const res = await ctx.fetch(url, { timeoutMs: (longPollSeconds + 10) * 1000 });
+    const fetchOpts = { timeoutMs: (longPollSeconds + 10) * 1000 };
+
+    let res;
+    try {
+      res = await ctx.fetch(url, fetchOpts);
+    } catch (err) {
+      // Self-heal the one 409 class that never clears on its own: a webhook
+      // set on this bot token (always from OUTSIDE career-ops — nothing here
+      // ever calls setWebhook) permanently blocks getUpdates for the WHOLE
+      // hub, on every workspace, until deleteWebhook is called. Found live
+      // 2026-09-04: an orphaned localhost.run tunnel's leftover webhook sat
+      // active for roughly a day, logging an identical 409 on every single
+      // poll with nothing ever attempting to clear it — every workspace's
+      // Telegram commands silently stopped firing at once. Any OTHER 409
+      // (e.g. "terminated by other getUpdates request" — a real concurrent
+      // poller) is left alone; that one clears on its own once the other
+      // poller stops, and deleteWebhook would do nothing for it anyway.
+      if (err.status === 409 && /webhook is active/i.test(err.message)) {
+        ctx.log(`telegram: getUpdates blocked by an active webhook — calling deleteWebhook and retrying once. (${err.message})`);
+        await ctx.fetch(apiUrl(token, 'deleteWebhook'));
+        res = await ctx.fetch(url, fetchOpts);
+      } else {
+        throw err;
+      }
+    }
     const data = await res.json();
     const updates = Array.isArray(data.result) ? data.result : [];
 

@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runDoctor, checkAllWorkspaces } from '../core/doctor-all.mjs';
+import { runDoctor, checkAllWorkspaces, checkTelegramWebhook } from '../core/doctor-all.mjs';
 
 const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -82,6 +82,62 @@ test('checkAllWorkspaces includes template-drift findings from backfill-template
     const [result] = results;
     assert.ok(result.drift.some((d) => d.file === 'config/profile.yml' && d.missing.length > 0));
     assert.equal(result.healthy, false);
+  });
+});
+
+// checkTelegramWebhook — hub-global detection of a stray webhook that blocks
+// getUpdates polling for EVERY workspace (found live 2026-09-04, a whole
+// hub silently stopped routing Telegram commands for roughly a day).
+
+test('checkTelegramWebhook reports checked:false when the hub has no .env file', async () => {
+  await withTempRepo(async (dir) => {
+    const result = await checkTelegramWebhook(dir, async () => { throw new Error('must not fetch without a token'); });
+    assert.equal(result.checked, false);
+    assert.match(result.reason, /no \.env file/);
+  });
+});
+
+test('checkTelegramWebhook reports checked:false when TELEGRAM_BOT_TOKEN is absent from .env', async () => {
+  await withTempRepo(async (dir) => {
+    writeFileSync(join(dir, '.env'), 'SOME_OTHER_KEY=value\n');
+    const result = await checkTelegramWebhook(dir, async () => { throw new Error('must not fetch without a token'); });
+    assert.equal(result.checked, false);
+    assert.match(result.reason, /TELEGRAM_BOT_TOKEN/);
+  });
+});
+
+test('checkTelegramWebhook reports healthy:true when no webhook is set', async () => {
+  await withTempRepo(async (dir) => {
+    writeFileSync(join(dir, '.env'), 'TELEGRAM_BOT_TOKEN=fake-token\n');
+    const fakeFetch = async () => new Response(JSON.stringify({ ok: true, result: { url: '' } }), { status: 200 });
+    const result = await checkTelegramWebhook(dir, fakeFetch);
+    assert.equal(result.checked, true);
+    assert.equal(result.healthy, true);
+  });
+});
+
+test('checkTelegramWebhook flags an active webhook as unhealthy, with the URL and message surfaced', async () => {
+  await withTempRepo(async (dir) => {
+    writeFileSync(join(dir, '.env'), 'TELEGRAM_BOT_TOKEN=fake-token\n');
+    const fakeFetch = async () => new Response(JSON.stringify({
+      ok: true,
+      result: { url: 'https://stuck-tunnel.example/hook', pending_update_count: 5, last_error_message: 'Connection reset by peer' },
+    }), { status: 200 });
+    const result = await checkTelegramWebhook(dir, fakeFetch);
+    assert.equal(result.checked, true);
+    assert.equal(result.healthy, false);
+    assert.equal(result.webhookUrl, 'https://stuck-tunnel.example/hook');
+    assert.equal(result.pendingUpdateCount, 5);
+    assert.match(result.message, /blocks getUpdates polling for EVERY workspace/);
+  });
+});
+
+test('checkTelegramWebhook reports checked:false, never throws, on a network failure', async () => {
+  await withTempRepo(async (dir) => {
+    writeFileSync(join(dir, '.env'), 'TELEGRAM_BOT_TOKEN=fake-token\n');
+    const result = await checkTelegramWebhook(dir, async () => { throw new Error('ECONNRESET'); });
+    assert.equal(result.checked, false);
+    assert.match(result.reason, /ECONNRESET/);
   });
 });
 

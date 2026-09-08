@@ -166,6 +166,70 @@ test('computeForeignBoundChatIds() finds a chat_id bound to a different workspac
   }
 });
 
+// ingest() self-heal for a stray active webhook (found live 2026-09-04: a
+// webhook left active by something outside career-ops entirely permanently
+// blocked getUpdates for the WHOLE hub — every workspace — until manually
+// cleared, roughly a day of silent outage). See plugins/telegram/index.mjs's
+// ingest() for the fix: catch this specific 409, call deleteWebhook, retry
+// getUpdates once.
+
+test('ingest() self-heals a "webhook is active" 409 by calling deleteWebhook and retrying getUpdates once', async () => {
+  process.env.TELEGRAM_BOT_TOKEN = 'tok';
+  const ctx = buildCtx(MANIFEST, { settings: {} });
+  ctx.dryRun = true;
+  const urlsCalled = [];
+  await withFakeFetch([
+    async (url) => {
+      urlsCalled.push(url);
+      return new Response(JSON.stringify({
+        ok: false, error_code: 409,
+        description: "Conflict: can't use getUpdates method while webhook is active; use deleteWebhook to delete the webhook first",
+      }), { status: 409 });
+    },
+    async (url) => {
+      urlsCalled.push(url);
+      return new Response(JSON.stringify({ ok: true, result: true }), { status: 200 });
+    },
+    async (url) => {
+      urlsCalled.push(url);
+      return new Response(JSON.stringify({
+        ok: true,
+        result: [{ update_id: 1, message: { message_id: 10, chat: { id: 'chat-1' }, text: '/status', date: 0, from: { username: 'ernesto' } } }],
+      }), { status: 200 });
+    },
+  ], async () => {
+    const result = await telegramPlugin.ingest(ctx);
+    assert.equal(result.messages.length, 1, 'the retried getUpdates call\'s messages must come through');
+    assert.equal(result.messages[0].text, '/status');
+  });
+  assert.equal(urlsCalled.length, 3);
+  assert.match(urlsCalled[0], /getUpdates/);
+  assert.match(urlsCalled[1], /deleteWebhook/);
+  assert.match(urlsCalled[2], /getUpdates/);
+  delete process.env.TELEGRAM_BOT_TOKEN;
+});
+
+test('ingest() does NOT call deleteWebhook for a DIFFERENT 409 (e.g. a real concurrent poller) — just propagates it', async () => {
+  process.env.TELEGRAM_BOT_TOKEN = 'tok';
+  const ctx = buildCtx(MANIFEST, { settings: {} });
+  ctx.dryRun = true;
+  const urlsCalled = [];
+  await assert.rejects(
+    withFakeFetch([
+      async (url) => {
+        urlsCalled.push(url);
+        return new Response(JSON.stringify({
+          ok: false, error_code: 409,
+          description: 'Conflict: terminated by other getUpdates request; make sure that only one bot instance is running',
+        }), { status: 409 });
+      },
+    ], () => telegramPlugin.ingest(ctx)),
+    /terminated by other getUpdates request/,
+  );
+  assert.equal(urlsCalled.length, 1, 'must not attempt deleteWebhook for an unrelated 409');
+  delete process.env.TELEGRAM_BOT_TOKEN;
+});
+
 test('computeForeignBoundChatIds() fails open to an empty set when workspaces/ does not exist', () => {
   const root = mkdtempSync(join(tmpdir(), 'career-ops-guard-test-'));
   try {
