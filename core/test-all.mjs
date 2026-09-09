@@ -2291,6 +2291,49 @@ if (
   fail('apply mode missing additive Application Answers persistence instructions');
 }
 
+if (
+  applyMode.includes('The veteran-status dropdown trap') &&
+  applyMode.includes('I identify as a veteran, just not a protected veteran') &&
+  /Read each option.s opening clause, not just whether the target phrase appears anywhere in its text/.test(applyMode)
+) {
+  pass('apply mode warns the Step 7b field-fill subagent about the veteran-status/EEO dropdown substring-match trap');
+} else {
+  fail('apply mode missing the veteran-status dropdown trap warning in Known ATS Quirks');
+}
+
+const telegramMode = readFile('modes/telegram.md');
+if (
+  /stage: submit-approval.*, approve/.test(telegramMode) &&
+  telegramMode.includes('goes through the same subagent delegation as Step 7b') &&
+  telegramMode.includes("pinned `model: haiku`") &&
+  telegramMode.includes('Verify via `browser_snapshot` that this is genuinely the review/submit page before clicking anything')
+) {
+  pass('telegram mode delegates the submit-approval click to a Haiku-pinned subagent instead of an unpinned/inherited model');
+} else {
+  fail('telegram mode missing explicit subagent delegation + haiku pin for the submit-approval click');
+}
+
+try {
+  const { buildRoutingPrompt, buildOnboardingPrompt } = await import(pathToFileURL(join(ROOT, 'core', 'telegram-monitor.mjs')).href);
+  const routingPrompt = buildRoutingPrompt([{ text: 'hello', from: 'John' }]);
+  const onboardingPrompt = buildOnboardingPrompt({ chatId: '123', messages: [{ text: 'hi' }], state: { currentStep: 'name' } });
+
+  for (const [name, prompt] of [['buildRoutingPrompt', routingPrompt], ['buildOnboardingPrompt', onboardingPrompt]]) {
+    if (
+      prompt.startsWith('[HEADLESS]') &&
+      prompt.includes('Known paths') &&
+      prompt.includes('.claude/skills/career-ops') &&
+      prompt.includes('modes/, core/, and AGENTS.md are reachable directly from here')
+    ) {
+      pass(`${name} primes every fresh headless session with known repo paths (no per-session rediscovery)`);
+    } else {
+      fail(`${name} is missing the known-paths primer that stops each stateless session re-guessing the repo layout:\n${prompt.slice(0, 400)}`);
+    }
+  }
+} catch (e) {
+  fail(`telegram-monitor prompt builders crashed: ${e.message}`);
+}
+
 const expandMode = readFile('modes/expand.md');
 if (
   /never fetch unlinked URLs/i.test(expandMode) &&

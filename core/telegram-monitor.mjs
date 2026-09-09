@@ -424,6 +424,32 @@ function invokeClaudeRoutingOnce(prompt, cwd, timeoutMs, model, extraArgs = []) 
   });
 }
 
+// Every `claude -p` telegram-monitor.mjs spawns is a brand-new session with
+// no memory of any prior poll cycle — including the immediately preceding
+// one for the same chat, seconds earlier. Left to its own defaults, the
+// model's first move is to rediscover the repo layout from scratch, and it
+// reliably guesses wrong: career-ops is *also* registered as a Claude Code
+// Skill, so "where do this project's mode/core files live" resolves by
+// default convention to a skill-package path like
+// `.claude/skills/career-ops/modes/...` — which doesn't exist here. Confirmed
+// live 2026-09-08/09: 4 of 10 poll-cycle sessions in one overnight run each
+// spent a wasted Bash/Read round-trip on that guess before finding the real
+// path, and the very first cold session of the run spent the bulk of its
+// 57-minute wall-clock time on this exact rediscovery.
+//
+// telegram-monitor.mjs is the one process that *does* stay alive across
+// every one of these otherwise-stateless invocations — it is the natural
+// place to hold this fixed, unchanging fact and inject it fresh into every
+// prompt, rather than expecting a memoryless session to rediscover (or a
+// discovery result to somehow persist between sessions that share nothing).
+// This is deliberately static text, not a runtime-probed/cached path list —
+// the layout it describes is fixed by this repo's own structure (workspace
+// dirs symlink `core/` and `modes/` straight to the repo root), so there is
+// nothing here that goes stale or needs invalidating.
+const KNOWN_PATHS_PRIMER = `Known paths — do not spend a discovery step confirming these, and do not guess a .claude/skills/career-ops/... path (career-ops is also installed as a Claude Code Skill, but that is not where this project's own files live):
+- The current working directory already IS the right place to start — modes/, core/, and AGENTS.md are reachable directly from here (modes/telegram.md, core/plugins.mjs, etc.), whether this cwd is the repo root or a candidate workspace (workspace modes/ and core/ are symlinks to the same root files).
+- Candidate/workspace data (data/telegram-state.md, data/application-defaults.md, data/applications.md, reports/) lives under data/ and reports/ relative to this same cwd.`;
+
 /**
  * Build the `claude -p` prompt text that drives modes/telegram.md Steps 2-6
  * for one bound chat's batch of messages. Pure string construction — spawning,
@@ -431,6 +457,8 @@ function invokeClaudeRoutingOnce(prompt, cwd, timeoutMs, model, extraArgs = []) 
  */
 export function buildRoutingPrompt(messages) {
   return `[HEADLESS] This is a non-interactive, unattended invocation — no human is present to answer a question this turn, and there is no future turn to come back to: this is a single, one-shot invocation that ends when this response ends. Apply every documented non-interactive/headless default in AGENTS.md and the mode files. Never pause to ask a question and wait for a reply (this includes AGENTS.md's Update Check, which must never surface its update prompt here). Never background a step and defer finishing it to "later" or "the next time I check" — if you start something that isn't done yet (a scan, a cycle sub-step, anything), wait for it synchronously, right now, in this same turn, before ending your response. Where a mode file documents an autonomous default for this situation, take it. Where none is documented, make the safest conservative choice, log it clearly in the run's own summary output, and continue — do not stop and wait.
+
+${KNOWN_PATHS_PRIMER}
 
 You are executing modes/telegram.md Step 2-6 routing for Telegram messages received by the career-ops bot.
 
@@ -452,6 +480,8 @@ Return a brief summary of actions taken.`;
 export function buildOnboardingPrompt(dispatch) {
   const { chatId, messages, state } = dispatch;
   return `[HEADLESS] This is a non-interactive, unattended invocation — no human is present to answer a question this turn, and there is no future turn to come back to: this is a single, one-shot invocation that ends when this response ends. Apply every documented non-interactive/headless default in AGENTS.md and the mode files. Never pause to ask a question and wait for a reply. Never background a step and defer finishing it to "later" — if you start something that isn't done yet, wait for it synchronously, right now, before ending your response.
+
+${KNOWN_PATHS_PRIMER}
 
 You are running modes/telegram-onboarding.md for a candidate whose Telegram chat_id is ${chatId}. This chat is not yet bound to any workspace.
 
