@@ -15,4 +15,6 @@ Each entry: what it is, where it came from, and why it wasn't done now.
 
 ## Done / promoted
 
+- **2026-09-08 — Confirmed not worth doing: amending commit `4bb9f73`'s now-stale message** (it originally said the drift guard was "Expected to currently FAIL for real," which stopped being true once the zero-workspace behavior was corrected mid-task). From: Task 3 review, apply-playwright-delegation-guard plan. Resolution: left as-is — this repo's own git convention is "never amend, always new commit," so the stale text stays as an honest record of what was believed at the time, corrected by the following commit rather than rewritten.
+
 (Move an item here with the date and what happened to it, once it's picked up — keep it, don't delete, so the history of what was considered stays visible.)
