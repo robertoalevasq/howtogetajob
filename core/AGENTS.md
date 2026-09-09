@@ -368,6 +368,8 @@ Two separate axes:
 2. `browser_snapshot` to read content
 3. Only footer/navbar without JD = closed. Title + description + Apply = active.
 
+**Scope the snapshot — never a bare, untargeted `browser_snapshot` call.** Liveness only needs to tell "just navbar/footer" apart from "title + description + Apply" — that distinction lives in the page's main-content region, not its full accessibility tree. Confirmed live 2026-09-09 (`cycle` mode, a full pipeline sweep): 24 liveness checks in one session each called `browser_snapshot` with empty params (`{}`) — a full untargeted capture every time — and because a long single-session run keeps re-reading its accumulated context on every later turn, those 24 oversized captures compounded into being 98.8% of that session's entire token cost. Use `browser_snapshot`'s own `target` param (a selector for the main content region — e.g. `main`, `article`, or the page's job-description container) or a `depth` limit instead of a bare call; reach for `browser_find` (a text/role search over the tree, returning just the match) when only confirming one signal, like whether an "Apply" element exists. This applies every time this step runs, not just the first — a bulk sweep (`cycle`/`pipeline`) repeats it once per candidate posting, so an unscoped habit here is the same mistake paid out dozens of times in one run.
+
 **Exception for batch workers (headless mode):** Playwright is unavailable in headless pipe mode. Use WebFetch as fallback and mark the report header `**Verification:** unconfirmed (batch mode)`; the user can verify manually later.
 
 ---

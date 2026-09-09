@@ -2301,6 +2301,30 @@ if (
   fail('apply mode missing the veteran-status dropdown trap warning in Known ATS Quirks');
 }
 
+if (
+  applyMode.includes('A dedicated single-field retry/fix dispatch') &&
+  applyMode.includes('starts with `browser_find` for that field') &&
+  applyMode.includes('burned **14 sequential `browser_snapshot` calls**') &&
+  applyMode.includes('never more than 2-3 snapshot attempts total before stopping to report `fields_failed`')
+) {
+  pass('apply mode tells a single-field retry subagent to start with browser_find instead of re-guessing selectors via repeated snapshots');
+} else {
+  fail('apply mode missing browser_find-first guidance for single-field retry/fix dispatches');
+}
+
+const agentsMdLivenessDoc = readFile('core/AGENTS.md');
+if (
+  agentsMdLivenessDoc.includes('## Offer Verification -- MANDATORY') &&
+  agentsMdLivenessDoc.includes('Scope the snapshot — never a bare, untargeted `browser_snapshot` call') &&
+  agentsMdLivenessDoc.includes('24 liveness checks in one session each called `browser_snapshot` with empty params') &&
+  agentsMdLivenessDoc.includes('98.8% of that session') &&
+  agentsMdLivenessDoc.includes("Use `browser_snapshot`'s own `target` param")
+) {
+  pass('AGENTS.md Offer Verification tells liveness checks to scope browser_snapshot instead of a bare untargeted call');
+} else {
+  fail('AGENTS.md Offer Verification missing browser_snapshot scoping guidance for liveness checks');
+}
+
 const telegramMode = readFile('modes/telegram.md');
 if (
   /stage: submit-approval.*, approve/.test(telegramMode) &&
