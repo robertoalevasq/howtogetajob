@@ -32,6 +32,8 @@ import { promisify } from 'util';
 import { fileURLToPath, pathToFileURL } from 'url';
 import yaml from 'js-yaml';
 import { pass, fail, warn, run, lastRunFailure, formatRunFailure, fileExists, finish, ROOT, QUICK, NODE, getBash, toBashPath } from '../tests/helpers.mjs';
+import { JSON_TEMPLATE_PAIRS, checkJsonFile } from './backfill-templates.mjs';
+import { listWorkspaces } from './admin-overview-snapshot.mjs';
 import { flagValue, hasFlag } from '../lib/cli-flags.mjs';
 
 /**
@@ -1195,6 +1197,80 @@ for (const f of skillEntrypoints) {
     pass('no stale bare-path references to a core/*.mjs script exist anywhere in tracked docs/CI files');
   } else {
     fail(`Stale core/ script references found:\n${(refs.stderr || refs.stdout || '').trim()}`);
+  }
+}
+
+// SYSTEM_FILE_COPIES drift guard: core/provision-workspace.mjs copies
+// .claude/settings.json into every workspace ONCE at provisioning time and
+// never re-syncs it automatically (unlike config/profile.yml/portals.yml,
+// which get ongoing additive-sync coverage via backfill-templates.mjs +
+// doctor-all.mjs specifically because they're meant to diverge per
+// candidate). settings.json is pure system plumbing, not personalization —
+// nothing should ever legitimately differ from the root template. See
+// docs/superpowers/specs/2026-09-08-apply-playwright-delegation-guard-design.md.
+//
+// IMPORTANT: workspaces/* is entirely gitignored (only workspaces/.gitkeep
+// is tracked) -- every workspace is per-machine, per-tenant local state
+// that never reaches a git checkout. GitHub Actions CI therefore ALWAYS
+// sees zero workspaces here, by design, not as an edge case. This guard
+// cannot be a CI-enforced gate the way SYSTEM_PATHS/script-reference are --
+// it is a LOCAL safety net that fires whenever this suite runs somewhere
+// with real workspace data present (a maintainer's or an AI session's
+// local machine). Finding zero workspaces is therefore the NORMAL case in
+// CI and must pass cleanly (with an explicit, visible skip note, never
+// silently) -- it is only real drift among workspaces that ARE found that
+// must fail loud.
+//
+// First: prove the guard actually detects real drift when workspaces DO
+// exist, using a synthetic temp tree -- this must fail loud, not silently
+// pass, the same principle the SYSTEM_PATHS coverage guard's own probe
+// above already established (that guard was a silent no-op in CI for years
+// before this pattern existed to catch it).
+{
+  const probeDir = join(ROOT, '.tmp-system-file-copies-drift-probe');
+  try {
+    mkdirSync(join(probeDir, '.claude'), { recursive: true });
+    mkdirSync(join(probeDir, 'workspaces', 'fake-ws', '.claude'), { recursive: true });
+    writeFileSync(join(probeDir, '.claude', 'settings.json'), JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'x', hooks: [] }] } }));
+    writeFileSync(join(probeDir, 'workspaces', 'fake-ws', '.claude', 'settings.json'), JSON.stringify({}));
+    writeFileSync(join(probeDir, 'workspaces', 'fake-ws', 'workspace.json'), JSON.stringify({ slug: 'fake-ws' }));
+    const probeWorkspaces = listWorkspaces(probeDir);
+    const probeDrifted = [];
+    for (const { slug, dir } of probeWorkspaces) {
+      for (const { live, template } of JSON_TEMPLATE_PAIRS) {
+        const { missing, error } = checkJsonFile(join(dir, live), join(probeDir, template));
+        if (error || missing.length > 0) probeDrifted.push(slug);
+      }
+    }
+    if (probeWorkspaces.length > 0 && probeDrifted.length > 0) {
+      pass('SYSTEM_FILE_COPIES drift guard correctly detects a deliberately-drifted synthetic workspace (not a silent pass)');
+    } else {
+      fail('SYSTEM_FILE_COPIES drift guard failed to detect a deliberately-drifted synthetic workspace — it would silently pass on real drift too');
+    }
+  } finally {
+    rmSync(probeDir, { recursive: true, force: true });
+  }
+}
+
+// And the real check, against the actual repo tree.
+{
+  const workspaces = listWorkspaces(ROOT);
+  if (workspaces.length === 0) {
+    pass('SYSTEM_FILE_COPIES drift guard: 0 workspaces found (expected — workspaces/* is gitignored and absent from this checkout/CI run; the guard only enforces drift when run locally with real workspace data present)');
+  } else {
+    const drifted = [];
+    for (const { slug, dir } of workspaces) {
+      for (const { live, template } of JSON_TEMPLATE_PAIRS) {
+        const { missing, error } = checkJsonFile(join(dir, live), join(ROOT, template));
+        if (error) drifted.push(`${slug}/${live}: ${error}`);
+        else if (missing.length > 0) drifted.push(`${slug}/${live} missing ${missing.map((p) => p.join('.')).join(', ')}`);
+      }
+    }
+    if (drifted.length === 0) {
+      pass(`SYSTEM_FILE_COPIES drift guard: every provisioned workspace's .claude/settings.json is in sync with the root template (${workspaces.length} workspace(s) checked)`);
+    } else {
+      fail(`SYSTEM_FILE_COPIES drift — run "node core/backfill-templates.mjs --all --apply" to fix:\n${drifted.join('\n')}`);
+    }
   }
 }
 

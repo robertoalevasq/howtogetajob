@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { parseDocument } from 'yaml';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { findMissingKeyPaths, checkFile, applyFile } from '../core/backfill-templates.mjs';
+import { findMissingKeyPaths, checkFile, applyFile, findMissingJsonPaths, checkJsonFile, applyJsonFile, JSON_TEMPLATE_PAIRS, checkWorkspace, applyWorkspace } from '../core/backfill-templates.mjs';
 
 function withTempDir(fn) {
   const dir = mkdtempSync(join(tmpdir(), 'backfill-templates-'));
@@ -432,5 +432,162 @@ test('CLI reports an unknown slug without crashing', () => {
     const [result] = JSON.parse(stdout);
     assert.ok(result.error);
     assert.equal(status, 1);
+  });
+});
+
+// JSON sync support (.claude/settings.json)
+
+test('findMissingJsonPaths finds a top-level key missing from the live object', () => {
+  const missing = findMissingJsonPaths({ a: 1, b: 2 }, { a: 1 });
+  assert.deepEqual(missing, [{ path: ['b'], value: 2 }]);
+});
+
+test('findMissingJsonPaths reports a whole missing subtree as one path, not per-leaf', () => {
+  const missing = findMissingJsonPaths({ hooks: { PreToolUse: [] } }, { a: 1 });
+  assert.deepEqual(missing, [{ path: ['hooks'], value: { PreToolUse: [] } }]);
+});
+
+test('findMissingJsonPaths never overwrites an existing scalar value', () => {
+  const missing = findMissingJsonPaths({ a: 1 }, { a: 999 });
+  assert.deepEqual(missing, []);
+});
+
+test('findMissingJsonPaths adds new array items by value identity, keeping existing ones', () => {
+  const missing = findMissingJsonPaths(
+    { permissions: { allow: ['a', 'b', 'c'] } },
+    { permissions: { allow: ['a'] } },
+  );
+  assert.deepEqual(missing, [{ path: ['permissions', 'allow'], value: ['b', 'c'], arrayAppend: true }]);
+});
+
+test('findMissingJsonPaths adds new hook matcher entries by matcher identity, keeping existing ones', () => {
+  const existingHook = { matcher: 'Bash', hooks: [{ type: 'command', command: 'echo old' }] };
+  const newHook = { matcher: 'mcp__playwright__browser_click', hooks: [{ type: 'command', command: 'node core/hooks/guard-playwright-delegation.mjs' }] };
+  const missing = findMissingJsonPaths(
+    { hooks: { PreToolUse: [existingHook, newHook] } },
+    { hooks: { PreToolUse: [existingHook] } },
+  );
+  assert.deepEqual(missing, [{ path: ['hooks', 'PreToolUse'], value: [newHook], arrayAppend: true }]);
+});
+
+test('findMissingJsonPaths returns empty when an array already has every template item', () => {
+  const missing = findMissingJsonPaths({ permissions: { allow: ['a'] } }, { permissions: { allow: ['a', 'b'] } });
+  assert.deepEqual(missing, []);
+});
+
+test('findMissingJsonPaths returns empty when live already has everything the template has', () => {
+  const missing = findMissingJsonPaths({ a: 1 }, { a: 1, b: 2 });
+  assert.deepEqual(missing, []);
+});
+
+test('findMissingJsonPaths never overwrites an existing non-array value where the template expects an array', () => {
+  const missing = findMissingJsonPaths(
+    { a: { tags: ['x', 'y'] } },
+    { a: { tags: 'not-an-array' } },
+  );
+  assert.deepEqual(missing, []);
+});
+
+test('applyJsonFile leaves an existing non-array value untouched when the template expects an array there', () => {
+  withTempDir((dir) => {
+    const livePath = join(dir, 'live.json');
+    const templatePath = join(dir, 'template.json');
+    writeFileSync(livePath, JSON.stringify({ a: { tags: 'not-an-array' } }));
+    writeFileSync(templatePath, JSON.stringify({ a: { tags: ['x', 'y'] } }));
+    const result = applyJsonFile(livePath, templatePath);
+    assert.deepEqual(result.written, []);
+    const after = JSON.parse(readFileSync(livePath, 'utf8'));
+    assert.deepEqual(after, { a: { tags: 'not-an-array' } });
+  });
+});
+
+test('checkJsonFile reports missing paths without writing anything', () => {
+  withTempDir((dir) => {
+    const livePath = join(dir, 'live.json');
+    const templatePath = join(dir, 'template.json');
+    writeFileSync(livePath, JSON.stringify({ a: 1 }));
+    writeFileSync(templatePath, JSON.stringify({ a: 1, b: 2 }));
+    const before = readFileSync(livePath, 'utf8');
+    const result = checkJsonFile(livePath, templatePath);
+    assert.deepEqual(result.missing, [['b']]);
+    assert.equal(result.error, null);
+    assert.equal(readFileSync(livePath, 'utf8'), before);
+  });
+});
+
+test('checkJsonFile returns no missing/no error when either file does not exist', () => {
+  withTempDir((dir) => {
+    const result = checkJsonFile(join(dir, 'nope.json'), join(dir, 'also-nope.json'));
+    assert.deepEqual(result.missing, []);
+    assert.equal(result.error, null);
+  });
+});
+
+test('checkJsonFile reports a parse error instead of throwing on malformed JSON', () => {
+  withTempDir((dir) => {
+    const livePath = join(dir, 'live.json');
+    const templatePath = join(dir, 'template.json');
+    writeFileSync(livePath, '{not valid json');
+    writeFileSync(templatePath, JSON.stringify({ a: 1 }));
+    const result = checkJsonFile(livePath, templatePath);
+    assert.equal(result.missing.length, 0);
+    assert.ok(result.error);
+  });
+});
+
+test('applyJsonFile writes missing top-level keys additively', () => {
+  withTempDir((dir) => {
+    const livePath = join(dir, 'live.json');
+    const templatePath = join(dir, 'template.json');
+    writeFileSync(livePath, JSON.stringify({ a: 1 }));
+    writeFileSync(templatePath, JSON.stringify({ a: 1, hooks: { PreToolUse: [{ matcher: 'x', hooks: [] }] } }));
+    const result = applyJsonFile(livePath, templatePath);
+    assert.deepEqual(result.written, [['hooks']]);
+    assert.equal(result.error, null);
+    const written = JSON.parse(readFileSync(livePath, 'utf8'));
+    assert.deepEqual(written, { a: 1, hooks: { PreToolUse: [{ matcher: 'x', hooks: [] }] } });
+  });
+});
+
+test('applyJsonFile appends new array items without touching existing ones', () => {
+  withTempDir((dir) => {
+    const livePath = join(dir, 'live.json');
+    const templatePath = join(dir, 'template.json');
+    writeFileSync(livePath, JSON.stringify({ permissions: { allow: ['keep-me'] } }));
+    writeFileSync(templatePath, JSON.stringify({ permissions: { allow: ['keep-me', 'new-one'] } }));
+    const result = applyJsonFile(livePath, templatePath);
+    assert.deepEqual(result.written, [['permissions', 'allow']]);
+    const written = JSON.parse(readFileSync(livePath, 'utf8'));
+    assert.deepEqual(written.permissions.allow, ['keep-me', 'new-one']);
+  });
+});
+
+test('applyJsonFile is a no-op (no write) when nothing is missing', () => {
+  withTempDir((dir) => {
+    const livePath = join(dir, 'live.json');
+    const templatePath = join(dir, 'template.json');
+    writeFileSync(livePath, JSON.stringify({ a: 1 }));
+    writeFileSync(templatePath, JSON.stringify({ a: 1 }));
+    const before = readFileSync(livePath, 'utf8');
+    const result = applyJsonFile(livePath, templatePath);
+    assert.deepEqual(result.written, []);
+    assert.equal(readFileSync(livePath, 'utf8'), before);
+  });
+});
+
+test('checkWorkspace includes the .claude/settings.json JSON pair alongside the existing YAML pairs', () => {
+  withTempDir((dir) => {
+    mkdirSync(join(dir, 'workspaces', 'ws1', '.claude'), { recursive: true });
+    mkdirSync(join(dir, '.claude'), { recursive: true });
+    mkdirSync(join(dir, 'config'), { recursive: true });
+    mkdirSync(join(dir, 'templates'), { recursive: true });
+    writeFileSync(join(dir, '.claude', 'settings.json'), JSON.stringify({ hooks: { PreToolUse: [] } }));
+    writeFileSync(join(dir, 'workspaces', 'ws1', '.claude', 'settings.json'), JSON.stringify({}));
+    writeFileSync(join(dir, 'config', 'profile.example.yml'), 'a: 1\n');
+    writeFileSync(join(dir, 'templates', 'portals.example.yml'), 'a: 1\n');
+    const results = checkWorkspace(join(dir, 'workspaces', 'ws1'), dir);
+    const settingsResult = results.find((r) => r.file === '.claude/settings.json');
+    assert.ok(settingsResult, 'expected a .claude/settings.json entry in checkWorkspace results');
+    assert.deepEqual(settingsResult.missing, [['hooks']]);
   });
 });
