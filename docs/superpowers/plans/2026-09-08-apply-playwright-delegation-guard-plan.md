@@ -4,7 +4,7 @@
 
 **Goal:** Make it structurally impossible for career-ops' main Claude Code session to drive mutating Playwright interactions directly (the bug burning 13M-53M tokens per apply session across four workspaces), and make sure the fix — and any future `.claude/settings.json` change — actually reaches every provisioned workspace without anyone having to remember to check.
 
-**Architecture:** A `PreToolUse` hook (`core/hooks/guard-playwright-delegation.mjs`) blocks mutating Playwright tool calls when Claude Code's hook payload has no `agent_id` (main session) and allows them when it does (delegated subagent) — verified to work regardless of settings.json pre-approval, since `PreToolUse` runs before the permission system. `core/backfill-templates.mjs` gains a JSON-diff sync target for `.claude/settings.json` (its existing YAML sync targets are untouched), and `core/test-all.mjs` gains a CI-enforced drift guard using that new capability, so a future settings.json change that isn't propagated to every workspace fails the build automatically.
+**Architecture:** A `PreToolUse` hook (`core/hooks/guard-playwright-delegation.mjs`) blocks mutating Playwright tool calls when Claude Code's hook payload has no `agent_id` (main session) and allows them when it does (delegated subagent) — verified to work regardless of settings.json pre-approval, since `PreToolUse` runs before the permission system. `core/backfill-templates.mjs` gains a JSON-diff sync target for `.claude/settings.json` (its existing YAML sync targets are untouched), and `core/test-all.mjs` gains a drift guard using that new capability — a local safety net (not a GitHub-Actions-enforced gate, since `workspaces/*` is gitignored and CI never has any workspace data to check) that fires whenever the suite runs locally with real workspace data present, so a future settings.json change that isn't propagated to every workspace is caught the next time anyone runs the full test suite on a machine with real workspaces.
 
 **Tech Stack:** Node.js `.mjs` (no framework), `node:test`/`node:assert/strict` for unit tests, plain JSON (no `yaml` package needed for this part — that stays scoped to the existing profile.yml/portals.yml sync).
 
@@ -793,7 +793,7 @@ Find this existing line:
 Add a new bullet directly after it:
 
 ```
-- **RULE: Any change to a file in `provision-workspace.mjs`'s `SYSTEM_FILE_COPIES` list (currently just `.claude/settings.json`) requires re-running `node core/backfill-templates.mjs --all --apply` before the change ships**, so every already-provisioned workspace picks it up — unlike `SEEDED_FILES` (`config/profile.yml`, `portals.yml`, etc.), which are meant to diverge per candidate, `SYSTEM_FILE_COPIES` entries are pure system plumbing that should never legitimately differ from the root template. `test-all.mjs`'s SYSTEM_FILE_COPIES drift guard is the mechanical backstop that fails CI if this is missed — but run the backfill anyway; the check should never be the first line of defense, only the one that can't be forgotten.
+- **RULE: Any change to a file in `provision-workspace.mjs`'s `SYSTEM_FILE_COPIES` list (currently just `.claude/settings.json`) requires re-running `node core/backfill-templates.mjs --all --apply` before the change ships**, so every already-provisioned workspace picks it up — unlike `SEEDED_FILES` (`config/profile.yml`, `portals.yml`, etc.), which are meant to diverge per candidate, `SYSTEM_FILE_COPIES` entries are pure system plumbing that should never legitimately differ from the root template. `test-all.mjs`'s SYSTEM_FILE_COPIES drift guard is the mechanical backstop that fires whenever the suite runs locally with real workspace data present — but run the backfill anyway; the check should never be the first line of defense, only the one that can't be forgotten. (It cannot backstop this in GitHub Actions CI itself, since `workspaces/*` is gitignored and never reaches a CI checkout — see `docs/superpowers/specs/2026-09-08-apply-playwright-delegation-guard-design.md`'s "Component: SYSTEM_FILE_COPIES drift guard" section for the full reasoning.)
 ```
 
 - [ ] **Step 5: Run the full test suite in this worktree and confirm everything is green**
@@ -834,9 +834,15 @@ EOF
 
 Once this plan's branch is reviewed, merged, and its code is present in the **main checkout** (not this worktree — `workspaces/*` only physically exists there), propagate the hook into the real local workspaces:
 
+**First, a one-time manual smoke test** (5 minutes, catches the one assumption no unit test can cover — that Claude Code's `PreToolUse` hook payload actually carries `agent_id` precisely when a tool call originates inside a delegated subagent, not just when the documentation says it should): in an interactive session on the main checkout, after this branch's `.claude/settings.json` change is present, attempt a single `mcp__playwright__browser_click` directly from the main session and confirm it is denied with the Step 7b message; then spawn a subagent and have it perform the same kind of click and confirm it succeeds. If either result is wrong, STOP — do not run the backfill below until the mismatch is understood, since propagating a broken assumption into all four live workspaces means unattended apply sessions could start failing closed instead of just failing to delegate.
+
+Then run the backfill:
+
 ```bash
 node core/backfill-templates.mjs --all --apply
 ```
+
+**Note:** After merging this branch into the main checkout, `node core/test-all.mjs` run there will show the SYSTEM_FILE_COPIES drift guard as FAILING (not the zero-workspace skip) until `--all --apply` actually runs — that's the guard correctly detecting real, expected, temporary drift, not a regression, so don't be alarmed by it in that window; run the backfill promptly after merging rather than at leisure.
 
 Expected output: one line per workspace (`ernesto-vasquez`, `leonie`, `roberto-vasquez`, `thomas-acosta`) reporting `.claude/settings.json wrote hooks`, and `up to date` (or nothing new) for `config/profile.yml`/`portals.yml` unless those happen to have unrelated pending drift already.
 
