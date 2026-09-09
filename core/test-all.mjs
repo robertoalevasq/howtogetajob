@@ -2309,6 +2309,9 @@ try {
   const {
     formatApplicationAnswersSection,
     upsertApplicationAnswersSection,
+    classifyBoilerplateLabel,
+    reconcileApplicationDefaults,
+    APPLICATION_DEFAULTS_TEMPLATE,
   } = await import(pathToFileURL(join(ROOT, 'core', 'application-answers.mjs')).href);
 
   const snapshot = {
@@ -2393,6 +2396,108 @@ try {
     pass('application answers upsert refreshes only the existing Application Answers section');
   } else {
     fail(`application answers upsert did not replace only its own section:\n${refreshed}`);
+  }
+
+  // #2110-ish: modes/apply.md Step 8's cache reconciliation was a prose
+  // "don't forget" instruction, found silently skipped in practice twice in
+  // one day (reports #029 and #028, 2026-09-08). These tests cover the
+  // mechanical reconciliation that replaced it.
+  if (
+    classifyBoilerplateLabel('Please select your gender') === 'cache' &&
+    classifyBoilerplateLabel('I willingly accept the Terms and Conditions for submitting an application') === 'cache' &&
+    classifyBoilerplateLabel('How Did You Hear About Us?') === 'manual-review' &&
+    classifyBoilerplateLabel('Have you previously worked at this company?') === 'manual-review' &&
+    classifyBoilerplateLabel('What is your desired annual salary?') === 'never' &&
+    classifyBoilerplateLabel('What is your desired start date?') === 'never' &&
+    classifyBoilerplateLabel('Do you require sponsorship?') === 'never' &&
+    classifyBoilerplateLabel('Tell us why you want this role') === 'not-boilerplate' &&
+    classifyBoilerplateLabel('Self Identify: Please check one of the boxes below', 'disability') === 'cache' &&
+    classifyBoilerplateLabel('Anything else?', 'skip') === 'never'
+  ) {
+    pass('classifyBoilerplateLabel sorts cache/manual-review/never/not-boilerplate correctly, explicit tag included');
+  } else {
+    fail('classifyBoilerplateLabel misclassified one or more known label patterns');
+  }
+
+  const existingDefaults = [
+    '# Application Defaults — boilerplate cache',
+    '',
+    '## EEO / Voluntary Disclosures',
+    '- Gender: Male',
+    '- Race/Ethnicity: Hispanic or Latino: Yes',
+    '- Veteran status: I am not a protected veteran',
+    '- Disability: I do not want to answer',
+    '',
+    '## Standard Answers',
+    '- How did you hear about us: ...',
+    '- Previously worked at this company: ...',
+    '- Electronic signature: ...',
+    '- Arbitration/terms agreements: ...',
+    '- AI interview/transcription consent: ...',
+    '',
+    '## Custom Answers',
+    '<!-- appended as new recurring boilerplate fields are confirmed -->',
+    '',
+  ].join('\n');
+
+  const bakerTillySnapshot = {
+    selections: [
+      { question: 'Please select the ethnicity which most accurately describes how you identify yourself', answer: 'Hispanic (United States of America)' },
+      { question: 'How Did You Hear About Us?', answer: 'Baker Tilly Recruiter' },
+      { question: 'Were you ever employed by Baker Tilly Advisory Group, LP, its Subsidiaries, or a predecessor firm?', answer: 'Yes' },
+      { question: 'I willingly accept the Terms and Conditions for submitting an application with Baker Tilly', answer: 'Yes' },
+      { question: 'Please select your gender', answer: 'Male' },
+    ],
+    fieldValues: [
+      { question: 'What is your desired annual salary?', answer: '60000' },
+    ],
+  };
+
+  const reconciled = reconcileApplicationDefaults(existingDefaults, bakerTillySnapshot);
+  const cachedLabels = reconciled.cached.map((e) => e.label);
+  if (
+    cachedLabels.includes('Please select the ethnicity which most accurately describes how you identify yourself') &&
+    cachedLabels.includes('I willingly accept the Terms and Conditions for submitting an application with Baker Tilly') &&
+    !cachedLabels.includes('Please select your gender') &&
+    reconciled.flagged.map((e) => e.label).includes('How Did You Hear About Us?') &&
+    !cachedLabels.some((l) => /salary/i.test(l)) &&
+    !cachedLabels.some((l) => /Baker Tilly Advisory Group/.test(l)) &&
+    reconciled.text.includes('- Please select the ethnicity which most accurately describes how you identify yourself: Hispanic (United States of America)') &&
+    reconciled.text.includes('- Race/Ethnicity: Hispanic or Latino: Yes') &&
+    (reconciled.text.match(/^- Gender: Male$/gm) || []).length === 1
+  ) {
+    pass('reconcileApplicationDefaults caches new boilerplate answers, dedupes paraphrases, skips company-specific/never-cache fields, and keeps a same-category-different-question field (ethnicity pick-list vs. cached Yes/No) as its own entry');
+  } else {
+    fail(`reconcileApplicationDefaults produced unexpected output:\ncached=${JSON.stringify(reconciled.cached)}\nflagged=${JSON.stringify(reconciled.flagged)}\ntext=${reconciled.text}`);
+  }
+
+  const reconciledAgain = reconcileApplicationDefaults(reconciled.text, bakerTillySnapshot);
+  if (reconciledAgain.cached.length === 0 && reconciledAgain.text === null) {
+    pass('reconcileApplicationDefaults is idempotent on a second run with the same answers');
+  } else {
+    fail(`reconcileApplicationDefaults re-cached on a second identical run: ${JSON.stringify(reconciledAgain.cached)}`);
+  }
+
+  const fromScratch = reconcileApplicationDefaults(null, {
+    selections: [{ question: 'Please select your gender', answer: 'Male' }],
+  });
+  if (
+    fromScratch.text !== null &&
+    fromScratch.text.startsWith(APPLICATION_DEFAULTS_TEMPLATE.split('\n')[0]) &&
+    fromScratch.text.includes('- Please select your gender: Male')
+  ) {
+    pass('reconcileApplicationDefaults bootstraps the file from the Step 6b template when none exists yet');
+  } else {
+    fail(`reconcileApplicationDefaults did not bootstrap from template:\n${fromScratch.text}`);
+  }
+
+  const nothingToCache = reconcileApplicationDefaults(existingDefaults, {
+    fieldValues: [{ question: 'What is your desired start date?', answer: '09/29/2026' }],
+  });
+  if (nothingToCache.text === null && nothingToCache.cached.length === 0 && nothingToCache.flagged.length === 0) {
+    pass('reconcileApplicationDefaults leaves the file untouched when nothing new is cacheable');
+  } else {
+    fail(`reconcileApplicationDefaults touched the file with no cacheable answers: ${JSON.stringify(nothingToCache)}`);
   }
 } catch (e) {
   fail(`application answers helper crashed: ${e.message}`);
