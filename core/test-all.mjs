@@ -1206,16 +1206,26 @@ for (const f of skillEntrypoints) {
 // which get ongoing additive-sync coverage via backfill-templates.mjs +
 // doctor-all.mjs specifically because they're meant to diverge per
 // candidate). settings.json is pure system plumbing, not personalization —
-// nothing should ever legitimately differ from the root template, so
-// unlike the YAML pairs, drift here is always a bug and safe to hard-fail
-// CI on. See
+// nothing should ever legitimately differ from the root template. See
 // docs/superpowers/specs/2026-09-08-apply-playwright-delegation-guard-design.md.
 //
-// First: prove the guard actually fails on real drift, using a synthetic
-// temp tree -- this must fail loud, not silently pass, the same principle
-// the SYSTEM_PATHS coverage guard's own probe above already established
-// (that guard was a silent no-op in CI for years before this pattern
-// existed to catch it).
+// IMPORTANT: workspaces/* is entirely gitignored (only workspaces/.gitkeep
+// is tracked) -- every workspace is per-machine, per-tenant local state
+// that never reaches a git checkout. GitHub Actions CI therefore ALWAYS
+// sees zero workspaces here, by design, not as an edge case. This guard
+// cannot be a CI-enforced gate the way SYSTEM_PATHS/script-reference are --
+// it is a LOCAL safety net that fires whenever this suite runs somewhere
+// with real workspace data present (a maintainer's or an AI session's
+// local machine). Finding zero workspaces is therefore the NORMAL case in
+// CI and must pass cleanly (with an explicit, visible skip note, never
+// silently) -- it is only real drift among workspaces that ARE found that
+// must fail loud.
+//
+// First: prove the guard actually detects real drift when workspaces DO
+// exist, using a synthetic temp tree -- this must fail loud, not silently
+// pass, the same principle the SYSTEM_PATHS coverage guard's own probe
+// above already established (that guard was a silent no-op in CI for years
+// before this pattern existed to catch it).
 {
   const probeDir = join(ROOT, '.tmp-system-file-copies-drift-probe');
   try {
@@ -1246,7 +1256,7 @@ for (const f of skillEntrypoints) {
 {
   const workspaces = listWorkspaces(ROOT);
   if (workspaces.length === 0) {
-    fail('SYSTEM_FILE_COPIES drift guard found zero workspaces via listWorkspaces(ROOT) — in a repo with provisioned workspaces this is itself suspicious, not evidence everything is in sync');
+    pass('SYSTEM_FILE_COPIES drift guard: 0 workspaces found (expected — workspaces/* is gitignored and absent from this checkout/CI run; the guard only enforces drift when run locally with real workspace data present)');
   } else {
     const drifted = [];
     for (const { slug, dir } of workspaces) {
