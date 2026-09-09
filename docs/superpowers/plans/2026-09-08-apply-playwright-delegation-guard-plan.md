@@ -17,7 +17,7 @@
 - Never touch the user's global `~/.claude/settings.json` — every change in this plan is scoped to the career-ops repo (root `.claude/settings.json` and per-workspace copies) or to career-ops' own `core/`/`tests/` files.
 - `backfill-templates.mjs`'s existing YAML behavior (`TEMPLATE_PAIRS`, `findMissingKeyPaths`, `checkFile`, `applyFile`) must not change — the new JSON support is additive, a parallel code path, not a modification of the YAML one.
 - All new file-sync logic is additive-only: never overwrite or remove an existing value in a workspace's live file, whether YAML or JSON.
-- The new `test-all.mjs` drift guard must fail loudly (never silently pass) when it cannot find any workspaces to check — this is the exact failure class that made the pre-existing `SYSTEM_PATHS coverage guard` a silent no-op in CI for years.
+- **CORRECTED during Task 3 (see its ledger entry):** `workspaces/*` is entirely gitignored (only `workspaces/.gitkeep` is tracked) — GitHub Actions CI and any fresh worktree/clone ALWAYS see zero workspaces, by design, not as an edge case. The new `test-all.mjs` drift guard must therefore treat "zero workspaces found" as a clean PASS with an explicit skip note (never a silent pass, but also never a failure) — it is a local safety net that only enforces drift when the suite runs somewhere with real workspace data present, unlike the `SYSTEM_PATHS coverage guard`, which legitimately can fail on zero because tracked files always exist in a real checkout. Real drift among workspaces that ARE found must still fail loud.
 
 ---
 
@@ -605,16 +605,26 @@ Find the existing block in `core/test-all.mjs` that starts with `// Same shape a
 // which get ongoing additive-sync coverage via backfill-templates.mjs +
 // doctor-all.mjs specifically because they're meant to diverge per
 // candidate). settings.json is pure system plumbing, not personalization —
-// nothing should ever legitimately differ from the root template, so
-// unlike the YAML pairs, drift here is always a bug and safe to hard-fail
-// CI on. See
+// nothing should ever legitimately differ from the root template. See
 // docs/superpowers/specs/2026-09-08-apply-playwright-delegation-guard-design.md.
 //
-// First: prove the guard actually fails on real drift, using a synthetic
-// temp tree -- this must fail loud, not silently pass, the same principle
-// the SYSTEM_PATHS coverage guard's own probe above already established
-// (that guard was a silent no-op in CI for years before this pattern
-// existed to catch it).
+// IMPORTANT: workspaces/* is entirely gitignored (only workspaces/.gitkeep
+// is tracked) -- every workspace is per-machine, per-tenant local state
+// that never reaches a git checkout. GitHub Actions CI therefore ALWAYS
+// sees zero workspaces here, by design, not as an edge case. This guard
+// cannot be a CI-enforced gate the way SYSTEM_PATHS/script-reference are --
+// it is a LOCAL safety net that fires whenever this suite runs somewhere
+// with real workspace data present (a maintainer's or an AI session's
+// local machine). Finding zero workspaces is therefore the NORMAL case in
+// CI and must pass cleanly (with an explicit, visible skip note, never
+// silently) -- it is only real drift among workspaces that ARE found that
+// must fail loud.
+//
+// First: prove the guard actually detects real drift when workspaces DO
+// exist, using a synthetic temp tree -- this must fail loud, not silently
+// pass, the same principle the SYSTEM_PATHS coverage guard's own probe
+// above already established (that guard was a silent no-op in CI for years
+// before this pattern existed to catch it).
 {
   const probeDir = join(ROOT, '.tmp-system-file-copies-drift-probe');
   try {
@@ -645,7 +655,7 @@ Find the existing block in `core/test-all.mjs` that starts with `// Same shape a
 {
   const workspaces = listWorkspaces(ROOT);
   if (workspaces.length === 0) {
-    fail('SYSTEM_FILE_COPIES drift guard found zero workspaces via listWorkspaces(ROOT) — in a repo with provisioned workspaces this is itself suspicious, not evidence everything is in sync');
+    pass('SYSTEM_FILE_COPIES drift guard: 0 workspaces found (expected — workspaces/* is gitignored and absent from this checkout/CI run; the guard only enforces drift when run locally with real workspace data present)');
   } else {
     const drifted = [];
     for (const { slug, dir } of workspaces) {
@@ -668,7 +678,7 @@ Find the existing block in `core/test-all.mjs` that starts with `// Same shape a
 
 Run: `node core/test-all.mjs --quick 2>&1 | grep -A2 "SYSTEM_FILE_COPIES"`
 
-Expected at this point in the plan: both lines pass — the synthetic probe (`SYSTEM_FILE_COPIES drift guard correctly detects a deliberately-drifted synthetic workspace`) and the real check (`every provisioned workspace's .claude/settings.json is in sync with the root template (4 workspace(s) checked)`). The real check passes here because root and all four workspaces are still byte-identical — Task 1's hook script exists as a file but nothing has registered it in any settings.json yet, so there's genuinely no drift to find. Task 4 is what temporarily creates real drift (by changing the root's settings.json) and then closes it again (by backfilling) — see Task 4's Step 1a for that live demonstration.
+Expected in a worktree (which has no `workspaces/*` data at all — gitignored, per-machine local state that a git checkout never carries): the synthetic probe passes (`SYSTEM_FILE_COPIES drift guard correctly detects a deliberately-drifted synthetic workspace`), and the real check passes with the zero-workspace skip note (`SYSTEM_FILE_COPIES drift guard: 0 workspaces found (expected...)`). This is the correct, permanent state for CI and for any fresh worktree/clone — it is NOT something Task 4 changes, since Task 4 also runs inside this same worktree and also has no real workspace data to find drift in. Propagating the hook into the real, local workspaces on the actual machine (outside git entirely, since those files are gitignored) is a separate, post-merge operational step — see the note at the end of Task 4 below, not a "temporarily fails then passes" demonstration inside this worktree.
 
 - [ ] **Step 4: Commit**
 
@@ -691,17 +701,18 @@ EOF
 
 ---
 
-### Task 4: Register the hook, propagate it, and document the rule
+### Task 4: Register the hook and document the rule
 
 **Files:**
 - Modify: `.claude/settings.json` (repo root)
 - Modify: `core/AGENTS.md`
 - Modify: `modes/apply.md`
-- Modify (via running a command, not hand-editing): `workspaces/ernesto-vasquez/.claude/settings.json`, `workspaces/leonie/.claude/settings.json`, `workspaces/roberto-vasquez/.claude/settings.json`, `workspaces/thomas-acosta/.claude/settings.json`
+
+**Not part of this task's diff:** the four workspaces' own `.claude/settings.json` files. `workspaces/*` is entirely gitignored (only `workspaces/.gitkeep` is tracked — confirmed via `.gitignore:167` and `git ls-files workspaces/`), so those files don't exist in this worktree at all and can never be committed to any branch. Propagating this task's root-template change into them is a post-merge operational step against the real local machine, documented at the end of this task, not a task deliverable with its own diff/commit/review.
 
 **Interfaces:**
-- Consumes: the `node core/backfill-templates.mjs --all --apply` CLI (Task 2's `applyWorkspace`/`applyJsonFile` wired through the existing `main()`), and Task 3's drift guard as the final verification.
-- Produces: nothing — this is the last task.
+- Consumes: nothing new from Task 3 directly (the drift guard's zero-workspace skip behavior means this task's in-worktree verification doesn't exercise real propagation — see Step 5).
+- Produces: nothing — this is the last task in the plan; the post-merge note after it is an operational step, not a task.
 
 - [ ] **Step 1: Add the hooks block to the repo-root `.claude/settings.json`**
 
@@ -741,11 +752,7 @@ Change the closing of the `permissions` object and the file's final close to:
 
 (i.e. add a comma after the `permissions` object's closing `}`, then the new `"hooks"` key, before the file's final `}`.)
 
-- [ ] **Step 1a: Confirm this alone now makes the drift guard fail for real**
-
-Run: `node core/test-all.mjs --quick 2>&1 | grep -A2 "SYSTEM_FILE_COPIES"`
-
-Expected: the synthetic probe still passes, but the real check now **fails**, listing all four workspaces (`ernesto-vasquez`, `leonie`, `roberto-vasquez`, `thomas-acosta`) as missing `hooks` — because Step 1 just added it to the root template and nothing has propagated it yet. This is the live proof the guard actually catches real drift, not just its own synthetic test fixture. Step 5 below closes this gap.
+**Note on why there's no in-worktree "watch it fail, then fix it" step here (there was in an earlier draft of this plan):** `workspaces/*` is entirely gitignored — this worktree, like any git checkout, has zero real workspace data, so `listWorkspaces(ROOT)` returns `[]` here regardless of what this step just added to root's `.claude/settings.json`. There is nothing to demonstrate drift against inside this worktree. The real workspaces (`ernesto-vasquez`, `leonie`, `roberto-vasquez`, `thomas-acosta`) exist only on the local machine's main checkout, outside git entirely. Propagating the hook into them is a **post-merge operational step**, done once this branch's code is merged back into the main checkout — see the very end of this task, after Step 6.
 
 - [ ] **Step 2: Add the Main Files row to `core/AGENTS.md`**
 
@@ -789,41 +796,29 @@ Add a new bullet directly after it:
 - **RULE: Any change to a file in `provision-workspace.mjs`'s `SYSTEM_FILE_COPIES` list (currently just `.claude/settings.json`) requires re-running `node core/backfill-templates.mjs --all --apply` before the change ships**, so every already-provisioned workspace picks it up — unlike `SEEDED_FILES` (`config/profile.yml`, `portals.yml`, etc.), which are meant to diverge per candidate, `SYSTEM_FILE_COPIES` entries are pure system plumbing that should never legitimately differ from the root template. `test-all.mjs`'s SYSTEM_FILE_COPIES drift guard is the mechanical backstop that fails CI if this is missed — but run the backfill anyway; the check should never be the first line of defense, only the one that can't be forgotten.
 ```
 
-- [ ] **Step 5: Run the backfill to propagate the hook into every workspace**
+- [ ] **Step 5: Run the full test suite in this worktree and confirm everything is green**
 
-Run: `node core/backfill-templates.mjs --all --apply`
+Run: `node core/test-all.mjs --quick 2>&1 | grep -A2 "SYSTEM_FILE_COPIES"`
 
-Expected output: one line per workspace (`ernesto-vasquez`, `leonie`, `roberto-vasquez`, `thomas-acosta`) reporting `.claude/settings.json wrote hooks`, and `up to date` (or nothing new) for `config/profile.yml`/`portals.yml` unless those happen to have unrelated pending drift already.
+Expected: the synthetic probe still passes, and the real check passes with the zero-workspace skip note (`SYSTEM_FILE_COPIES drift guard: 0 workspaces found (expected...)`) — unchanged from Task 3's baseline, since this worktree has no real workspace data to find drift in either way. This step is a sanity check that Step 1's JSON edit didn't break JSON parsing or introduce a syntax error, not a drift demonstration. Also run the full suite once without `--quick` to confirm nothing else regressed: `node core/test-all.mjs`.
 
-- [ ] **Step 6: Verify each workspace's settings.json now matches the root**
-
-Don't use a raw `diff` here — `applyJsonFile` fully re-serializes the file it writes (`JSON.stringify(..., null, 2)`), which normalizes away the root file's cosmetic blank lines inside its `allow` array. A byte-for-byte diff would show that formatting difference even though the data is identical, which would look like a failure and isn't one. Use the tool's own semantic check instead:
+- [ ] **Step 6: Commit**
 
 ```bash
-node core/backfill-templates.mjs --all --check
-```
-
-Expected: `up to date` (or only pre-existing, unrelated YAML drift if any already existed) for all four workspaces — specifically, no workspace reports `.claude/settings.json missing hooks` anymore.
-
-- [ ] **Step 7: Run the full test suite and confirm everything is green, including the new drift guard**
-
-Run: `node core/test-all.mjs`
-Expected: PASS on `SYSTEM_FILE_COPIES drift guard: every provisioned workspace's .claude/settings.json is in sync with the root template (4 workspace(s) checked)` (the real check from Task 3, now passing since Step 5 propagated the hook), plus the pre-existing full suite still green.
-
-- [ ] **Step 8: Commit**
-
-```bash
-git add .claude/settings.json core/AGENTS.md modes/apply.md workspaces/ernesto-vasquez/.claude/settings.json workspaces/leonie/.claude/settings.json workspaces/roberto-vasquez/.claude/settings.json workspaces/thomas-acosta/.claude/settings.json
+git add .claude/settings.json core/AGENTS.md modes/apply.md
 git commit -m "$(cat <<'EOF'
-feat(apply): register and propagate the Playwright delegation guard hook
+feat(apply): register the Playwright delegation guard hook
 
-Adds the hooks.PreToolUse block to the repo-root .claude/settings.json
-and backfills it into every provisioned workspace via
-backfill-templates.mjs --all --apply (dogfooding Task 2/3's new
-capability rather than hand-editing four JSON files). Documents the
-hook in AGENTS.md's Main Files table, notes it as a hard backstop in
-apply.md Step 7b, and adds the SYSTEM_FILE_COPIES propagation rule to
-AGENTS.md's Stack and Conventions section.
+Adds the hooks.PreToolUse block to the repo-root .claude/settings.json.
+Documents the hook in AGENTS.md's Main Files table, notes it as a hard
+backstop in apply.md Step 7b, and adds the SYSTEM_FILE_COPIES
+propagation rule to AGENTS.md's Stack and Conventions section.
+
+Does NOT touch any workspaces/* file -- that directory is entirely
+gitignored (per-machine candidate data), so propagating this hook
+into the real local workspaces is a post-merge operational step run
+directly against the main checkout, not something this branch's
+history can contain. See the plan's post-merge note for that step.
 
 Closes the loop from
 docs/superpowers/specs/2026-09-08-apply-playwright-delegation-guard-design.md.
@@ -832,6 +827,36 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
 )"
 ```
+
+---
+
+## Post-merge operational step (not part of Task 4's diff — run after this branch merges to main)
+
+Once this plan's branch is reviewed, merged, and its code is present in the **main checkout** (not this worktree — `workspaces/*` only physically exists there), propagate the hook into the real local workspaces:
+
+```bash
+node core/backfill-templates.mjs --all --apply
+```
+
+Expected output: one line per workspace (`ernesto-vasquez`, `leonie`, `roberto-vasquez`, `thomas-acosta`) reporting `.claude/settings.json wrote hooks`, and `up to date` (or nothing new) for `config/profile.yml`/`portals.yml` unless those happen to have unrelated pending drift already.
+
+Verify semantically (not with a raw `diff` — `applyJsonFile` fully re-serializes the file it writes via `JSON.stringify(..., null, 2)`, which normalizes away the root file's cosmetic blank lines inside its `allow` array; a byte-for-byte diff would show that formatting difference even though the data is identical):
+
+```bash
+node core/backfill-templates.mjs --all --check
+```
+
+Expected: `up to date` (or only pre-existing, unrelated YAML drift if any already existed) for all four workspaces.
+
+Then, from the main checkout, run the full suite once more to see the drift guard's real check pass for real (not the zero-workspace skip):
+
+```bash
+node core/test-all.mjs
+```
+
+Expected: `SYSTEM_FILE_COPIES drift guard: every provisioned workspace's .claude/settings.json is in sync with the root template (4 workspace(s) checked)`.
+
+This step has no commit of its own — nothing in `workspaces/*` is ever tracked by git.
 
 ---
 
