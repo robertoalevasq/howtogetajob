@@ -31,58 +31,71 @@ Two real sessions from 2026-09-09 show the pattern: Ernesto's `cycle` run (42.0M
 - `core/telegram-monitor.mjs`'s daemon (`main()`'s `while (true)` loop) only ever dispatches a new session in response to an incoming Telegram message (`if (messages.length > 0)`) — there is no periodic "check for other pending work" tick today. This is the one genuinely new piece of behavior this design adds.
 - The `"You've hit your session limit · resets 7:50pm (America/New_York)"` message format has been directly observed twice in this account's transcripts and is machine-parseable (a fixed prefix plus a `h:mmpm (Timezone)` clock time).
 
+## Correction made during plan-writing (2026-09-10)
+
+The Architecture/Component sections below originally had `cycle.md` Step 2 itself detect and write `lastStopReason: "session-limit"` when the account's usage limit fires. **That's not implementable as written:** the `"You've hit your session limit · resets Xpm"` message is injected by the CLI when a turn gets cut off — the model process is already terminated by the time it appears, so no further tool call (including a status-file write) can happen from inside that turn.
+
+The actual mechanism, confirmed against this repo's own prior incident: `telegram-monitor.mjs` already has a documented 2026-08-30 case of exactly this ("a candidate's routing-failure notification said only 'claude -p routing exited 1' when the real cause... streamed right past on stdout/stderr with nothing capturing it"), which is why `spawnCapturingTail()` exists — `claude -p` exits **non-zero** on a session-limit cutoff, and the tail of its output (containing the limit message) is already captured into the rejected `Error`'s message that `dispatchOne`'s `catch` block receives today. Detection therefore belongs in that existing catch block, not in `cycle.md` prose — matching the pattern the codebase already had, not a new one.
+
+Separately: rather than adding new exported functions to `cycle-lock.mjs`/`cycle-status.mjs` for cross-workspace reads (both modules resolve their state paths from a fixed `workspaceRoot()` call at import time, not parameterized per call), the daemon reuses their **existing CLI interfaces as subprocesses with `cwd` set to the target workspace** — identical to how this file already spawns `node core/plugins.mjs run telegram notify ...` with `{cwd: dispatch.cwd}` two lines away. Zero new exports in either file.
+
+Also: a resume dispatch is **not** routed through `buildRoutingPrompt`/`modes/telegram.md`'s message classification — a synthetic continuation isn't a candidate's Telegram message, and forcing it through classification would require touching `modes/telegram.md` too (outside this design's 3-file scope). It gets its own small prompt builder and dispatch `kind`, mirroring how `onboarding` already gets its own builder and kind.
+
 ## Architecture
 
 ```
-modes/cycle.md Step 2 (unchanged evaluation logic, new exit conditions)
+modes/cycle.md Step 2 (unchanged evaluation logic, one new exit condition)
   │
   ├─ processes URLs from data/pipeline.md, one at a time (unchanged)
   ├─ after each URL: batch counter += 1
   │
-  ├─ counter reaches 20 (BATCH_SIZE)?
-  │     └─ cycle-status.mjs update: { lastStopReason: "batch-limit", resumeNotBefore: null }
-  │        → write Step 4-style partial summary, exit cleanly
+  └─ counter reaches 20 (BATCH_SIZE)?
+        └─ cycle-status.mjs update: { lastStopReason: "batch-limit" }
+           → cycle-lock.mjs release (so the daemon's lock check below sees "free")
+           → write Step 4-style partial summary, exit cleanly
+
+telegram-monitor.mjs — claude -p exits non-zero on a session-limit cutoff (existing,
+documented 2026-08-30 behavior; spawnCapturingTail() already captures the tail)
   │
-  └─ a tool/turn returns "You've hit your session limit · resets Xpm (Tz)"?
-        └─ cycle-status.mjs update: { lastStopReason: "session-limit", resumeNotBefore: <parsed X> }
-           → exit (nothing more to do this turn)
+  └─ dispatchOne()'s existing catch block: does err.message match the
+     "session limit ... resets Xpm (Tz)" pattern?
+        └─ yes → spawn `node cycle-status.mjs update --file <patch>` with cwd: dispatch.cwd,
+                 patch = { lastStopReason: "session-limit", resumeNotBefore: <parsed X, as ISO> }
+                 (existing notifyRoutingFailure() call is untouched — this runs alongside it)
 
 telegram-monitor.mjs daemon, existing poll loop — one new check per iteration
   │
-  ├─ node cycle-lock.mjs status  → locked?  → yes: skip, a run is already active
-  │
-  ├─ read data/cache/cycle-status.json, computeLiveness(state)
-  │     └─ state !== "stalled" or pipelineUrlsPending === 0 → skip
-  │
-  ├─ lastStopReason === "batch-limit"          → dispatch continuation now
-  └─ lastStopReason === "session-limit"
-        ├─ now < resumeNotBefore                → skip, check again next poll
-        └─ now >= resumeNotBefore                → dispatch continuation now
-
-dispatch continuation = the same [HEADLESS] "/run"-equivalent claude -p invocation
-already used for a Telegram-triggered cycle run today (routeMessages/dispatchOne path) —
-no new dispatch mechanism, just a new trigger for the existing one.
+  └─ for each [chatId, workspaceDir] in buildBoundChatMap():
+        ├─ spawn `node cycle-lock.mjs status` (cwd: workspaceDir) → held? → skip this workspace
+        ├─ spawn `node cycle-status.mjs --json` (cwd: workspaceDir) → parse
+        │     └─ liveness.state !== "stalled" or counters.pipelineUrlsPending === 0 → skip
+        ├─ lastStopReason === "session-limit" and now < resumeNotBefore → skip (check again next poll)
+        └─ otherwise → dispatch a { kind: "cycle-resume", chatId, cwd: workspaceDir } through the
+           existing routeDispatch/fanOutDispatches path — a NEW prompt builder
+           (buildCycleResumePrompt), not buildRoutingPrompt/modes/telegram.md classification.
 ```
 
-Both exit paths (batch-limit, session-limit) reuse the *same* `cycle-status.mjs update()` call `cycle.md` already makes at its Step 2 checkpoints — two new keys on an existing patch object, not a new file or format.
+Both `cycle-lock.mjs` and `cycle-status.mjs` are used purely through their **existing CLI interfaces**, invoked as subprocesses with `cwd` set to the target workspace — the same pattern this file already uses for `node core/plugins.mjs run telegram notify ...`. Neither file gains new exports; `cycle-status.mjs` gains two new default fields in its state shape.
 
 ## Component design
 
 **`modes/cycle.md` Step 2 — batch boundary**
 
-- Add a per-invocation counter, reset at Step 2's start. After each URL evaluation, increment it; at 20 (matching the existing "pending count exceeds ~20 → throttle liveness" threshold already in this step, rather than inventing a new number), stop taking new URLs, write the Step 4 partial summary (identical shape to a full completion, just smaller in scope — no new summary format), and patch `cycle-status.json` with `lastStopReason: "batch-limit"`.
-- If a turn ever surfaces the `"session limit"` message instead: patch `cycle-status.json` with `lastStopReason: "session-limit"` and `resumeNotBefore` set to the parsed reset time (converted to an absolute ISO timestamp using the stated `Timezone`), then end the turn — there's nothing further this session can do.
+- Add a per-invocation counter, reset at Step 2's start. After each URL evaluation, increment it; at 20 (matching the existing "pending count exceeds ~20 → throttle liveness" threshold already in this step, rather than inventing a new number): patch `cycle-status.json` with `lastStopReason: "batch-limit"` (via the existing `cycle-status.mjs update --file` call this step already makes at its checkpoints), release the cycle lock (`node cycle-lock.mjs release` — normally only done at end-of-run; a batch-limit stop is a controlled, safe-to-resume-immediately pause, not a failure, so it releases the same way), write the Step 4-style partial summary (identical shape to a full completion, just smaller in scope — no new summary format), and end the turn.
 - `lastStopReason`/`resumeNotBefore` are cleared (`null`) at Step 0 preflight, same place `cycle-status.mjs reset` already runs for a fresh run — a genuinely new run should never inherit a stale continuation reason.
+- Session-limit detection is **not** cycle.md's job — see the correction above.
 
 **`core/cycle-status.mjs` — schema extension only**
 
-- Add `lastStopReason: null | 'batch-limit' | 'session-limit'` and `resumeNotBefore: null | ISO string` to the existing state object (alongside `EMPTY_COUNTERS`, etc.). No new exported functions — `update()`/`reset()`/`computeLiveness()` already handle arbitrary patch shape and staleness respectively.
+- Add `lastStopReason: null` and `resumeNotBefore: null` to `emptyState()`'s returned object (the only place default field values are defined). No new exported functions — `update()`'s existing `{...state, ...patch}` merge already handles these two new patch keys for free, and `reset()` already clears them by constructing a fresh `emptyState()`.
 
-**`core/telegram-monitor.mjs` — daemon resume-check**
+**`core/telegram-monitor.mjs` — three additions**
 
-- One new function, `checkForStalledCycle(routeDispatch)`, called once per poll-loop iteration right after the existing message-handling block (piggybacking on the loop's own long-poll pacing — no new timer).
-- Logic: shell `node cycle-lock.mjs status` (parse its existing JSON) → if locked, return. Read `cycle-status.json` (existing `--json` path, or import `render`'s underlying loader) → `computeLiveness(state)` → if not `'stalled'` or `counters.pipelineUrlsPending === 0`, return. If `lastStopReason === 'session-limit'` and `Date.now() < Date.parse(resumeNotBefore)`, return. Otherwise, dispatch a continuation through the exact same path an incoming `/run` message already takes today (reuses `routeDispatch`/`fanOutDispatches` — no new dispatch code, just a new caller).
-- This function must never throw into the main loop — same defensive convention `cycle-status.mjs` itself already documents ("`update()` must never throw and never blocks the run"). Wrap in try/catch, log and continue on any failure.
+1. **Session-limit detection in `dispatchOne`'s existing `catch` block.** After the existing `console.error`/`notifyRoutingFailure` calls (untouched), check `err.message` against a `parseSessionLimitReset(text, now)` helper. If it matches, write a workspace-scoped status patch by spawning `node cycle-status.mjs update --file <tmp-patch.json>` with `cwd: dispatch.cwd` (a temp JSON file is required because that's the CLI's only input shape — no stdin variant exists). `parseSessionLimitReset` is a pure function: regex-matches `resets (\d{1,2}):(\d{2})(am|pm) \(([^)]+)\)`, converts that wall-clock time in the named IANA zone to the next UTC instant at/after `now` (using `Intl.DateTimeFormat` offset correction — no new dependency), and falls back to `now + 1 hour` if the message doesn't match (documented in Risks below).
+2. **`checkForStalledCycle(routeDispatch)`**, called once per poll-loop iteration right after the existing message-handling block (piggybacking on the loop's own long-poll pacing — no new timer). For each `[chatId, workspaceDir]` in `buildBoundChatMap({repoRoot: REPO_ROOT})` (already exported by `telegram-router.mjs`, already imported by this file's routing path): spawn `node cycle-lock.mjs status` with `cwd: workspaceDir` → if `held`, skip this workspace. Spawn `node cycle-status.mjs --json` with `cwd: workspaceDir` → parse; its `liveness` field is already computed server-side by that CLI, so no need to import `computeLiveness` — if `liveness.state !== 'stalled'` or `counters.pipelineUrlsPending === 0`, skip. If `lastStopReason === 'session-limit'` and `Date.now() < Date.parse(resumeNotBefore)`, skip. Otherwise, dispatch `{ chatId, cwd: workspaceDir, kind: 'cycle-resume', messages: [] }` through the existing `routeDispatch`/`fanOutDispatches` path (no new dispatch machinery, just a new dispatch object and a new kind).
+3. **`buildCycleResumePrompt(dispatch)`**, alongside the existing `buildRoutingPrompt`/`buildOnboardingPrompt`, reusing the same `KNOWN_PATHS_PRIMER`. States plainly that a previous `cycle` Step 2 batch stopped with pending URLs remaining in `data/pipeline.md`, and instructs resuming `modes/cycle.md` at Step 2 directly — explicitly do NOT restart Step 0/Step 1 (the scan/lock/preflight steps), since the pipeline backlog and `cycle-status.json` state are already current. `dispatchOne` gains one more branch (alongside its existing `onboarding` special case): `dispatch.kind === 'cycle-resume'` selects this builder.
+
+`checkForStalledCycle` must never throw into the main loop — same defensive convention `cycle-status.mjs` itself already documents ("`update()` must never throw and never blocks the run"). Wrap its body in try/catch, log and continue on any failure.
 
 ## Testing
 
