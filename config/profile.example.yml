@@ -155,13 +155,6 @@ language:
 #   responded_subsequent_days: 3
 #   interview_thankyou_days: 1
 
-# Controls which model tier evaluates your offers. Valid values:
-#   economy  -- cheapest/fastest model, no extended thinking. Best for high-volume scanning.
-#   standard -- balanced model, no extended thinking. Default if this key is absent.
-#   premium  -- most capable model, adaptive extended thinking. Best for high-stakes offers.
-# See the tier -> model mapping table in modes/_shared.md.
-spend_tier: standard
-
 # (Optional) Visual theming for the generated CV and cover-letter PDFs (#1837).
 # Each token is injected as a CSS custom property that overrides the template
 # default — omit the block (or any key) to keep the built-in look unchanged.
