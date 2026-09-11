@@ -604,6 +604,24 @@ Return a brief summary of actions taken.`;
 }
 
 /**
+ * Build the `claude -p` prompt for an automatic cycle-run continuation —
+ * dispatched by checkForStalledCycle(), never by a real Telegram message.
+ * Deliberately NOT routed through buildRoutingPrompt/modes/telegram.md's
+ * message classification: a synthetic continuation isn't a candidate's
+ * message to classify, it's an instruction to resume exactly one specific
+ * mode at exactly one specific step.
+ */
+export function buildCycleResumePrompt(dispatch) {
+  return `[HEADLESS] This is a non-interactive, unattended invocation — no human is present to answer a question this turn, and there is no future turn to come back to: this is a single, one-shot invocation that ends when this response ends. Apply every documented non-interactive/headless default in AGENTS.md and the mode files. Never pause to ask a question and wait for a reply. Never background a step and defer finishing it to "later" — if you start something that isn't done yet, wait for it synchronously, right now, before ending your response.
+
+${KNOWN_PATHS_PRIMER}
+
+A previous \`cycle\` run's Step 2 (pipeline evaluation) stopped after reaching its per-invocation batch limit, or after a session-limit cutoff that has now passed — data/pipeline.md and data/cache/cycle-status.json both still hold this run's real, current state. Resume modes/cycle.md at Step 2 directly: re-acquire the cycle lock (node core/cycle-lock.mjs acquire), continue processing whatever is still "Pending" in data/pipeline.md exactly as Step 2 already describes, and carry on into Step 3 onward once the backlog (or this batch) is done. Do NOT restart Step 0 or Step 1 — the scan/lock/preflight steps already ran for this run and their output (the pipeline backlog itself) is what you are continuing from.
+
+Never use AskUserQuestion — this is a headless continuation with no candidate reply pending. Return a brief summary of what this batch did.`;
+}
+
+/**
  * Send a canned (non-LLM) reply to an arbitrary chatId — used as
  * routeMessages()'s sendReply for the wrong-code/lockout path, where no
  * workspace exists to resolve config/plugins.yml from.
@@ -936,6 +954,8 @@ export async function dispatchOne(dispatch, invoke = invokeClaudeRoutingOnce, re
 
   const prompt = dispatch.kind === 'onboarding'
     ? buildOnboardingPrompt(dispatch)
+    : dispatch.kind === 'cycle-resume'
+    ? buildCycleResumePrompt(dispatch)
     : buildRoutingPrompt(dispatch.messages);
   // Only onboarding gets a bounded timeout and a pinned fast model — see
   // ONBOARDING_TIMEOUT_MS/ONBOARDING_MODEL's own comments. A routing

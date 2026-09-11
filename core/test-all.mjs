@@ -2358,6 +2358,23 @@ try {
   fail(`telegram-monitor prompt builders crashed: ${e.message}`);
 }
 
+try {
+  const { buildCycleResumePrompt } = await import(pathToFileURL(join(ROOT, 'core', 'telegram-monitor.mjs')).href);
+  const resumePrompt = buildCycleResumePrompt({ chatId: '123', cwd: '/fake/workspace' });
+  if (
+    resumePrompt.startsWith('[HEADLESS]') &&
+    resumePrompt.includes('Known paths') &&
+    resumePrompt.includes('Resume modes/cycle.md at Step 2 directly') &&
+    resumePrompt.includes('Do NOT restart Step 0 or Step 1')
+  ) {
+    pass('buildCycleResumePrompt instructs resuming cycle.md Step 2 directly, not restarting from Step 0');
+  } else {
+    fail(`buildCycleResumePrompt missing expected content:\n${resumePrompt.slice(0, 400)}`);
+  }
+} catch (e) {
+  fail(`buildCycleResumePrompt coverage crashed: ${e.message}`);
+}
+
 const expandMode = readFile('modes/expand.md');
 if (
   /never fetch unlinked URLs/i.test(expandMode) &&
