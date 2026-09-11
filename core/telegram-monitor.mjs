@@ -38,7 +38,7 @@ import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
 import { acquirePipelineLock } from './pipeline-lock.mjs';
 import { telegramDaemonLockPath, dispatchLogPath } from './hub-paths.mjs';
-import { routeMessages } from './telegram-router.mjs';
+import { routeMessages, buildBoundChatMap } from './telegram-router.mjs';
 import { runHook } from '../plugins/_engine.mjs';
 import { isMainModule } from './is-main.mjs';
 import { browserSessionsStatePath, readBrowserSessions, removeBrowserSession } from './apply-browser-holder.mjs';
@@ -619,6 +619,57 @@ ${KNOWN_PATHS_PRIMER}
 A previous \`cycle\` run's Step 2 (pipeline evaluation) stopped after reaching its per-invocation batch limit, or after a session-limit cutoff that has now passed — data/pipeline.md and data/cache/cycle-status.json both still hold this run's real, current state. Resume modes/cycle.md at Step 2 directly: re-acquire the cycle lock (node core/cycle-lock.mjs acquire), continue processing whatever is still "Pending" in data/pipeline.md exactly as Step 2 already describes, and carry on into Step 3 onward once the backlog (or this batch) is done. Do NOT restart Step 0 or Step 1 — the scan/lock/preflight steps already ran for this run and their output (the pipeline backlog itself) is what you are continuing from.
 
 Never use AskUserQuestion — this is a headless continuation with no candidate reply pending. Return a brief summary of what this batch did.`;
+}
+
+/**
+ * Runs once per daemonLoop() poll iteration. For every workspace bound to a
+ * Telegram chat, checks whether that workspace has a cycle run that stopped
+ * (lock released) with pending pipeline URLs still left, and if so, whether
+ * it's safe to resume yet — then dispatches a continuation through the same
+ * routeDispatch queue real Telegram messages already go through (so a
+ * resume for a chat can never race a real incoming message for that same
+ * chat). Every per-workspace step is independently guarded: a workspace
+ * whose lock/status check fails for any reason (missing file, malformed
+ * JSON, a killed subprocess) is skipped, not fatal to the rest of the loop.
+ *
+ * @param {(dispatch: any) => Promise<void>} routeDispatch - from createRoutingQueue().
+ * @param {{exec?: Function, buildBoundChatMap?: Function, now?: Date}} [opts]
+ */
+export function checkForStalledCycle(routeDispatch, opts = {}) {
+  try {
+    const exec = opts.exec || execSync;
+    const buildMap = opts.buildBoundChatMap || buildBoundChatMap;
+    const now = (opts.now || new Date()).getTime();
+
+    for (const [chatId, cwd] of buildMap({ repoRoot: REPO_ROOT })) {
+      let lockStatus;
+      try {
+        lockStatus = JSON.parse(exec(`node "${CYCLE_LOCK_MJS}" status`, { cwd, stdio: ['ignore', 'pipe', 'ignore'] }).toString());
+      } catch {
+        continue; // can't determine lock state for this workspace right now — try again next poll
+      }
+      if (lockStatus.held) continue; // a run is already active (or was, very recently) — nothing to do
+
+      let status;
+      try {
+        status = JSON.parse(exec(`node "${CYCLE_STATUS_MJS}" --json`, { cwd, stdio: ['ignore', 'pipe', 'ignore'] }).toString());
+      } catch {
+        continue;
+      }
+      if (status?.liveness?.state !== 'stalled') continue;
+      if (!status.counters || !(status.counters.pipelineUrlsPending > 0)) continue;
+
+      if (status.lastStopReason === 'session-limit') {
+        const resumeAt = Date.parse(status.resumeNotBefore);
+        if (Number.isFinite(resumeAt) && now < resumeAt) continue; // not yet — check again next poll
+      }
+
+      routeDispatch({ chatId, cwd, kind: 'cycle-resume', messages: [] }).catch(err =>
+        console.error(`[telegram-monitor] cycle-resume dispatch failed for chat ${chatId}: ${err.message}`));
+    }
+  } catch (err) {
+    console.error(`[telegram-monitor] checkForStalledCycle failed (swallowed): ${err.message}`);
+  }
 }
 
 /**
@@ -1203,6 +1254,11 @@ async function daemonLoop() {
         // across poll iterations — see createRoutingQueue().
         await fanOutDispatches(dispatches, routeDispatch);
       }
+      // Runs every iteration (not gated on messages.length) — a stalled
+      // cycle run needs to resume even during a stretch with no incoming
+      // Telegram traffic at all. Synchronous and fast (a couple of tiny
+      // subprocess calls per bound workspace); never throws.
+      checkForStalledCycle(routeDispatch);
       // No sleep between iterations on a clean poll: the long-poll itself
       // already paced this call out over up to DAEMON_LONGPOLL_SECONDS.
     } catch (err) {

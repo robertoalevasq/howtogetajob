@@ -2375,6 +2375,97 @@ try {
   fail(`buildCycleResumePrompt coverage crashed: ${e.message}`);
 }
 
+try {
+  const { checkForStalledCycle } = await import(pathToFileURL(join(ROOT, 'core', 'telegram-monitor.mjs')).href);
+
+  function runScenario(lockHeld, statusJson, now) {
+    const dispatched = [];
+    const routeDispatch = (dispatch) => { dispatched.push(dispatch); return Promise.resolve(); };
+    const exec = (cmd) => {
+      if (cmd.includes('cycle-lock.mjs')) return JSON.stringify({ held: lockHeld });
+      if (cmd.includes('cycle-status.mjs')) return JSON.stringify(statusJson);
+      throw new Error(`unexpected exec: ${cmd}`);
+    };
+    const buildBoundChatMapStub = () => new Map([['555', '/fake/workspace']]);
+    checkForStalledCycle(routeDispatch, { exec, buildBoundChatMap: buildBoundChatMapStub, now: now || new Date('2026-09-10T12:00:00.000Z') });
+    return dispatched;
+  }
+
+  const lockedCase = runScenario(true, { liveness: { state: 'stalled' }, counters: { pipelineUrlsPending: 10 } });
+  if (lockedCase.length === 0) {
+    pass('checkForStalledCycle never dispatches when the cycle lock is held');
+  } else {
+    fail(`checkForStalledCycle dispatched despite a held lock: ${JSON.stringify(lockedCase)}`);
+  }
+
+  const notStalledCase = runScenario(false, { liveness: { state: 'running' }, counters: { pipelineUrlsPending: 10 } });
+  if (notStalledCase.length === 0) {
+    pass('checkForStalledCycle never dispatches for a run that is still actively running');
+  } else {
+    fail(`checkForStalledCycle dispatched for a running (not stalled) run: ${JSON.stringify(notStalledCase)}`);
+  }
+
+  const nothingPendingCase = runScenario(false, { liveness: { state: 'stalled' }, counters: { pipelineUrlsPending: 0 } });
+  if (nothingPendingCase.length === 0) {
+    pass('checkForStalledCycle never dispatches when there are zero pending URLs left');
+  } else {
+    fail(`checkForStalledCycle dispatched with nothing pending: ${JSON.stringify(nothingPendingCase)}`);
+  }
+
+  const batchLimitCase = runScenario(false, { liveness: { state: 'stalled' }, counters: { pipelineUrlsPending: 10 }, lastStopReason: 'batch-limit', resumeNotBefore: null });
+  if (batchLimitCase.length === 1 && batchLimitCase[0].kind === 'cycle-resume' && batchLimitCase[0].cwd === '/fake/workspace' && batchLimitCase[0].chatId === '555') {
+    pass('checkForStalledCycle dispatches immediately for a clean batch-limit stop');
+  } else {
+    fail(`checkForStalledCycle did not dispatch correctly for a batch-limit stop: ${JSON.stringify(batchLimitCase)}`);
+  }
+
+  const sessionLimitNotYetCase = runScenario(false,
+    { liveness: { state: 'stalled' }, counters: { pipelineUrlsPending: 10 }, lastStopReason: 'session-limit', resumeNotBefore: '2026-09-10T13:00:00.000Z' },
+    new Date('2026-09-10T12:00:00.000Z'));
+  if (sessionLimitNotYetCase.length === 0) {
+    pass('checkForStalledCycle withholds dispatch until resumeNotBefore has passed');
+  } else {
+    fail(`checkForStalledCycle dispatched before resumeNotBefore: ${JSON.stringify(sessionLimitNotYetCase)}`);
+  }
+
+  const sessionLimitElapsedCase = runScenario(false,
+    { liveness: { state: 'stalled' }, counters: { pipelineUrlsPending: 10 }, lastStopReason: 'session-limit', resumeNotBefore: '2026-09-10T11:00:00.000Z' },
+    new Date('2026-09-10T12:00:00.000Z'));
+  if (sessionLimitElapsedCase.length === 1 && sessionLimitElapsedCase[0].kind === 'cycle-resume') {
+    pass('checkForStalledCycle dispatches once resumeNotBefore has passed');
+  } else {
+    fail(`checkForStalledCycle did not dispatch after resumeNotBefore elapsed: ${JSON.stringify(sessionLimitElapsedCase)}`);
+  }
+
+  // Matches Ernesto's real 2026-09-09 stopped state (see the design doc's Testing section).
+  const ernestoReplay = runScenario(false,
+    { liveness: { state: 'stalled' }, counters: { pipelineUrlsPending: 47 }, lastStopReason: 'session-limit', resumeNotBefore: '2026-09-10T12:05:00.000Z' },
+    new Date('2026-09-10T12:00:00.000Z'));
+  const ernestoReplayLater = runScenario(false,
+    { liveness: { state: 'stalled' }, counters: { pipelineUrlsPending: 47 }, lastStopReason: 'session-limit', resumeNotBefore: '2026-09-10T12:05:00.000Z' },
+    new Date('2026-09-10T12:06:00.000Z'));
+  if (ernestoReplay.length === 0 && ernestoReplayLater.length === 1) {
+    pass('checkForStalledCycle behavioral replay: withholds then correctly resumes a synthetic Ernesto-shaped stalled state');
+  } else {
+    fail(`checkForStalledCycle behavioral replay failed: before=${JSON.stringify(ernestoReplay)}, after=${JSON.stringify(ernestoReplayLater)}`);
+  }
+
+  const brokenExecCase = (() => {
+    const dispatched = [];
+    const routeDispatch = (dispatch) => { dispatched.push(dispatch); return Promise.resolve(); };
+    const exec = () => { throw new Error('subprocess exploded'); };
+    checkForStalledCycle(routeDispatch, { exec, buildBoundChatMap: () => new Map([['555', '/fake/workspace']]) });
+    return dispatched;
+  })();
+  if (brokenExecCase.length === 0) {
+    pass('checkForStalledCycle never throws and never dispatches when a workspace check itself fails');
+  } else {
+    fail(`checkForStalledCycle should have skipped a workspace whose check threw: ${JSON.stringify(brokenExecCase)}`);
+  }
+} catch (e) {
+  fail(`checkForStalledCycle coverage crashed: ${e.message}`);
+}
+
 const expandMode = readFile('modes/expand.md');
 if (
   /never fetch unlinked URLs/i.test(expandMode) &&
