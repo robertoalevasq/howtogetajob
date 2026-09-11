@@ -31,8 +31,10 @@
  */
 
 import { spawn, execSync } from 'child_process';
-import { existsSync, readFileSync, appendFileSync, mkdirSync } from 'fs';
+import { existsSync, readFileSync, appendFileSync, mkdirSync, writeFileSync, unlinkSync } from 'fs';
 import { resolve, dirname, join, basename } from 'path';
+import { tmpdir } from 'os';
+import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
 import { acquirePipelineLock } from './pipeline-lock.mjs';
 import { telegramDaemonLockPath, dispatchLogPath } from './hub-paths.mjs';
@@ -54,6 +56,12 @@ import { parseCommand } from './telegram-poll.mjs';
 // modes/, etc.), not just core/.
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = dirname(ROOT);
+// Absolute paths, not bare filenames — a relative 'cycle-status.mjs' resolved
+// against an arbitrary workspace cwd is exactly the class of bug the
+// notifyRoutingFailure() pluginsMjs comment above already documents (2026-08-28
+// incident: a bare relative script path resolved wrong against dispatch.cwd).
+const CYCLE_STATUS_MJS = join(ROOT, 'cycle-status.mjs');
+const CYCLE_LOCK_MJS = join(ROOT, 'cycle-lock.mjs');
 // acquirePipelineLock derives its actual lock directory by appending
 // ".lock" to this path (lockDirFor in pipeline-lock.mjs) — so the real lock
 // dir on disk is core/data/telegram-daemon.lock, not a double-suffixed name.
@@ -512,6 +520,39 @@ export function parseSessionLimitReset(text, now = new Date()) {
 }
 
 /**
+ * If `errMessage` is a session-limit cutoff message, records it on the
+ * target workspace's cycle-status.json (lastStopReason + the parsed reset
+ * time) via cycle-status.mjs's existing `update --file` CLI, invoked with
+ * `cwd` so it resolves that workspace's own state file. Never throws —
+ * this is purely observational bookkeeping riding along an already-failed
+ * dispatch; a bug here must never mask or replace the real error handling
+ * dispatchOne already does.
+ *
+ * @param {string} errMessage
+ * @param {string} cwd - the workspace directory the failed dispatch ran in.
+ * @param {{exec?: Function, now?: Date, tmpPath?: string}} [opts]
+ * @returns {boolean} true if a session-limit cutoff was detected and recorded.
+ */
+export function applySessionLimitStatus(errMessage, cwd, opts = {}) {
+  if (!/session limit/i.test(String(errMessage || ''))) return false;
+  try {
+    const exec = opts.exec || execSync;
+    const resumeNotBefore = parseSessionLimitReset(errMessage, opts.now || new Date()).toISOString();
+    const tmpPath = opts.tmpPath || join(tmpdir(), `cycle-status-patch-${randomUUID()}.json`);
+    writeFileSync(tmpPath, JSON.stringify({ lastStopReason: 'session-limit', resumeNotBefore }));
+    try {
+      exec(`node "${CYCLE_STATUS_MJS}" update --file "${tmpPath}"`, { cwd, stdio: 'pipe' });
+    } finally {
+      try { unlinkSync(tmpPath); } catch { /* best-effort cleanup */ }
+    }
+    return true;
+  } catch (err) {
+    console.error(`[telegram-monitor] applySessionLimitStatus failed (swallowed): ${err.message}`);
+    return false;
+  }
+}
+
+/**
  * Build the `claude -p` prompt text that drives modes/telegram.md Steps 2-6
  * for one bound chat's batch of messages. Pure string construction — spawning,
  * retries and failure alerting all live in dispatchOne().
@@ -917,11 +958,13 @@ export async function dispatchOne(dispatch, invoke = invokeClaudeRoutingOnce, re
       } catch (retryErr) {
         console.error(`[telegram-monitor] Retry also failed (${retryErr.message}) — sending emergency notification.`);
         notifyRoutingFailure(retryErr.message, dispatch);
+        applySessionLimitStatus(retryErr.message, dispatch.cwd);
         throw retryErr;
       }
     }
     console.error(`[telegram-monitor] Routing failed (${err.message}) — sending emergency notification.`);
     notifyRoutingFailure(err.message, dispatch);
+    applySessionLimitStatus(err.message, dispatch.cwd);
     throw err;
   }
 }

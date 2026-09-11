@@ -14019,6 +14019,46 @@ try {
   fail(`parseSessionLimitReset coverage crashed: ${e.message}`);
 }
 
+try {
+  const { applySessionLimitStatus } = await import(pathToFileURL(join(ROOT, 'core', 'telegram-monitor.mjs')).href);
+
+  const calls = [];
+  const fakeExec = (cmd, opts) => { calls.push({ cmd, opts }); return ''; };
+  const detected = applySessionLimitStatus(
+    "claude -p routing exited 1: You've hit your session limit · resets 7:50pm (America/New_York)",
+    '/fake/workspace',
+    { exec: fakeExec, now: new Date('2026-09-08T23:31:37.580Z') }
+  );
+  if (detected && calls.length === 1 && calls[0].opts.cwd === '/fake/workspace' && calls[0].cmd.includes('cycle-status.mjs') && calls[0].cmd.includes('update --file')) {
+    pass('applySessionLimitStatus detects a session-limit cutoff and calls cycle-status.mjs update with the right cwd');
+  } else {
+    fail(`applySessionLimitStatus did not behave as expected: detected=${detected}, calls=${JSON.stringify(calls)}`);
+  }
+
+  const notDetectedCalls = [];
+  const notDetected = applySessionLimitStatus('some other routing failure entirely', '/fake/workspace', { exec: (cmd, opts) => { notDetectedCalls.push(cmd); return ''; } });
+  if (notDetected === false && notDetectedCalls.length === 0) {
+    pass('applySessionLimitStatus is a no-op for a non-session-limit error message');
+  } else {
+    fail(`applySessionLimitStatus should not have fired for an unrelated error: detected=${notDetected}, calls=${JSON.stringify(notDetectedCalls)}`);
+  }
+
+  const throwingExec = () => { throw new Error('cycle-status.mjs not found'); };
+  let threw = false;
+  try {
+    applySessionLimitStatus("session limit · resets 7:50pm (America/New_York)", '/fake/workspace', { exec: throwingExec });
+  } catch {
+    threw = true;
+  }
+  if (!threw) {
+    pass('applySessionLimitStatus swallows an exec failure instead of throwing');
+  } else {
+    fail('applySessionLimitStatus let an exec failure propagate — this must never break dispatchOne\'s real error handling');
+  }
+} catch (e) {
+  fail(`applySessionLimitStatus coverage crashed: ${e.message}`);
+}
+
 await runDiscovered();
 
 finish();
