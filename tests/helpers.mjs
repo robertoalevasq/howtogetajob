@@ -106,9 +106,9 @@ export function finish() {
 // PATH) is invisible, and batch-runner.sh dies with `node: command not found`,
 // exit 127. run() converts that to null, the caller does `|| ''`, and the
 // assertion reports an empty argv -- which reads as a routing bug in the code
-// under test rather than a missing shell. That is what all five spend_tier
-// tests were doing on a machine where Git Bash was installed the whole time
-// (#2344).
+// under test rather than a missing shell. That is what the batch-runner
+// model-routing tests were doing on a machine where Git Bash was installed
+// the whole time (#2344).
 //
 // Kept as fixed-shape literals joined onto %USERPROFILE% / %SCOOP% rather than
 // a PATH search, so this stays an allowlist of trusted literals (see

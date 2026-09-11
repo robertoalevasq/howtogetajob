@@ -22,7 +22,6 @@ DATA_DIR="$PROJECT_DIR/data"
 INPUT_FILE="$DATA_DIR/batch-input.tsv"
 STATE_FILE="$DATA_DIR/batch-state.tsv"
 PROMPT_FILE="$BATCH_DIR/batch-prompt.md"
-PROFILE_FILE="$PROJECT_DIR/config/profile.yml"
 LOGS_DIR="$DATA_DIR/batch-logs"
 DISCARD_LOG="$LOGS_DIR/discard.log"
 TRACKER_DIR="$DATA_DIR/tracker-additions"
@@ -44,9 +43,9 @@ START_FROM=0
 MAX_RETRIES=2
 MIN_SCORE=0
 SKIP_PDF=false
-MODEL=""  # explicit override; otherwise resolved from config/profile.yml spend_tier
+MODEL=""  # explicit override; otherwise always the cheapest available model
 RESOLVED_MODEL=""
-RESOLVED_SPEND_TIER=""
+RESOLVED_OVERRIDE=false
 RATE_LIMIT_SLEEP=300
 BATCH_PAUSED=false
 STATUS_ONLY=false
@@ -61,7 +60,7 @@ is_decimal_number() {
 usage() {
   cat <<'USAGE'
 career-ops batch runner — process job offers in batch via claude -p workers
-Uses spend_tier from config/profile.yml unless --model overrides it.
+Always uses the cheapest available Claude model (claude-haiku-4-5) unless --model overrides it.
 
 Usage: batch-runner.sh [OPTIONS]
 
@@ -77,9 +76,8 @@ Options:
   --skip-pdf           Skip PDF generation entirely (write ❌ in tracker PDF column)
   --rate-limit-sleep N Seconds to wait before retrying a rate-limited worker
                        (default: 300)
-  --model NAME         Override the tier-resolved Claude model passed to
-                       `claude -p --model` (otherwise uses config/profile.yml
-                       spend_tier: economy/standard/premium; default standard)
+  --model NAME         Override the default Claude model passed to
+                       `claude -p --model` (otherwise always claude-haiku-4-5)
   --status             Show batch progress and a per-job table, then exit
   --watch              Live-refresh progress until the run completes
   -h, --help           Show this help
@@ -308,65 +306,17 @@ get_retries() {
   echo "${retries:-0}"
 }
 
-# Read spend_tier from config/profile.yml. Defaults to "standard" if the key
-# is absent or invalid.
-read_spend_tier() {
-  local raw=""
-
-  if [[ -f "$PROFILE_FILE" ]]; then
-    raw=$(
-      awk -F: '
-        /^[[:space:]]*spend_tier[[:space:]]*:/ {
-          value = substr($0, index($0, ":") + 1)
-          print value
-          exit
-        }
-      ' "$PROFILE_FILE"
-    )
-    raw="${raw%%#*}"
-    raw="${raw//$'\r'/}"
-    raw="${raw#"${raw%%[![:space:]]*}"}"
-    raw="${raw%"${raw##*[![:space:]]}"}"
-    case "$raw" in
-      \"*\") raw="${raw#\"}"; raw="${raw%\"}" ;;
-      \'*\') raw="${raw#\'}"; raw="${raw%\'}" ;;
-    esac
-    raw="$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]')"
-  fi
-
-  case "$raw" in
-    economy|standard|premium)
-      printf '%s\n' "$raw"
-      ;;
-    "")
-      printf '%s\n' "standard"
-      ;;
-    *)
-      echo "WARN: Invalid spend_tier \"$raw\" in ${PROFILE_FILE#"$PROJECT_DIR/"}; falling back to standard." >&2
-      printf '%s\n' "standard"
-      ;;
-  esac
-}
-
-# Tier -> model mapping. Keep in sync with the table in modes/_shared.md.
-spend_tier_to_model() {
-  case "$1" in
-    economy) echo "claude-haiku-4-5" ;;
-    premium) echo "claude-opus-5" ;;
-    standard|*) echo "claude-sonnet-5" ;;
-  esac
-}
-
-# Resolve the model to pass to `claude -p --model`. --model always wins.
+# Resolve the model to pass to `claude -p --model`. --model always wins;
+# otherwise every batch run uses the cheapest available model.
 resolve_worker_model() {
   if [[ -n "$MODEL" ]]; then
     RESOLVED_MODEL="$MODEL"
-    RESOLVED_SPEND_TIER="override"
+    RESOLVED_OVERRIDE=true
     return 0
   fi
 
-  RESOLVED_SPEND_TIER="$(read_spend_tier)"
-  RESOLVED_MODEL="$(spend_tier_to_model "$RESOLVED_SPEND_TIER")"
+  RESOLVED_MODEL="claude-haiku-4-5"
+  RESOLVED_OVERRIDE=false
 }
 
 # Append a one-line, auditable record of a pre-screen-gate discard to
@@ -557,8 +507,9 @@ process_offer() {
   done
 
   # Launch claude -p worker.
-  # The model is resolved once per run from spend_tier unless --model was
-  # passed. Building the command in an array keeps quoting safe regardless.
+  # The model is resolved once per run -- always claude-haiku-4-5 unless
+  # --model was passed. Building the command in an array keeps quoting safe
+  # regardless.
   # --strict-mcp-config (with no --mcp-config) starts workers with no MCP
   # servers: they only evaluate offers and need none. Without it each parallel
   # worker inherits the parent session's MCP (e.g. Playwright) and they deadlock
@@ -958,10 +909,10 @@ main() {
   else
     echo "Parallel: $PARALLEL | Max retries: $MAX_RETRIES"
   fi
-  if [[ "$RESOLVED_SPEND_TIER" == "override" ]]; then
+  if [[ "$RESOLVED_OVERRIDE" == true ]]; then
     echo "Model: $RESOLVED_MODEL (explicit --model override)"
   else
-    echo "Model: $RESOLVED_MODEL (spend_tier=${RESOLVED_SPEND_TIER})"
+    echo "Model: $RESOLVED_MODEL"
   fi
   echo "Input: $total_input offers"
   echo ""
