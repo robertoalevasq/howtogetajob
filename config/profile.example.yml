@@ -103,7 +103,7 @@ location:
 # ── Security Clearance ───────────────────────────────────────────────────────
 #
 # Your clearance posture. Read by core/preflight-check.mjs's deterministic gate
-# (modes/pipeline.md's Metadata pre-filter and Pre-screen gate, and
+# (modes/pipeline.md's Metadata pre-filter and
 # batch/batch-prompt.md's Step 1.5): a JD that requires a clearance you don't
 # hold, when you also won't take a sponsored one, is a zero-token hard stop
 # instead of a full evaluation. If absent/commented, status is treated as

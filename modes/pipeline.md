@@ -8,17 +8,14 @@ Process job URLs stored in `data/pipeline.md`. The user adds URLs at any time an
 `{company} | {title} | {location} | {compensation}` from the scanner (see "Format of pipeline.md"
 below) — written from the ATS's own listing data, no fetch required. Opening a Playwright tab (or
 even running a liveness check) on a row that has this metadata and is an obvious mismatch spends
-real wall-clock time for nothing: unlike the pre-screen gate below (which only saves LLM tokens,
-since it runs *after* the JD is already fetched), a mismatch caught here never costs a fetch at all.
+real wall-clock time for nothing — a mismatch caught here never costs a fetch at all.
 
 For each row carrying title/location metadata, run `node core/preflight-check.mjs --company "{company}" --role "{title}" --text "{title} {location}"` (a bare `- [ ] {url}` row with no title/location metadata has nothing to check and falls through unchanged, same as before). This deterministic, zero-token check catches the two unambiguous hard stops a script can judge safely: a clearance requirement the candidate's `config/profile.yml` `clearance.status`/`accepts_sponsorship` can't meet, and an explicit onsite-only requirement against a `location.work_mode: remote_only` candidate. If `gate.pass` is `false`, treat it as a metadata-prefilter mismatch using `gate.reason`. If the script call itself fails (non-zero exit for any reason — missing flags, unreadable file, crash), fall back to applying the same clearance/location judgment yourself against the row's metadata and continue — never skip the pre-filter because the script failed.
 
-**In addition to the script, judge the same title/location metadata yourself for an unambiguously wrong professional domain in the title, before any fetch.** The script deliberately does not attempt this (too fuzzy for reliable regex), but it is the third mismatch this pre-fetch pass has always caught, and catching it here — rather than deferring it to the post-fetch pre-screen gate below — is what keeps a domain-mismatched title from costing a full fetch. Hold the same conservative bar as the script's two checks: only an *unambiguously* wrong domain in the title qualifies; anything arguable falls through unfiltered to the post-fetch pre-screen gate's archetype judgment, same as today. Log a domain mismatch caught here as a metadata-prefilter discard with the domain reason, exactly like a script hard stop.
+**In addition to the script, judge the same title/location metadata yourself for an unambiguously wrong professional domain in the title, before any fetch.** The script deliberately does not attempt this (too fuzzy for reliable regex), but it is the third mismatch this pre-fetch pass has always caught, and catching it here is what keeps a domain-mismatched title from costing a full fetch. Hold the same conservative bar as the script's two checks: only an *unambiguously* wrong domain in the title qualifies; anything arguable falls through unfiltered to the full evaluation, same as today. Log a domain mismatch caught here as a metadata-prefilter discard with the domain reason, exactly like a script hard stop.
 
-Log every filtered row to `data/discard.log` with a `metadata-prefilter:` prefix (distinguishable
-from the post-fetch gate's `pre-screen mismatch:` prefix, so the two are auditable separately), and
-mark it `- [x] #-- | {url} | skipped (metadata-prefilter: {reason})` in "Processed" — same format
-the post-fetch gate already uses, no new Processed-line shape.
+Log every filtered row to `data/discard.log` with a `metadata-prefilter:` prefix, and
+mark it `- [x] #-- | {url} | skipped (metadata-prefilter: {reason})` in "Processed".
 
 ## Liveness sweep
 
@@ -36,7 +33,7 @@ This complements — does not replace — the per-URL liveness gate in `auto-pip
 
 ## Discard log (auditable)
 
-Every posting a discard step below filters out MUST be logged with a one-line reason so pre-filtering is never a silent black box. Append one line to `data/discard.log` (create the file if absent) in the format `{ISO8601 timestamp}\t{url}\t{reason}` (three tab-separated fields — interactive pipeline mode has no batch job ID, so the `id` field is omitted here; batch mode's `batch/batch-runner.sh` uses a separate `batch/logs/discard.log` with a four-field format that includes the job ID), in addition to the `skipped` entry already written to "Processed" above. This log is the visible, auditable record of what gets discarded and why -- review it periodically to tune the North Star archetypes if a discard step is too aggressive or too lax.
+Every posting a discard step below filters out MUST be logged with a one-line reason so pre-filtering is never a silent black box. Append one line to `data/discard.log` (create the file if absent) in the format `{ISO8601 timestamp}\t{url}\t{reason}` (three tab-separated fields — interactive pipeline mode has no batch job ID, so the `id` field is omitted here; batch mode's `batch/batch-runner.sh` uses a separate `batch/logs/discard.log` with a four-field format that includes the job ID), in addition to the `skipped` entry already written to "Processed" elsewhere in this file. This log is the visible, auditable record of what gets discarded and why -- review it periodically to tune the North Star archetypes if a discard step is too aggressive or too lax.
 
 ## Workflow
 

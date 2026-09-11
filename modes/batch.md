@@ -36,6 +36,10 @@ data/                            # User-runtime content (gitignored)
   tracker-additions/             # Tracker lines
 ```
 
+## Discard log (auditable)
+
+Every job a discard step filters out MUST be logged with a one-line reason. Append one line to `batch/logs/discard.log` (create the file/dir if absent) in the format `{ISO8601 timestamp}\t{job id}\t{url}\t{reason}` (four tab-separated fields — the job ID distinguishes this from `modes/pipeline.md`'s interactive-mode discard log, which has no job ID), in addition to the `skipped` row already written to `batch-state.tsv`. This log is the visible, auditable record of what gets discarded and why.
+
 ## Mode A: Conductor --chrome
 
 1. **Read state**: `data/batch-state.tsv` → identify what has already been processed

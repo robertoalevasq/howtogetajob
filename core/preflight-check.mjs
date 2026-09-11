@@ -1,9 +1,9 @@
 /**
  * preflight-check.mjs — zero-LLM LIGHT gate for career-ops pipeline runs.
  *
- * Collapses three previously-duplicated LLM-prompt pre-screen gates
- * (modes/pipeline.md's metadata pre-filter, modes/pipeline.md's post-fetch
- * pre-screen gate, batch/batch-prompt.md's Step 1.5) into one deterministic
+ * Collapses two previously-duplicated LLM-prompt pre-screen gates
+ * (modes/pipeline.md's metadata pre-filter, batch/batch-prompt.md's
+ * Step 1.5) into one deterministic
  * script: dedup against the tracker, a clearance/onsite-vs-remote keyword
  * hard-stop check, and advertised-comp extraction from JD text.
  *

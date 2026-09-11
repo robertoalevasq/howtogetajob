@@ -319,8 +319,8 @@ resolve_worker_model() {
   RESOLVED_OVERRIDE=false
 }
 
-# Append a one-line, auditable record of a pre-screen-gate discard to
-# data/batch-logs/discard.log (see modes/batch.md — Pre-screen gate). Format:
+# Append a one-line, auditable record of a batch-worker discard to
+# data/batch-logs/discard.log. Format:
 # {ISO8601 timestamp}\t{job id}\t{url}\t{reason}
 log_discard() {
   local id="$1" url="$2" reason="$3"
