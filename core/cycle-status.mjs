@@ -74,6 +74,12 @@ function emptyState() {
     step: { id: '0-preflight', label: 'Pre-flight', startedAt: new Date().toISOString() },
     counters: { ...EMPTY_COUNTERS },
     lastError: null,
+    // Set by modes/cycle.md Step 2 on a clean batch-limit stop, or by
+    // telegram-monitor.mjs's dispatchOne on a session-limit cutoff (see
+    // docs/superpowers/specs/2026-09-10-cycle-checkpoint-resume-design.md).
+    // Always null on a fresh run — reset() rebuilds this object from scratch.
+    lastStopReason: null,
+    resumeNotBefore: null,
   };
 }
 

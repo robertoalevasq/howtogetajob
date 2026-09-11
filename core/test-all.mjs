@@ -2579,6 +2579,53 @@ if (
   fail('application-answers CLI accepted a missing option value');
 }
 
+try {
+  // CAREER_OPS_CYCLE_STATUS/_LOG MUST be set before the dynamic import below,
+  // not after: cycle-status.mjs reads them into a top-level `const STATUS_PATH`
+  // at module-evaluation time, so setting the env var post-import would
+  // silently bind to the module's already-captured default path instead
+  // (and since this is the first import of cycle-status.mjs anywhere in
+  // test-all.mjs — confirmed via grep, zero prior references — there is no
+  // earlier cached import to worry about either; this is a fresh module
+  // instance every time this file runs).
+  const testStatusPath = join(ROOT, '.tmp-test-cycle-status.json');
+  const testLogPath = join(ROOT, '.tmp-test-cycle-status.log');
+  process.env.CAREER_OPS_CYCLE_STATUS = testStatusPath;
+  process.env.CAREER_OPS_CYCLE_STATUS_LOG = testLogPath;
+  const cycleStatusPath = pathToFileURL(join(ROOT, 'core', 'cycle-status.mjs')).href;
+  const { update, reset } = await import(cycleStatusPath);
+  try {
+    await reset();
+    const fresh = JSON.parse(readFileSync(testStatusPath, 'utf8'));
+    if (fresh.lastStopReason === null && fresh.resumeNotBefore === null) {
+      pass('cycle-status reset() defaults lastStopReason/resumeNotBefore to null');
+    } else {
+      fail(`cycle-status reset() did not default the new fields to null: ${JSON.stringify(fresh)}`);
+    }
+
+    const patched = await update({ lastStopReason: 'batch-limit', counters: { pipelineUrlsPending: 5 } });
+    if (patched.lastStopReason === 'batch-limit' && patched.counters.pipelineUrlsPending === 5 && patched.resumeNotBefore === null) {
+      pass('cycle-status update() sets lastStopReason and preserves resumeNotBefore=null alongside a counters merge');
+    } else {
+      fail(`cycle-status update() did not merge the new fields correctly: ${JSON.stringify(patched)}`);
+    }
+
+    const patchedAgain = await update({ lastStopReason: 'session-limit', resumeNotBefore: '2026-09-10T00:00:00.000Z' });
+    if (patchedAgain.lastStopReason === 'session-limit' && patchedAgain.resumeNotBefore === '2026-09-10T00:00:00.000Z') {
+      pass('cycle-status update() sets resumeNotBefore alongside lastStopReason');
+    } else {
+      fail(`cycle-status update() did not set resumeNotBefore: ${JSON.stringify(patchedAgain)}`);
+    }
+  } finally {
+    delete process.env.CAREER_OPS_CYCLE_STATUS;
+    delete process.env.CAREER_OPS_CYCLE_STATUS_LOG;
+    try { unlinkSync(testStatusPath); } catch {}
+    try { unlinkSync(testLogPath); } catch {}
+  }
+} catch (e) {
+  fail(`cycle-status lastStopReason/resumeNotBefore coverage crashed: ${e.message}`);
+}
+
 const ofertaMode = readFile('modes/oferta.md');
 const autoPipelineMode = readFile('modes/auto-pipeline.md');
 if (
