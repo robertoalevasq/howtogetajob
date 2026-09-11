@@ -98,7 +98,7 @@ Run these steps in order.
 
 ### Step 1.5 — Pre-screen gate (tiered report depth)
 
-Batch runs process large backlogs unattended, so every offer must be judged for depth before spending a full A-G evaluation on it. This step is mandatory regardless of `spend_tier` — running full A-G on obvious mismatches is the single biggest source of wasted batch spend.
+Batch runs process large backlogs unattended, so every offer must be judged for depth before spending a full A-G evaluation on it. This step is mandatory — running full A-G on obvious mismatches is the single biggest source of wasted batch spend.
 
 1. Read `modes/_profile.md` and `config/profile.yml` for the candidate's archetypes, clearance posture, location policy, and experience floor.
 2. Judge the loaded JD against those in a quick pass — do not skip reading the real JD text first.

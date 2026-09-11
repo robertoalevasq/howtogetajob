@@ -107,9 +107,8 @@ On receiving the `profile_narrative` reply:
 
 1. If it's "skip" (or equivalent): leave `workspaces/{slug}/config/profile.yml`'s `narrative.headline` (`""`) and `narrative.superpowers` (`[]`) as Step 4b left them — this is still correct, not a gap, exactly like the Discord webhook being skippable.
 2. Otherwise, write the reply to those fields **lightly polished, not verbatim and not embellished**: fix grammar/phrasing/conciseness for a professional tone, but preserve every factual claim exactly as given and never add a claim, metric, or descriptor the candidate didn't state — the same "keywords get reformulated, never fabricated" discipline `core/AGENTS.md`'s Source-of-Truth Boundary already requires everywhere else in this system (CV tailoring, cover letters), applied here to the candidate's own self-description instead of CV bullets. A single strength becomes a one-item `narrative.superpowers` list; multiple strengths in one reply split into separate list items, each polished the same way. The "how would you pitch yourself" half of the reply goes to `narrative.headline`.
-3. Set `workspaces/{slug}/config/profile.yml`'s `spend_tier` to `economy` — no question asked; every candidate onboards on the cheapest tier by default (compute is shared across every tenant on one account, so `economy` is the safe unattended default) and can raise it later any time just by asking, in conversation.
-4. Send: `One more optional thing — want progress updates in Discord too? Paste a webhook URL, or reply "skip".`
-5. Advance `currentStep` to `discord`, save state.
+3. Send: `One more optional thing — want progress updates in Discord too? Paste a webhook URL, or reply "skip".`
+4. Advance `currentStep` to `discord`, save state.
 
 ## Step 5 — Discord webhook (optional)
 

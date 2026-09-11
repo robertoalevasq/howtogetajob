@@ -308,13 +308,6 @@ Before running `modes/pipeline.md`, count the surviving "Pending" entries in
 matches than a targeted scan, so this count needs an explicit check every
 time, not just when it "looks big":
 
-- **Read `spend_tier` from `config/profile.yml`, and check `_custom.md`
-  for a pre-screen override.** On `economy` tier, `pipeline.md`'s pre-screen
-  gate is a no-op *by default* — every surviving URL goes straight to a full
-  A-F evaluation, uncapped. `_custom.md` may already force the standard-tier
-  gate to apply regardless of tier (a documented budget-conscious override) —
-  if so, the volume risk below is already mitigated and there's nothing
-  further to do here.
 - **Never pause here for a large pending count.** `_custom.md`'s "no
   stop-and-ask, run continuously" house rule covers this unconditionally —
   absence of an explicit override is not grounds to stop and ask. Process the
@@ -338,9 +331,6 @@ time, not just when it "looks big":
   2. `node core/cycle-lock.mjs release` — a batch-limit stop is a controlled, safe-to-resume-immediately pause, not a crash or a true end-of-run, so it releases the lock the same way a normal completion does. This is what lets the automatic continuation below actually start.
   3. Write the Step 4 partial summary (identical shape to a full completion, just scoped to what this batch did — no new summary format) and end the turn. Do not proceed to Step 3 — a continuation reaches Step 3 onward once the full backlog (across however many batches it takes) is actually done.
   `telegram-monitor.mjs`'s daemon detects a released lock plus a stalled run with pending URLs still left, and dispatches the next batch on its own — no `/run` from the candidate needed. A session-limit cutoff (as opposed to this clean batch boundary) is detected and handled entirely outside this mode file, in `telegram-monitor.mjs`'s `dispatchOne` — there is nothing further to do here for that case.
-- **Resolve `spend_tier` once, at the start of Step 2**, per
-  `modes/_shared.md`'s Spend Tier table, and use it for every inline
-  evaluation this step performs.
 - **Tracker writes go through TSV, never a direct edit to
   `data/applications.md`.** This is a system-wide rule (`modes/_shared.md`'s
   ALWAYS list), not just a `_custom.md` preference: write each result to
