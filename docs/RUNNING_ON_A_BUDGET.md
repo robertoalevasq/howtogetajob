@@ -14,26 +14,9 @@ By choosing a CLI that supports custom model configurations and routing it to a 
 
 ---
 
-## 2. Pick Your Spend Tier
+## 2. career-ops Already Defaults to the Cheapest Model
 
-Before diving into CLI configuration, know that career-ops has a built-in knob for controlling evaluation cost: the `spend_tier` setting in [`config/profile.yml`](../config/profile.example.yml). It controls which model tier your CLI uses to evaluate offers — no provider setup required.
-
-| Tier | Behaviour |
-|------|-----------|
-| **economy** | Cheapest/fastest model, no extended thinking. Best for high-volume scanning. |
-| **standard** | Balanced model, no extended thinking. Default if the key is absent. |
-| **premium** | Most capable model, adaptive extended thinking. Best for high-stakes offers. |
-
-The **economy** tier is the high-volume scanning choice — it processes the most offers per dollar. On **standard** and **premium**, a pre-screen gate automatically trims batch spend by skipping obvious mismatches before the full evaluation runs.
-
-Set it once in your profile:
-
-```yaml
-# config/profile.yml
-spend_tier: standard
-```
-
-The actual model behind each tier depends on your CLI. See the mapping table in [`modes/_shared.md`](../modes/_shared.md) for the full breakdown.
+Before diving into CLI configuration, know that career-ops has no tier to pick: it always routes to the cheapest/fastest model available to whichever CLI is driving it — Haiku 4.5 for Claude Code — with no provider setup required and nothing to configure. See [`modes/_shared.md`](../modes/_shared.md) for the one-line policy statement.
 
 ---
 
@@ -71,7 +54,7 @@ Then export the value it prints as `CLAUDE_CODE_OAUTH_TOKEN` in the environment 
 
 ### Two things worth expecting
 
-- **Plan limits are windows, not balances.** On a subscription you get rolling usage windows rather than a credit balance, so a heavy scan can pause you until the window resets. `spend_tier: economy` and the pre-screen gate above exist precisely to make high-volume days cheaper.
+- **Plan limits are windows, not balances.** On a subscription you get rolling usage windows rather than a credit balance, so a heavy scan can pause you until the window resets. career-ops already defaults to the cheapest model for exactly this reason.
 - **Details change.** Auth precedence and command names come from the CLI, not from career-ops. If something here does not match what you see, the vendor's own docs are the source of truth: [Claude Code authentication](https://code.claude.com/docs/en/authentication) and [managing costs](https://code.claude.com/docs/en/costs).
 
 ---
