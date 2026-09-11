@@ -14167,6 +14167,18 @@ try {
   fail(`applySessionLimitStatus coverage crashed: ${e.message}`);
 }
 
+const cycleModeForBatchCheck = readFile('modes/cycle.md');
+if (
+  cycleModeForBatchCheck.includes('Batch boundary: stop after 20 URLs, resume automatically') &&
+  cycleModeForBatchCheck.includes('lastStopReason: "batch-limit"') &&
+  cycleModeForBatchCheck.includes('node core/cycle-lock.mjs release') &&
+  cycleModeForBatchCheck.includes('this is not the "never pause" rule above')
+) {
+  pass('cycle mode Step 2 has the batch-boundary checkpoint (stop, release lock, resume automatically)');
+} else {
+  fail('cycle mode Step 2 missing the batch-boundary checkpoint instructions');
+}
+
 await runDiscovered();
 
 finish();
