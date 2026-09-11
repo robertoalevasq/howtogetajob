@@ -450,6 +450,67 @@ const KNOWN_PATHS_PRIMER = `Known paths — do not spend a discovery step confir
 - The current working directory already IS the right place to start — modes/, core/, and AGENTS.md are reachable directly from here (modes/telegram.md, core/plugins.mjs, etc.), whether this cwd is the repo root or a candidate workspace (workspace modes/ and core/ are symlinks to the same root files).
 - Candidate/workspace data (data/telegram-state.md, data/application-defaults.md, data/applications.md, reports/) lives under data/ and reports/ relative to this same cwd.`;
 
+// Converts a wall-clock time in a named IANA zone (e.g. "7:50pm",
+// "America/New_York") to the correct UTC instant for a specific calendar
+// date, using only Intl (no new dependency). Standard offset-correction
+// trick: guess the UTC instant assuming zero offset, ask Intl what that
+// guess actually renders as in the target zone, then correct by the
+// difference — this re-derives the real offset for THIS specific date, so
+// it's correct across a DST transition rather than assuming a fixed offset.
+function zonedTimeToUtcMs(year, month, day, hour, minute, tz) {
+  const utcGuess = Date.UTC(year, month - 1, day, hour, minute, 0);
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+  const parts = Object.fromEntries(dtf.formatToParts(new Date(utcGuess)).map(p => [p.type, p.value]));
+  const hourPart = parts.hour === '24' ? 0 : Number(parts.hour);
+  const asIfUtc = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), hourPart, Number(parts.minute), Number(parts.second));
+  return utcGuess - (asIfUtc - utcGuess);
+}
+
+/**
+ * Parses the "You've hit your session limit · resets 7:50pm (America/New_York)"
+ * message Claude Code's CLI injects when a headless `claude -p` turn gets cut
+ * off by the account's rolling usage quota (documented 2026-08-30 in
+ * spawnCapturingTail()'s own comment). Returns the next UTC instant at/after
+ * `now` matching that wall-clock time in that zone. Falls back to `now + 1
+ * hour` if the text doesn't match this exact shape — a changed message
+ * format must never turn into an immediate retry loop against a quota that
+ * hasn't actually reset yet.
+ *
+ * @param {string} text
+ * @param {Date} [now]
+ * @returns {Date}
+ */
+export function parseSessionLimitReset(text, now = new Date()) {
+  const match = /session limit.*?resets\s+(\d{1,2}):(\d{2})\s*(am|pm)\s*\(([^)]+)\)/is.exec(String(text || ''));
+  if (!match) return new Date(now.getTime() + 60 * 60 * 1000);
+  const [, hourStr, minStr, ampm, tz] = match;
+  let hour = Number(hourStr) % 12;
+  if (ampm.toLowerCase() === 'pm') hour += 12;
+  const minute = Number(minStr);
+
+  const dateParts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' })
+      .formatToParts(now).map(p => [p.type, p.value])
+  );
+  let candidateMs = zonedTimeToUtcMs(Number(dateParts.year), Number(dateParts.month), Number(dateParts.day), hour, minute, tz);
+  if (candidateMs <= now.getTime()) {
+    // Already passed today in that zone — the next occurrence is tomorrow's
+    // date IN THAT ZONE (re-derive the offset for that date too, rather than
+    // just adding 24h, since a DST transition can make that wrong).
+    const tomorrow = new Date(candidateMs + 24 * 60 * 60 * 1000);
+    const tomorrowParts = Object.fromEntries(
+      new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' })
+        .formatToParts(tomorrow).map(p => [p.type, p.value])
+    );
+    candidateMs = zonedTimeToUtcMs(Number(tomorrowParts.year), Number(tomorrowParts.month), Number(tomorrowParts.day), hour, minute, tz);
+  }
+  return new Date(candidateMs);
+}
+
 /**
  * Build the `claude -p` prompt text that drives modes/telegram.md Steps 2-6
  * for one bound chat's batch of messages. Pure string construction — spawning,

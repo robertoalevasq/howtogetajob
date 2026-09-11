@@ -13984,6 +13984,41 @@ try {
   fail(`table-freshness wiring check: ${e.message}`);
 }
 
+try {
+  const { parseSessionLimitReset } = await import(pathToFileURL(join(ROOT, 'core', 'telegram-monitor.mjs')).href);
+
+  const sameDayText = "You've hit your session limit · resets 7:50pm (America/New_York)";
+  const sameDayResult = parseSessionLimitReset(sameDayText, new Date('2026-09-08T23:31:37.580Z'));
+  if (sameDayResult.toISOString() === '2026-09-08T23:50:00.000Z') {
+    pass('parseSessionLimitReset resolves a same-day reset time correctly (real observed case)');
+  } else {
+    fail(`parseSessionLimitReset same-day case wrong: got ${sameDayResult.toISOString()}, expected 2026-09-08T23:50:00.000Z`);
+  }
+
+  const rollsToTomorrow = parseSessionLimitReset("You've hit your session limit · resets 3:00am (America/New_York)", new Date('2026-09-08T23:31:37.580Z'));
+  if (rollsToTomorrow.toISOString() === '2026-09-09T07:00:00.000Z') {
+    pass('parseSessionLimitReset rolls to the next day when the target time already passed today');
+  } else {
+    fail(`parseSessionLimitReset roll-to-tomorrow case wrong: got ${rollsToTomorrow.toISOString()}, expected 2026-09-09T07:00:00.000Z`);
+  }
+
+  const postDstTransition = parseSessionLimitReset("You've hit your session limit · resets 9:00pm (America/New_York)", new Date('2026-11-01T20:00:00.000Z'));
+  if (postDstTransition.toISOString() === '2026-11-02T02:00:00.000Z') {
+    pass('parseSessionLimitReset uses the correct post-DST-transition UTC offset (EST, not stale EDT)');
+  } else {
+    fail(`parseSessionLimitReset DST case wrong: got ${postDstTransition.toISOString()}, expected 2026-11-02T02:00:00.000Z (would be 2026-11-02T01:00:00.000Z with a stale fixed EDT offset — that wrong value means the DST bug is back)`);
+  }
+
+  const unparseable = parseSessionLimitReset('some unrelated crash text', new Date('2026-01-01T00:00:00.000Z'));
+  if (unparseable.toISOString() === '2026-01-01T01:00:00.000Z') {
+    pass('parseSessionLimitReset falls back to now+1h on unparseable text');
+  } else {
+    fail(`parseSessionLimitReset fallback case wrong: got ${unparseable.toISOString()}, expected 2026-01-01T01:00:00.000Z`);
+  }
+} catch (e) {
+  fail(`parseSessionLimitReset coverage crashed: ${e.message}`);
+}
+
 await runDiscovered();
 
 finish();
