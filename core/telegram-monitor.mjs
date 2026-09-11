@@ -62,6 +62,16 @@ const REPO_ROOT = dirname(ROOT);
 // incident: a bare relative script path resolved wrong against dispatch.cwd).
 const CYCLE_STATUS_MJS = join(ROOT, 'cycle-status.mjs');
 const CYCLE_LOCK_MJS = join(ROOT, 'cycle-lock.mjs');
+// Debounce for checkForStalledCycle()'s cycle-resume dispatches, keyed by
+// workspace cwd. Module-level (not per-call/per-instance) so it persists
+// across daemonLoop()'s poll iterations — checkForStalledCycle is a plain
+// exported function, not a class/closure factory, so this is the only place
+// state can live between calls. Without it, a resumed `claude -p` cold start
+// (routinely slower than one ~25s poll interval) leaves the on-disk state
+// looking identical for multiple polls in a row, and each one would dispatch
+// another concurrent resume for the same workspace.
+const recentlyDispatchedResumes = new Map(); // cwd -> ms timestamp of last resume dispatch
+const RESUME_DEBOUNCE_MS = 10 * 60_000; // 10 minutes — comfortably longer than a claude -p cold start + lock re-acquire
 // acquirePipelineLock derives its actual lock directory by appending
 // ".lock" to this path (lockDirFor in pipeline-lock.mjs) — so the real lock
 // dir on disk is core/data/telegram-daemon.lock, not a double-suffixed name.
@@ -616,7 +626,7 @@ export function buildCycleResumePrompt(dispatch) {
 
 ${KNOWN_PATHS_PRIMER}
 
-A previous \`cycle\` run's Step 2 (pipeline evaluation) stopped after reaching its per-invocation batch limit, or after a session-limit cutoff that has now passed — data/pipeline.md and data/cache/cycle-status.json both still hold this run's real, current state. Resume modes/cycle.md at Step 2 directly: re-acquire the cycle lock (node core/cycle-lock.mjs acquire), continue processing whatever is still "Pending" in data/pipeline.md exactly as Step 2 already describes, and carry on into Step 3 onward once the backlog (or this batch) is done. Do NOT restart Step 0 or Step 1 — the scan/lock/preflight steps already ran for this run and their output (the pipeline backlog itself) is what you are continuing from.
+A previous \`cycle\` run's Step 2 (pipeline evaluation) stopped after reaching its per-invocation batch limit, or after a session-limit cutoff that has now passed — data/pipeline.md and data/cache/cycle-status.json both still hold this run's real, current state. Resume modes/cycle.md at Step 2 directly: re-acquire the cycle lock (node core/cycle-lock.mjs acquire), continue processing whatever is still "Pending" in data/pipeline.md exactly as Step 2 already describes, and carry on into Step 3 onward only once the full backlog is done — if this resumed batch also hits the 20-URL boundary, follow the exact same stop-and-checkpoint instructions as any other batch, never a Step 3 handoff after just one batch. Do NOT restart Step 0 or Step 1 — the scan/lock/preflight steps already ran for this run and their output (the pipeline backlog itself) is what you are continuing from. If re-acquiring the lock returns \`{"acquired": false}\`, another run already holds it — stop immediately and end this turn without processing anything.
 
 Never use AskUserQuestion — this is a headless continuation with no candidate reply pending. Return a brief summary of what this batch did.`;
 }
@@ -633,22 +643,35 @@ Never use AskUserQuestion — this is a headless continuation with no candidate 
  * JSON, a killed subprocess) is skipped, not fatal to the rest of the loop.
  *
  * @param {(dispatch: any) => Promise<void>} routeDispatch - from createRoutingQueue().
- * @param {{exec?: Function, buildBoundChatMap?: Function, now?: Date}} [opts]
+ * @param {{exec?: Function, buildBoundChatMap?: Function, now?: Date, dispatchTracker?: Map, debounceMs?: number}} [opts]
  */
 export function checkForStalledCycle(routeDispatch, opts = {}) {
   try {
     const exec = opts.exec || execSync;
     const buildMap = opts.buildBoundChatMap || buildBoundChatMap;
     const now = (opts.now || new Date()).getTime();
+    const dispatchTracker = opts.dispatchTracker || recentlyDispatchedResumes;
+    const debounceMs = opts.debounceMs ?? RESUME_DEBOUNCE_MS;
 
     for (const [chatId, cwd] of buildMap({ repoRoot: REPO_ROOT })) {
+      // Debounce first, before spending a subprocess call on a workspace we
+      // already just dispatched a resume to — see the module-level comment
+      // on recentlyDispatchedResumes above (Finding 2).
+      const lastDispatchedAt = dispatchTracker.get(cwd);
+      if (lastDispatchedAt !== undefined && now - lastDispatchedAt < debounceMs) continue;
+
       let lockStatus;
       try {
         lockStatus = JSON.parse(exec(`node "${CYCLE_LOCK_MJS}" status`, { cwd, stdio: ['ignore', 'pipe', 'ignore'] }).toString());
       } catch {
         continue; // can't determine lock state for this workspace right now — try again next poll
       }
-      if (lockStatus.held) continue; // a run is already active (or was, very recently) — nothing to do
+      // held && !stale: a run is genuinely active right now — nothing to do.
+      // A session-limit cutoff kills `claude -p` mid-turn, so `cycle-lock.mjs
+      // release` never runs and the lock directory stays on disk forever;
+      // `stale` (30 minutes with no heartbeat refresh) is what tells a
+      // permanently-abandoned lock apart from a live one (Finding 1).
+      if (lockStatus.held && !lockStatus.stale) continue;
 
       let status;
       try {
@@ -656,7 +679,18 @@ export function checkForStalledCycle(routeDispatch, opts = {}) {
       } catch {
         continue;
       }
-      if (status?.liveness?.state !== 'stalled') continue;
+      // A clean batch-limit checkpoint writes a FRESH savedAt as its last
+      // action before exiting, so liveness.state reads 'running' (not
+      // 'stalled') for up to 40 minutes even though the process has already
+      // exited — computeLiveness's staleness signal alone can't see it.
+      // lastStopReason/step.id recognize that clean-stop shape directly, as
+      // a signal independent of staleness (Finding 3). This is only safe in
+      // combination with the debounce check above — without it, a
+      // batch-limit stop's savedAt never becomes stale on its own, so this
+      // condition would keep re-matching every poll.
+      const stalled = status?.liveness?.state === 'stalled';
+      const cleanBatchStop = status?.lastStopReason === 'batch-limit' && status?.step?.id === '2-pipeline';
+      if (!stalled && !cleanBatchStop) continue;
       if (!status.counters || !(status.counters.pipelineUrlsPending > 0)) continue;
 
       if (status.lastStopReason === 'session-limit') {
@@ -664,6 +698,10 @@ export function checkForStalledCycle(routeDispatch, opts = {}) {
         if (Number.isFinite(resumeAt) && now < resumeAt) continue; // not yet — check again next poll
       }
 
+      // Recorded BEFORE the dispatch call (which resolves asynchronously),
+      // so an in-flight dispatch is still correctly debounced on the very
+      // next poll iteration (Finding 2).
+      dispatchTracker.set(cwd, now);
       routeDispatch({ chatId, cwd, kind: 'cycle-resume', messages: [] }).catch(err =>
         console.error(`[telegram-monitor] cycle-resume dispatch failed for chat ${chatId}: ${err.message}`));
     }
@@ -999,8 +1037,8 @@ export async function dispatchOne(dispatch, invoke = invokeClaudeRoutingOnce, re
   // text). Closes an observability gap token-efficiency-log.mjs found live
   // 2026-09-08. Onboarding is out of scope — it doesn't go through
   // modes/telegram.md's command routing at all.
-  if (dispatch.kind === 'routing') {
-    logDispatch(dispatch, deriveDispatchCommand(dispatch.messages));
+  if (dispatch.kind === 'routing' || dispatch.kind === 'cycle-resume') {
+    logDispatch(dispatch, dispatch.kind === 'cycle-resume' ? 'cycle' : deriveDispatchCommand(dispatch.messages));
   }
 
   const prompt = dispatch.kind === 'onboarding'

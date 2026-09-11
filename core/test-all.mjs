@@ -2371,6 +2371,20 @@ try {
   } else {
     fail(`buildCycleResumePrompt missing expected content:\n${resumePrompt.slice(0, 400)}`);
   }
+
+  // Finding 4: the old text's "(or this batch)" parenthetical read as
+  // permission to reach Step 3 after just one batch, contradicting
+  // cycle.md's own batch-boundary rule; and the prompt never said what to do
+  // if re-acquiring the lock fails.
+  if (
+    !resumePrompt.includes('(or this batch)') &&
+    resumePrompt.includes('only once the full backlog is done') &&
+    resumePrompt.includes('"acquired": false')
+  ) {
+    pass('buildCycleResumePrompt requires the full backlog (not just one batch) before Step 3, and covers a failed lock re-acquire');
+  } else {
+    fail(`buildCycleResumePrompt missing Finding 4 fix content:\n${resumePrompt.slice(0, 800)}`);
+  }
 } catch (e) {
   fail(`buildCycleResumePrompt coverage crashed: ${e.message}`);
 }
@@ -2378,16 +2392,28 @@ try {
 try {
   const { checkForStalledCycle } = await import(pathToFileURL(join(ROOT, 'core', 'telegram-monitor.mjs')).href);
 
-  function runScenario(lockHeld, statusJson, now) {
+  // Each call gets its own fresh dispatchTracker so scenarios stay
+  // independent of each other (the real module-level Map persists across
+  // daemonLoop() polls on purpose — see Finding 2 — but that would make
+  // these one-shot scenario tests spuriously debounce each other when they
+  // reuse the same '/fake/workspace' cwd and clock time). Tests that need to
+  // exercise debounce across polls pass their own shared tracker explicitly.
+  function runScenario(lockHeld, statusJson, now, opts = {}) {
     const dispatched = [];
     const routeDispatch = (dispatch) => { dispatched.push(dispatch); return Promise.resolve(); };
     const exec = (cmd) => {
-      if (cmd.includes('cycle-lock.mjs')) return JSON.stringify({ held: lockHeld });
+      if (cmd.includes('cycle-lock.mjs')) return JSON.stringify({ held: lockHeld, stale: opts.lockStale ?? false });
       if (cmd.includes('cycle-status.mjs')) return JSON.stringify(statusJson);
       throw new Error(`unexpected exec: ${cmd}`);
     };
     const buildBoundChatMapStub = () => new Map([['555', '/fake/workspace']]);
-    checkForStalledCycle(routeDispatch, { exec, buildBoundChatMap: buildBoundChatMapStub, now: now || new Date('2026-09-10T12:00:00.000Z') });
+    checkForStalledCycle(routeDispatch, {
+      exec,
+      buildBoundChatMap: buildBoundChatMapStub,
+      now: now || new Date('2026-09-10T12:00:00.000Z'),
+      dispatchTracker: opts.dispatchTracker || new Map(),
+      ...(opts.debounceMs !== undefined ? { debounceMs: opts.debounceMs } : {}),
+    });
     return dispatched;
   }
 
@@ -2448,6 +2474,89 @@ try {
     pass('checkForStalledCycle behavioral replay: withholds then correctly resumes a synthetic Ernesto-shaped stalled state');
   } else {
     fail(`checkForStalledCycle behavioral replay failed: before=${JSON.stringify(ernestoReplay)}, after=${JSON.stringify(ernestoReplayLater)}`);
+  }
+
+  // Finding 1: a session-limit cutoff kills `claude -p` mid-turn, so
+  // `cycle-lock.mjs release` never runs — the lock directory stays on disk
+  // forever. A held-but-stale lock (cycle-lock.mjs's own 30-minute
+  // heartbeat staleness check) must NOT be treated as "a run is active".
+  const staleLockCase = runScenario(true,
+    { liveness: { state: 'stalled' }, counters: { pipelineUrlsPending: 10 } },
+    undefined, { lockStale: true });
+  if (staleLockCase.length === 1 && staleLockCase[0].kind === 'cycle-resume') {
+    pass('checkForStalledCycle dispatches past a held-but-stale lock (Finding 1)');
+  } else {
+    fail(`checkForStalledCycle should treat a stale held lock as abandoned: ${JSON.stringify(staleLockCase)}`);
+  }
+  const freshLockCase = runScenario(true,
+    { liveness: { state: 'stalled' }, counters: { pipelineUrlsPending: 10 } },
+    undefined, { lockStale: false });
+  if (freshLockCase.length === 0) {
+    pass('checkForStalledCycle still withholds dispatch for a held, non-stale lock (Finding 1 regression guard)');
+  } else {
+    fail(`checkForStalledCycle dispatched despite an actively-held, non-stale lock: ${JSON.stringify(freshLockCase)}`);
+  }
+
+  // Finding 2: two polls in quick succession (well inside the debounce
+  // window) for the same workspace must dispatch only once — otherwise a
+  // slow `claude -p` cold start lets every poll before it boots fire another
+  // concurrent resume for the same workspace.
+  {
+    const sharedTracker = new Map();
+    const statusJson = { liveness: { state: 'stalled' }, counters: { pipelineUrlsPending: 10 } };
+    const firstPoll = runScenario(false, statusJson, new Date('2026-09-10T12:00:00.000Z'), { dispatchTracker: sharedTracker, debounceMs: 10 * 60_000 });
+    const secondPollSoonAfter = runScenario(false, statusJson, new Date('2026-09-10T12:00:20.000Z'), { dispatchTracker: sharedTracker, debounceMs: 10 * 60_000 });
+    const thirdPollAfterWindow = runScenario(false, statusJson, new Date('2026-09-10T12:11:00.000Z'), { dispatchTracker: sharedTracker, debounceMs: 10 * 60_000 });
+    if (firstPoll.length === 1 && secondPollSoonAfter.length === 0 && thirdPollAfterWindow.length === 1) {
+      pass('checkForStalledCycle debounces repeat resume dispatches to the same workspace within the debounce window (Finding 2)');
+    } else {
+      fail(`checkForStalledCycle debounce failed: first=${JSON.stringify(firstPoll)}, second=${JSON.stringify(secondPollSoonAfter)}, third=${JSON.stringify(thirdPollAfterWindow)}`);
+    }
+  }
+
+  // Finding 3 (required): none of the scenarios above exercise the REAL
+  // computeLiveness() from cycle-status.mjs — they all hand-inject
+  // liveness.state directly, which is exactly how the original bug slipped
+  // through six task-scoped reviews. A clean batch-limit checkpoint writes a
+  // fresh savedAt as its last action before exiting, so computeLiveness
+  // reads it as 'running' (not 'stalled') for up to 40 minutes even though
+  // the process has already exited.
+  try {
+    // Cache-busting query string: a later test (the cycle-status
+    // lastStopReason/resumeNotBefore coverage block) relies on being the
+    // FIRST import of this exact module URL anywhere in this file, so it can
+    // set CAREER_OPS_CYCLE_STATUS before cycle-status.mjs's top-level
+    // STATUS_PATH const captures it. A plain import here would get cached
+    // under that same URL and be silently reused there instead, binding it
+    // to the real (non-test) status path and breaking that test with ENOENT.
+    // computeLiveness is a pure function with no module state to share, so a
+    // separate module instance costs nothing.
+    const { computeLiveness } = await import(pathToFileURL(join(ROOT, 'core', 'cycle-status.mjs')).href + '?computeLivenessTest');
+    const freshBatchStopState = {
+      savedAt: new Date().toISOString(),
+      step: { id: '2-pipeline' },
+      lastStopReason: 'batch-limit',
+      resumeNotBefore: null,
+      counters: { pipelineUrlsPending: 40 },
+    };
+    const liveness = computeLiveness(freshBatchStopState);
+    if (liveness.state === 'running') {
+      pass('computeLiveness reads a just-completed batch-limit checkpoint as "running", not "stalled" (documents the Finding 3 bug)');
+    } else {
+      fail(`computeLiveness should read a fresh batch-limit checkpoint as 'running': ${JSON.stringify(liveness)}`);
+    }
+
+    // Same shape cycle-status.mjs --json actually emits: liveness computed
+    // and embedded alongside the rest of the state.
+    const realWorldStatusJson = { ...freshBatchStopState, liveness };
+    const cleanBatchDispatch = runScenario(false, realWorldStatusJson);
+    if (cleanBatchDispatch.length === 1 && cleanBatchDispatch[0].kind === 'cycle-resume') {
+      pass('checkForStalledCycle still dispatches a real (non-stalled) fresh batch-limit checkpoint via cleanBatchStop (Finding 3)');
+    } else {
+      fail(`checkForStalledCycle failed to resume a real fresh batch-limit checkpoint despite liveness.state==='running': ${JSON.stringify(cleanBatchDispatch)}`);
+    }
+  } catch (e) {
+    fail(`checkForStalledCycle Finding 3 real-computeLiveness coverage crashed: ${e.message}`);
   }
 
   const brokenExecCase = (() => {
