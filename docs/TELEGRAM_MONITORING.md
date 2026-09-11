@@ -15,9 +15,29 @@
 
 ## Quick Setup (Windows Task Scheduler)
 
-### Automatic Setup (Recommended)
+Two options, same token cost either way — polling itself is zero-token in both; the difference is purely latency. **Pick one, never run both against the same bot token** (Telegram rejects concurrent `getUpdates` calls with a 409).
 
-**Option 1: Run the batch file (easiest)**
+### Option A: Persistent long-poll daemon (recommended — seconds instead of minutes)
+
+```bash
+# As Administrator:
+telegram-daemon-scheduler.bat
+```
+
+Sets up a Task Scheduler entry (`CareerOps-Telegram-Daemon`, triggered at logon) that keeps `node core/telegram-monitor.mjs --daemon` running continuously via `telegram-daemon-wrapper.bat`'s own restart-on-exit loop. The daemon holds a real Telegram long-poll open (`CAREER_OPS_TELEGRAM_LONGPOLL_SECONDS`, default 25s) instead of checking every few minutes, so a message is picked up within seconds. It's internally resilient to transient errors (logs and retries after 5s without exiting), and a single-instance lock (`data/telegram-daemon.lock`) stops a second daemon from starting concurrently. This setup script automatically disables the scheduled-poll task below if it finds one enabled, so the two can't conflict.
+
+```bash
+# Start it immediately without logging off/on:
+schtasks /run /tn "CareerOps-Telegram-Daemon"
+
+# Stop it:
+schtasks /end /tn "CareerOps-Telegram-Daemon"
+schtasks /change /tn "CareerOps-Telegram-Daemon" /disable
+```
+
+### Option B: Scheduled single-poll (original, higher latency)
+
+**Run the batch file (easiest)**
 ```bash
 # IMPORTANT: Run as Administrator
 # 1. Open Command Prompt (cmd.exe)
@@ -30,15 +50,15 @@ cd "c:\Users\thebo\OneDrive\Documents\_vscode\career-ops"
 & ".\telegram-setup-scheduler.bat"
 ```
 
-**Option 2: Run the direct schtasks command (if batch fails)**
+**Or the direct schtasks command (if batch fails)**
 ```bash
 # From Command Prompt or PowerShell (run as Administrator):
 schtasks /create /tn "CareerOps-Telegram-Poll" /tr "node c:\Users\thebo\OneDrive\Documents\_vscode\career-ops\telegram-monitor.mjs" /sc minute /mo 5 /rl highest /f
 ```
 
-Both create a recurring task `CareerOps-Telegram-Poll` that runs every 5 minutes.
+Both create a recurring task `CareerOps-Telegram-Poll` that runs every 5 minutes — each run does one non-blocking check and exits, so a message can sit up to 5 minutes before it's noticed. Simpler operationally (nothing stays running between checks), but strictly worse latency than the daemon above for the same token cost. Prefer the daemon unless there's a specific reason not to keep a persistent process running (e.g. a machine that's frequently off, where "at logon" triggers are more reliable than "must already be running").
 
-### Manual Setup
+### Manual Setup (Option B only)
 1. Open **Task Scheduler** (search "Task Scheduler" in Windows Start menu)
 2. Right-click **Task Scheduler Library** → **Create Basic Task**
 3. Name: `CareerOps-Telegram-Poll`
@@ -49,7 +69,7 @@ Both create a recurring task `CareerOps-Telegram-Poll` that runs every 5 minutes
    - Start in: `C:\path\to\your\career-ops`
 6. Click **Create**
 
-The task will now run every 5 minutes in the background.
+The task will now run every 5 minutes in the background. For the daemon (Option A), use `telegram-daemon-scheduler.bat` instead — it configures the logon-triggered task for you.
 
 ## How It Works
 
@@ -117,7 +137,9 @@ node core/telegram-poll.mjs poll
 
 ## Manual Task Execution (Windows)
 
-If you need to run the Telegram monitor immediately without waiting for the scheduled 5-minute interval:
+If you're running the daemon (Option A), it's already listening continuously — no manual trigger needed; use `schtasks /run /tn "CareerOps-Telegram-Daemon"` only to (re)start it after a stop.
+
+If you're on the scheduled single-poll (Option B) and need to run it immediately without waiting for the 5-minute interval:
 
 ```powershell
 # As Administrator, in PowerShell:
@@ -139,7 +161,7 @@ telegram-setup-scheduler.bat
 ## Monitoring
 
 ### Check if the task is running
-Open Task Scheduler, find `CareerOps-Telegram-Poll`, and check its last run time.
+Open Task Scheduler, find `CareerOps-Telegram-Daemon` (Option A) or `CareerOps-Telegram-Poll` (Option B), and check its last run time / status.
 
 ### View logs (optional)
 Enable task history:
@@ -148,16 +170,22 @@ Enable task history:
 
 ### Disable temporarily
 ```bash
+# Daemon (Option A):
+schtasks /change /tn "CareerOps-Telegram-Daemon" /disable
+
+# Scheduled single-poll (Option B):
 schtasks /change /tn "CareerOps-Telegram-Poll" /disable
 ```
 
 ### Re-enable
 ```bash
+schtasks /change /tn "CareerOps-Telegram-Daemon" /enable
 schtasks /change /tn "CareerOps-Telegram-Poll" /enable
 ```
 
 ### Delete the task
 ```bash
+schtasks /delete /tn "CareerOps-Telegram-Daemon" /f
 schtasks /delete /tn "CareerOps-Telegram-Poll" /f
 ```
 

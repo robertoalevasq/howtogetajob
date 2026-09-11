@@ -2,6 +2,12 @@
 cv.md
 article-digest.md
 local/
+# Archives — a batch/backup bundle can wrap otherwise-gitignored personal
+# data (cv.md, reports/, applications.md) into one file with no per-file
+# gitignore rule covering it (found live 2026-09-11: an untracked
+# pipeline-batch-*.tar.gz at repo root bundled exactly that).
+*.tar.gz
+*.zip
 # Git worktrees for isolated feature development (superpowers:using-git-worktrees)
 .worktrees/
 # Everything under data/ is generated or personal at runtime — only .gitkeep

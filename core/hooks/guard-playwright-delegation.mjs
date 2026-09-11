@@ -23,11 +23,11 @@ const DENY_REASON =
 
 /**
  * Pure decision logic — no stdin, no process.exit, so it's directly
- * testable. `payload` is the parsed PreToolUse hook JSON, or null/undefined
- * if parsing already failed upstream (the caller handles that fail-open
- * case before this is ever invoked; this function always denies on a falsy
- * or agent_id-less payload, since a caller should only reach here with
- * something it wants evaluated).
+ * testable. `payload` is the parsed PreToolUse hook JSON. Allows only when
+ * `payload.agent_id` is present (a delegated subagent); denies on anything
+ * else, including a falsy payload — `main()` never passes one (it fails
+ * open on a JSON parse error before calling this), but a direct/test caller
+ * can, and the deny-by-default here still applies.
  * @param {any} payload
  * @returns {{ exitCode: number, output: string|null }}
  */

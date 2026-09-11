@@ -254,9 +254,13 @@ export function checkJsonFile(liveFilePath, templateFilePath) {
   let liveValue, templateValue;
   try {
     liveValue = JSON.parse(readFileSync(liveFilePath, 'utf8'));
+  } catch (err) {
+    return { missing: [], error: `live: ${/** @type {Error} */ (err).message}` };
+  }
+  try {
     templateValue = JSON.parse(readFileSync(templateFilePath, 'utf8'));
   } catch (err) {
-    return { missing: [], error: /** @type {Error} */ (err).message };
+    return { missing: [], error: `template: ${/** @type {Error} */ (err).message}` };
   }
   const entries = findMissingJsonPaths(templateValue, liveValue);
   return { missing: entries.map((e) => e.path), error: null };
@@ -271,16 +275,13 @@ export function checkJsonFile(liveFilePath, templateFilePath) {
  * @returns {{ written: string[][], error: string|null }}
  */
 export function applyJsonFile(liveFilePath, templateFilePath) {
+  const { error } = checkJsonFile(liveFilePath, templateFilePath);
+  if (error) return { written: [], error };
   if (!existsSync(liveFilePath) || !existsSync(templateFilePath)) {
     return { written: [], error: null };
   }
-  let liveValue, templateValue;
-  try {
-    liveValue = JSON.parse(readFileSync(liveFilePath, 'utf8'));
-    templateValue = JSON.parse(readFileSync(templateFilePath, 'utf8'));
-  } catch (err) {
-    return { written: [], error: /** @type {Error} */ (err).message };
-  }
+  const liveValue = JSON.parse(readFileSync(liveFilePath, 'utf8'));
+  const templateValue = JSON.parse(readFileSync(templateFilePath, 'utf8'));
   const entries = findMissingJsonPaths(templateValue, liveValue);
   if (entries.length === 0) return { written: [], error: null };
 

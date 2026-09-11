@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
-import { browserSessionsStatePath, readBrowserSessions, writeBrowserSessions, removeBrowserSession, runHolderCli, launchHolder } from '../core/apply-browser-holder.mjs';
+import { browserSessionsStatePath, readBrowserSessions, writeBrowserSessions, removeBrowserSession, runHolderCli, launchHolder, stopBrowserHolder } from '../core/apply-browser-holder.mjs';
 import { acquirePipelineLock } from '../core/pipeline-lock.mjs';
 
 function fakeWorkspace() {
@@ -251,6 +251,82 @@ test('launchHolder rethrows (never hangs) when the state-file lock cannot be acq
     if (heldLock) heldLock.release();
     if (previousTimeout === undefined) delete process.env.CAREER_OPS_PIPELINE_LOCK_TIMEOUT_MS;
     else process.env.CAREER_OPS_PIPELINE_LOCK_TIMEOUT_MS = previousTimeout;
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('stopBrowserHolder is a no-op when no entry exists for the report', async () => {
+  const ws = fakeWorkspace();
+  try {
+    await assert.doesNotReject(() => stopBrowserHolder(ws, '937', { isWindows: true }));
+    await assert.doesNotReject(() => stopBrowserHolder(ws, '937', { isWindows: false }));
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('stopBrowserHolder on Windows force-kills the process tree via taskkill, then removes the entry', async () => {
+  const ws = fakeWorkspace();
+  try {
+    const path = browserSessionsStatePath(ws);
+    writeBrowserSessions(path, { '937': { endpoint: 'ws://a', pid: 4242, createdAt: '2026-09-11T00:00:00.000Z' } });
+    let taskkillArgs = null;
+    await stopBrowserHolder(ws, '937', {
+      isWindows: true,
+      execFile: (cmd, args, cb) => { taskkillArgs = [cmd, ...args]; cb(); },
+    });
+    assert.deepEqual(taskkillArgs, ['taskkill', '/PID', '4242', '/T', '/F']);
+    assert.equal(readBrowserSessions(path)['937'], undefined);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('stopBrowserHolder on POSIX sends SIGTERM, then removes the entry itself rather than trusting the holder\'s own handler', async () => {
+  const ws = fakeWorkspace();
+  try {
+    const path = browserSessionsStatePath(ws);
+    writeBrowserSessions(path, { '937': { endpoint: 'ws://a', pid: 4242, createdAt: '2026-09-11T00:00:00.000Z' } });
+    let killedWith = null;
+    await stopBrowserHolder(ws, '937', {
+      isWindows: false,
+      kill: (pid, signal) => { killedWith = [pid, signal]; },
+    });
+    assert.deepEqual(killedWith, [4242, 'SIGTERM']);
+    assert.equal(readBrowserSessions(path)['937'], undefined);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('stopBrowserHolder on POSIX still removes the entry when the process is already gone (kill throws)', async () => {
+  const ws = fakeWorkspace();
+  try {
+    const path = browserSessionsStatePath(ws);
+    writeBrowserSessions(path, { '937': { endpoint: 'ws://a', pid: 4242, createdAt: '2026-09-11T00:00:00.000Z' } });
+    await stopBrowserHolder(ws, '937', {
+      isWindows: false,
+      kill: () => { throw new Error('ESRCH: no such process'); },
+    });
+    assert.equal(readBrowserSessions(path)['937'], undefined);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('stopBrowserHolder never deletes a DIFFERENT report\'s entry', async () => {
+  const ws = fakeWorkspace();
+  try {
+    const path = browserSessionsStatePath(ws);
+    writeBrowserSessions(path, {
+      '937': { endpoint: 'ws://a', pid: 4242, createdAt: '2026-09-11T00:00:00.000Z' },
+      '938': { endpoint: 'ws://b', pid: 4243, createdAt: '2026-09-11T00:00:00.000Z' },
+    });
+    await stopBrowserHolder(ws, '937', { isWindows: false, kill: () => {} });
+    const remaining = readBrowserSessions(path);
+    assert.equal(remaining['937'], undefined);
+    assert.equal(remaining['938'].pid, 4243);
+  } finally {
     rmSync(ws, { recursive: true, force: true });
   }
 });

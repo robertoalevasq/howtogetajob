@@ -22,8 +22,11 @@ import { chromium } from 'playwright';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { createServer } from 'node:net';
+import { execFile } from 'node:child_process';
 import { withPipelineLock } from './pipeline-lock.mjs';
 import { isMainModule } from './is-main.mjs';
+
+const IS_WINDOWS = process.platform === 'win32';
 
 /** @param {string} workspaceCwd */
 export function browserSessionsStatePath(workspaceCwd) {
@@ -149,6 +152,61 @@ export function removeBrowserSession(workspaceCwd, report, expectedPid) {
   });
 }
 
+/**
+ * Stop a report's browser holder and remove its session-state entry —
+ * the actual command `modes/apply.md`'s cleanup steps (Step 9, and the
+ * Step 5-alt hard-stop branches) should run, instead of the vaguer "send
+ * the recorded pid a termination signal" this originally documented.
+ *
+ * That original design assumed a POSIX SIGTERM would reach the holder's own
+ * `runHolderCli` signal handler, which closes the browser and removes its
+ * own entry. On Windows — this project's actual deployment platform —
+ * POSIX signal semantics don't exist: sending 'SIGTERM' either force-kills
+ * the process immediately (no chance for its own handler to run) or does
+ * nothing, so the documented graceful path silently never fired. Confirmed
+ * live across three real applications (#023, #028, #029, 2026-09-09): each
+ * one needed a hand-run `taskkill /PID <n> /T /F` plus manually editing
+ * `.apply-browser-sessions.json` to match, because nothing else cleaned it
+ * up. This function does that same thing as one atomic step instead of
+ * relying on the killed process to clean up after itself: force-kill the
+ * process tree on Windows (`/T` takes the child Chromium with it, matching
+ * what was already being done by hand), or send SIGTERM on POSIX where a
+ * real signal handler can actually run — either way, then remove the state
+ * entry directly here, scoped to the recorded pid via `expectedPid` so a
+ * holder that's already been superseded is never deleted out from under a
+ * newer one.
+ *
+ * @param {string} workspaceCwd @param {string} report
+ * @param {{isWindows?: boolean, kill?: typeof process.kill, execFile?: typeof execFile}} [deps]
+ *   overridable for tests, so they never need a real taskkill or a real
+ *   signal delivered to a real process.
+ * @returns {Promise<void>}
+ */
+export async function stopBrowserHolder(workspaceCwd, report, deps = {}) {
+  const isWindows = deps.isWindows ?? IS_WINDOWS;
+  const kill = deps.kill || process.kill;
+  const runTaskkill = deps.execFile || execFile;
+
+  const statePath = browserSessionsStatePath(workspaceCwd);
+  const sessions = readBrowserSessions(statePath);
+  const entry = sessions[report];
+  if (!entry) return;
+
+  if (isWindows) {
+    await new Promise((resolve) => {
+      runTaskkill('taskkill', ['/PID', String(entry.pid), '/T', '/F'], () => resolve());
+    });
+  } else {
+    try {
+      kill(entry.pid, 'SIGTERM');
+    } catch {
+      // Already gone -- nothing to signal; fall through to the same direct
+      // cleanup below regardless.
+    }
+  }
+  await removeBrowserSession(workspaceCwd, report, entry.pid);
+}
+
 // Absolute lifetime cap for a holder process, NOT an activity-based idle
 // timer: it is armed once at launch and never reset by CDP traffic, so a
 // holder self-terminates this long after it started regardless of how busy
@@ -209,8 +267,27 @@ export async function runHolderCli(argv, opts = {}) {
   }
 }
 
+/**
+ * `--stop` is the short-lived CLI form of `stopBrowserHolder`, run by a mode
+ * file (apply.md Step 9 and its hard-stop branches) or an agent's own shell
+ * call, not by the long-lived holder itself. Separate from `runHolderCli`
+ * (which launches and stays alive) since the two share no lifecycle.
+ */
+async function runStopCli(argv) {
+  const reportIdx = argv.indexOf('--report');
+  const workspaceIdx = argv.indexOf('--workspace');
+  const report = reportIdx !== -1 ? argv[reportIdx + 1] : null;
+  const workspaceCwd = workspaceIdx !== -1 ? argv[workspaceIdx + 1] : null;
+  if (!report || !workspaceCwd) {
+    throw new Error('Usage: apply-browser-holder.mjs --stop --report <num> --workspace <path>');
+  }
+  await stopBrowserHolder(workspaceCwd, report);
+}
+
 if (isMainModule(import.meta.url)) {
-  runHolderCli(process.argv.slice(2)).catch(err => {
+  const argv = process.argv.slice(2);
+  const run = argv.includes('--stop') ? runStopCli(argv) : runHolderCli(argv);
+  run.catch(err => {
     console.error(`[apply-browser-holder] ${err.message}`);
     // process.exit(), not process.exitCode: a failure between launch and the
     // state-file write may leave something still holding the event loop open,
