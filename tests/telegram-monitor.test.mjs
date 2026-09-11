@@ -60,7 +60,7 @@ test('dispatchOne calls invoke with the onboarding prompt, the dispatch cwd, a b
   assert.equal(calls[0].model, 'haiku');
 });
 
-test('dispatchOne calls invoke with the routing prompt, the dispatch cwd, NO timeout, and NO pinned model for a routing dispatch', async () => {
+test('dispatchOne calls invoke with the routing prompt, the dispatch cwd, NO timeout, and the pinned default model for a routing dispatch', async () => {
   const calls = [];
   const fakeInvoke = async (prompt, cwd, timeoutMs, model) => { calls.push({ prompt, cwd, timeoutMs, model }); };
   const dispatch = {
@@ -70,7 +70,7 @@ test('dispatchOne calls invoke with the routing prompt, the dispatch cwd, NO tim
   await dispatchOne(dispatch, fakeInvoke, undefined, () => {});
   assert.equal(calls.length, 1);
   assert.equal(calls[0].cwd, '/fake/workspace/alice');
-  assert.equal(calls[0].model, undefined);
+  assert.equal(calls[0].model, 'haiku');
   assert.match(calls[0].prompt, /modes\/telegram\.md/);
   assert.equal(calls[0].timeoutMs, undefined);
 });

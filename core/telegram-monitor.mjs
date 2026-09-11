@@ -325,15 +325,9 @@ export async function maybeAlertOperator(streak, errorMessage, operatorChatId, s
 // hours, so it gets no timeout at all (undefined below).
 const ONBOARDING_TIMEOUT_MS = 10 * 60 * 1000;
 
-// Onboarding turns are pinned to the fastest model: reading a short reply,
-// writing a few YAML/markdown fields, running a couple of deterministic CLI
-// commands — none of it needs the account's default (heavier, unpinned)
-// model, and onboarding turns are serialized (see fanOutDispatches), so
-// every extra second here is a second the whole daemon can't poll for
-// anyone else either. `routing` dispatches are deliberately left on
-// whatever model the `claude` CLI defaults to (undefined below) — a bound
-// chat's `cycle`/`apply`/etc. genuinely needs full capability.
-const ONBOARDING_MODEL = 'haiku';
+// career-ops has no spend tiers -- every claude -p dispatch this daemon
+// makes, onboarding included, always runs on the cheapest available model.
+const DEFAULT_MODEL = 'haiku';
 
 /**
  * Single attempt at spawning Claude — see dispatchOne() for retry/alert
@@ -347,7 +341,7 @@ const ONBOARDING_MODEL = 'haiku';
  * daemonLoop() awaits fanOutDispatches(); routing calls without a timeout
  * were never affected, since they're fired non-blocking).
  *
- * `model`, when given, is passed as `--model <model>` — see ONBOARDING_MODEL.
+ * `model`, when given, is passed as `--model <model>` — see DEFAULT_MODEL.
  *
  * @param {string} prompt
  * @param {string} cwd
@@ -1046,11 +1040,12 @@ export async function dispatchOne(dispatch, invoke = invokeClaudeRoutingOnce, re
     : dispatch.kind === 'cycle-resume'
     ? buildCycleResumePrompt(dispatch)
     : buildRoutingPrompt(dispatch.messages);
-  // Only onboarding gets a bounded timeout and a pinned fast model — see
-  // ONBOARDING_TIMEOUT_MS/ONBOARDING_MODEL's own comments. A routing
-  // dispatch (cycle/apply/etc.) is unlimited and uses the account default.
+  // Only onboarding gets a bounded timeout — see ONBOARDING_TIMEOUT_MS's own
+  // comment. A routing dispatch (cycle/apply/etc.) is unlimited. Every
+  // dispatch kind is pinned to the same model (DEFAULT_MODEL) -- career-ops
+  // has no spend tiers, so there's no "account default" to fall through to.
   const timeoutMs = dispatch.kind === 'onboarding' ? ONBOARDING_TIMEOUT_MS : undefined;
-  const model = dispatch.kind === 'onboarding' ? ONBOARDING_MODEL : undefined;
+  const model = DEFAULT_MODEL;
   // Onboarding never touches Playwright/apply.md — resolving a browser
   // session for it would be pure wasted work on a hot path every onboarding
   // message travels.

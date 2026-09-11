@@ -2575,6 +2575,26 @@ try {
   fail(`checkForStalledCycle coverage crashed: ${e.message}`);
 }
 
+// dispatchOne pins every dispatch kind to the default (Haiku) model — not
+// just onboarding. Before this fix, routing/cycle-resume dispatches (i.e.
+// every real cycle/apply/pipeline run driven over Telegram) fell through to
+// `undefined` and inherited the account default.
+try {
+  const { dispatchOne } = await import(pathToFileURL(join(ROOT, 'core', 'telegram-monitor.mjs')).href);
+  const calls = [];
+  const fakeInvoke = async (prompt, cwd, timeoutMs, model, extraArgs) => { calls.push(model); };
+  const fakeResolveBrowserArgs = async () => [];
+  const fakeLogDispatch = () => {};
+  await dispatchOne({ kind: 'routing', cwd: '/fake', messages: [] }, fakeInvoke, fakeResolveBrowserArgs, fakeLogDispatch);
+  await dispatchOne({ kind: 'cycle-resume', cwd: '/fake', messages: [] }, fakeInvoke, fakeResolveBrowserArgs, fakeLogDispatch);
+  await dispatchOne({ kind: 'onboarding', cwd: '/fake', messages: [] }, fakeInvoke, fakeResolveBrowserArgs, fakeLogDispatch);
+  if (calls.length === 3 && calls.every(m => m === 'haiku')) {
+    pass('dispatchOne pins every dispatch kind (routing/cycle-resume/onboarding) to haiku');
+  } else {
+    fail(`dispatchOne did not pin every kind to haiku: ${JSON.stringify(calls)}`);
+  }
+} catch (e) { fail(`dispatchOne model-pin test crashed: ${e.message}`); }
+
 const expandMode = readFile('modes/expand.md');
 if (
   /never fetch unlinked URLs/i.test(expandMode) &&
