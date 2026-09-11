@@ -73,7 +73,16 @@ const CACHE_TTL_HOURS = 24;
 // careers_url and drops anything that doesn't resolve to the ATS's own host —
 // so a tampered dataset can at worst name boards that don't exist.
 const DATASET_BASE = 'https://raw.githubusercontent.com/Feashliaa/job-board-aggregator/main/data';
-const CONCURRENCY = 20;
+const CONCURRENCY = Number(process.env.CAREER_OPS_SCAN_CONCURRENCY) || 20;
+// Workday-specific: its shared myworkdayjobs.com edge rate-limits by source
+// IP across EVERY tenant, not per-tenant — so per-tenant retry/backoff
+// (providers/workday.mjs's own fetchPageWithRetry) can't fix a 429 caused by
+// the aggregate request rate from this sweep's own concurrent workers, no
+// matter how patient any one worker is. Confirmed empirically (2026-09-11):
+// the same 400-company sample produced 32 unretryable 429s at the default
+// CONCURRENCY=20, and zero at 4 — the other error categories (404/422/403,
+// all genuinely broken/blocked tenants, not rate-limiting) were unchanged.
+const WORKDAY_CONCURRENCY = Number(process.env.CAREER_OPS_SCAN_WORKDAY_CONCURRENCY) || 4;
 // A refusing resolver fails every lookup in milliseconds, so a sweep that
 // keeps going just feeds it (#2229). Stop after this many consecutive
 // resolver-level failures — high enough that a handful of unlucky boards
@@ -191,6 +200,7 @@ export const SOURCES = {
   workday: {
     provider: workday,
     dataset: `${DATASET_BASE}/workday_companies.json`,
+    concurrency: WORKDAY_CONCURRENCY,
     // Dataset entries are "tenant|instance|site" triples.
     toEntry: (line) => {
       const [tenant, instance, site] = String(line).split('|');
@@ -830,7 +840,7 @@ async function main() {
     let lastDone = 0;
     let lastResumeAt = 0;
     const truncated = [];
-    await parallelEach(entries, CONCURRENCY, async (entry) => {
+    await parallelEach(entries, source.concurrency ?? CONCURRENCY, async (entry) => {
       try {
         // The whole per-company unit — fetch AND processJobs (which may issue
         // per-job detail-page requests via provider.enrichDate) — runs inside

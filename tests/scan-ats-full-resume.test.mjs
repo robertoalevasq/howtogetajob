@@ -222,3 +222,55 @@ const { loadCheckpoint, checkpointCompatible } = mod;
     }
   }
 }
+
+// parallelEach: never exceeds `limit` simultaneous in-flight calls — the
+// mechanism the workday-concurrency-cap fix below depends on. Each item
+// blocks until released, so peak in-flight is directly observable rather
+// than inferred from timing.
+{
+  const limit = 3;
+  let inFlight = 0;
+  let peak = 0;
+  const releases = [];
+  const p = parallelEach([...Array(9).keys()], limit, async () => {
+    inFlight++;
+    peak = Math.max(peak, inFlight);
+    await new Promise((r) => releases.push(r));
+    inFlight--;
+  });
+  // Let the first wave claim its slots before releasing anything.
+  await new Promise((r) => setTimeout(r, 50));
+  if (peak > limit) fail(`parallelEach let ${peak} run concurrently against a limit of ${limit}`);
+  // Drain in waves (9 items / limit 3 = 3 waves) until parallelEach settles.
+  // Bounded so a real deadlock fails loudly instead of hanging the suite.
+  let settled = false;
+  p.then(() => { settled = true; });
+  for (let i = 0; i < 20 && !settled; i++) {
+    while (releases.length) releases.shift()();
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  if (!settled) fail('parallelEach never settled — items left permanently in flight');
+  await p;
+  if (peak === limit) pass(`parallelEach caps peak concurrency at the given limit (${limit})`);
+  else if (peak < limit) fail(`parallelEach never even reached the limit (peak ${peak} of ${limit}) — test is too weak to trust the pass above`);
+}
+
+// SOURCES.workday.concurrency: found live 2026-09-11 — Workday's shared
+// myworkdayjobs.com edge rate-limits by source IP across every tenant, not
+// per-tenant, so the flat global CONCURRENCY (used by every other source)
+// drove 32 unretryable 429s in a 400-company sample; dropping to 4 for
+// workday specifically produced zero, with the other error categories
+// (404/422/403 — genuinely broken/blocked tenants) unchanged. This pins
+// that workday carries its own lower concurrency rather than silently
+// reverting to the shared default.
+{
+  const { SOURCES } = mod;
+  const wc = SOURCES.workday?.concurrency;
+  if (typeof wc !== 'number' || !(wc > 0)) {
+    fail(`SOURCES.workday.concurrency is ${wc} — expected a positive number`);
+  } else if (wc >= 20) {
+    fail(`SOURCES.workday.concurrency is ${wc} — too high to avoid the 429s this was fixed for (must stay well under the default global CONCURRENCY)`);
+  } else {
+    pass(`SOURCES.workday.concurrency (${wc}) stays below the shared default, avoiding Workday's cross-tenant rate limit`);
+  }
+}
