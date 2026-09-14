@@ -68,12 +68,14 @@ Every task-starting row below requires a recognized `/command` (`parseCommand()`
 | `/status` | recognized command | Step 3f: report status |
 | `/settings` | recognized command | Step 3h: view/edit profile settings |
 | `/help` | recognized command | Step 3g: show help |
-| `/yes` / `/no` / `/skip` / `/cancel` | recognized command | routes exactly like the equivalent standalone word in the Confirmation reply row below |
+| `/yes` / `/no` / `/skip` / `/cancel` | recognized command | routes exactly like the equivalent standalone word in the Confirmation reply row below — **declines whatever's currently pending only; it has no way to interrupt a `/run`/`/applyall`/`apply` turn already in progress**, since that's one long-lived dispatch that isn't polling for new messages until it ends |
 | Job URL | contains a job-posting URL pattern (Greenhouse/Lever/Workday/Ashby/etc.) — **the one non-slash exception**, since it's a deterministic pattern match, not an interpreted phrase | Step 3b: start apply |
-| Confirmation reply | a **threaded reply** (`replyToMessageId` matches a pending confirmation's message id), OR a standalone `yes`/`y`/`go`/`no`/`skip`/`cancel` when exactly one confirmation is pending, OR **free text that isn't a job URL or a recognized command** when exactly one `resume-approval`/`field-approval`/`submit-approval`/`edit-intent`/`question`/`settings-menu`/`settings-edit` confirmation is pending — **the other non-slash exception**, since it's scoped to whatever's already open | Step 4: confirm |
-| Anything else — including plain-English attempts like "search" or "apply all" | not a recognized `/command`, not a job URL, nothing pending to reply to | Step 5: note (nudges toward `/help`) |
+| Confirmation reply | a **threaded reply** (`replyToMessageId` matches a pending confirmation's message id), OR a standalone `yes`/`y`/`go`/`no`/`skip`/`cancel` when exactly one confirmation is pending, OR **free text that isn't a job URL or a recognized command** when exactly one `resume-approval`/`field-approval`/`submit-approval`/`edit-intent`/`question`/`settings-menu`/`settings-edit` confirmation is pending — **the other non-slash exception**, since it's scoped to whatever's already open, OR a **bare digit reply to a numbered disambiguation** (see below) — this one comes with a deterministic resolution already computed for you, never guessed | Step 4: confirm |
+| Anything else — including plain-English attempts like "search" or "apply all" | not a recognized `/command`, not a job URL, nothing pending to reply to (checked fresh — see Step 5) | Step 5: note (nudges toward `/help`) |
 
 If a standalone confirm word or free-text reply arrives with **multiple** pending confirmations (of any stage, including `edit-intent`), don't guess — reply with a numbered list of what's pending and wait for a number in a future cycle. This is the only disambiguation needed now: since PDF edits open through `/editpdf` (a command) rather than matching on free text, there's no longer a routing collision between an in-flight apply confirmation and an out-of-band PDF edit request — each pending item is unambiguous once opened.
+
+**Numbering contract (mandatory, both directions):** when sending that numbered list, number it in the exact order the confirmations appear in `data/telegram-state.md`'s `## Pending Confirmations` section, top to bottom, 1-indexed — never re-order for readability (highest score first, most recent first, etc.). This isn't just a formatting preference: `telegram-monitor.mjs`'s `resolveDisambiguationHint()` resolves a later bare-digit reply against this exact same file-order numbering, deterministically, before the routing prompt is even built. If the digit resolves, the prompt you receive carries a block starting `DETERMINISTIC DISAMBIGUATION RESOLUTION:` naming the exact `[msg_id: ...]` it selects — **trust it and route straight to Step 4 for that item; do not re-derive the mapping yourself, and do not classify that message as unclassified/Step 5 even though it isn't "yes"/"no"/a command/a URL.** This closes a real, previously-undocumented gap: nothing ever recorded how a "1"/"2" reply mapped back to a specific pending item, so a fresh dispatch had no way to resolve one and fell through to the generic nudge for a message that was genuinely answering an open question (confirmed live 2026-09-12, and identically once before that — msg 656).
 
 ### Step 3a — Run full cycle
 
@@ -201,7 +203,8 @@ At <i>any</i> of these: "no" skips this application (nothing is lost — /apply 
 /settings — view or change your location, work mode, targeting, salary target, or sponsorship status
 
 <b>7. Quick replies</b>
-Only usable when something's already waiting on you: "yes"/"y"/"go", "no"/"skip", "cancel". If more than one thing is pending, I'll ask you to pick by number.
+Only usable when something's already waiting on you: "yes"/"y"/"go" to approve, "no"/"skip"/"cancel" (or /cancel) to decline it — cancelling only ever declines whatever's currently pending, it doesn't stop a search or apply run already in progress.
+If more than one thing is waiting at once, I'll send a numbered list — reply with just the number (e.g. "1") to answer that one specifically. Plain-English phrases like "cancel everything" or "both" can't be matched to a specific item, so they won't work here; the number is what resolves it.
 
 Send /help anytime to see this again.
 ```
@@ -307,7 +310,9 @@ Look up the pending confirmation the reply resolves (threaded match, or the sole
 
 ### Step 5 — Note
 
-Anything that isn't a recognized `/command`, a job URL, or a reply to something pending: log to `data/telegram-inbox.md` with a timestamp, reply `Noted 👍 — commands need a /, try /help to see what I can do.` Don't guess at intent beyond that — this is a fixed reply, not an attempt to interpret what the candidate meant, so it costs nothing extra to send even though it fires more often now that free-text phrases no longer route anywhere.
+**Before concluding "nothing pending to reply to," re-read `data/telegram-state.md`'s `## Pending Confirmations` section directly, right now, in this step — never rely on a belief about what's pending formed earlier in this same turn.** Found live 2026-09-12: a message that should have matched the Confirmation-reply row (free text answering the one thing genuinely pending — e.g. "Apply" as an answer to a yes/no override question this very same conversation had just asked) instead reached Step 5 claiming zero confirmations were pending, when one demonstrably was. Since `dispatchOne()` now processes one message per dispatch (see `createRoutingQueue()` in `telegram-monitor.mjs`), each dispatch already starts from a fresh reasoning context — but stay disciplined about it anyway: this step's own conclusion must be grounded in an actual read of the current file content, not in whatever was inferred about "what's open" while classifying earlier in the table above.
+
+If that re-read finds a pending confirmation after all, route to Step 4 instead — do not send the generic nudge for a message that genuinely was answering something open. Only once the file is actually, freshly confirmed empty of any relevant pending item: log to `data/telegram-inbox.md` with a timestamp, reply `Noted 👍 — commands need a /, try /help to see what I can do.` Don't guess at intent beyond that — this is a fixed reply, not an attempt to interpret what the candidate meant, so it costs nothing extra to send even though it fires more often now that free-text phrases no longer route anywhere.
 
 ### Step 6 — Update state
 
@@ -318,6 +323,17 @@ After processing every message this cycle: rewrite `data/telegram-state.md`'s Pe
 ## Sending messages
 
 `node core/plugins.mjs run telegram notify "message"` — see `plugins/telegram/skill.md` for formatting rules (HTML tags, 4096-char hard limit) and how to capture a `message_id` for threading. Keep every message mobile-readable: concise, line breaks over walls of text.
+
+**Any message announcing a job match or evaluation result MUST include the job's own Apply URL and the report number — never a bare company/role/score summary.** Found live 2026-09-11: an operator manually delivering match results outside a normal `/run` (a resumed/stalled cycle, a retargeting follow-up) sent plain text like `"nordstrom — Assistant Manager, 3.8/5"` with no link and no report number — the candidate had a PDF and a score but no way to actually apply or reference the evaluation without asking. This applies whether the send happens inside `cycle.md`'s own Step 5 delivery or from any other context (a manual operator send, a one-off re-evaluation, a PDF regeneration reply) — the destination is always the same candidate who needs the same information to act. Use `cycle.md`'s Job Digest shape (Step 5, "Job digest") per match, adapted to Telegram's HTML subset instead of Discord's plain text:
+
+```
+<b>{Company} — {Role}</b>
+Score: {X.X}/5
+Apply: {the job's own URL, from the report's **URL:** line}
+Report: #{num}
+```
+
+Pull the URL from the report's own `**URL:**` header line — never re-derive it from the tracker TSV or from memory. For multiple matches in one message, repeat the block per match with a blank line between; stay under the 4096-char hard limit (split into multiple sends if a batch is large).
 
 ## Scheduling — Minimal Claude entry point (zero tokens on empty polls)
 

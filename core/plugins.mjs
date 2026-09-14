@@ -264,7 +264,15 @@ async function cmdRun(args) {
   }
 
   if (hook === 'notify') {
-    const message = positional.slice(hookArgStart).join(' ');
+    // A caller building this argument in a double-quoted shell string (Bash,
+    // cmd.exe) cannot embed a real newline that way — `\n` stays the two
+    // literal characters backslash+n, since shell double-quote parsing never
+    // interprets it. Nothing downstream ever converted it back, so the
+    // literal "\n" showed up verbatim in delivered messages (confirmed live
+    // 2026-09-12). No real notification to a candidate ever wants to display
+    // literal backslash-n/backslash-t, so normalizing here is safe regardless
+    // of which shell or language actually built the argument.
+    const message = positional.slice(hookArgStart).join(' ').replace(/\\n/g, '\n').replace(/\\t/g, '\t');
     for (const fp of filePaths) { if (!existsSync(fp)) { console.error(`--file not found: ${fp}`); process.exit(1); } }
     if (editMessageId && filePaths.length) { console.error('--edit and --file cannot be combined — editing a message is text-only.'); process.exit(1); }
     let embed;

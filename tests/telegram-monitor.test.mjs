@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import {
   buildRoutingPrompt, buildOnboardingPrompt, dispatchOne, sendCannedReply, fanOutDispatches, createRoutingQueue,
-  resolveReportForDispatch, resolveBrowserMcpArgs, checkCdpAlive,
+  resolveReportForDispatch, resolveDisambiguationHint, resolveBrowserMcpArgs, checkCdpAlive,
   createPollErrorLogger, shouldAlertOperator, maybeAlertOperator, deriveDispatchCommand,
 } from '../core/telegram-monitor.mjs';
 import { writeBrowserSessions, browserSessionsStatePath, launchHolder } from '../core/apply-browser-holder.mjs';
@@ -19,6 +19,17 @@ async function quietErrors(fn) {
   } finally {
     console.error = original;
   }
+}
+
+/**
+ * Real temp directory for a 'routing'/'cycle-resume' dispatchOne() call — it
+ * now acquires a real filesystem lock keyed on <cwd>/data/telegram-state.md
+ * (see telegram-monitor.mjs's STATE_LOCK_TIMEOUT_MS), so a literal fake path
+ * like '/fake/workspace/alice' would mkdirSync real directories at that path
+ * on disk as a side effect. Caller must rmSync the returned dir when done.
+ */
+function mkFakeWorkspace() {
+  return mkdtempSync(join(tmpdir(), 'career-ops-dispatch-'));
 }
 
 test('buildRoutingPrompt embeds the HEADLESS marker and the given messages as JSON', () => {
@@ -61,18 +72,23 @@ test('dispatchOne calls invoke with the onboarding prompt, the dispatch cwd, a b
 });
 
 test('dispatchOne calls invoke with the routing prompt, the dispatch cwd, NO timeout, and the pinned default model for a routing dispatch', async () => {
-  const calls = [];
-  const fakeInvoke = async (prompt, cwd, timeoutMs, model) => { calls.push({ prompt, cwd, timeoutMs, model }); };
-  const dispatch = {
-    chatId: '1', cwd: '/fake/workspace/alice', kind: 'routing',
-    messages: [{ chatId: '1', text: '/status' }], state: null,
-  };
-  await dispatchOne(dispatch, fakeInvoke, undefined, () => {});
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].cwd, '/fake/workspace/alice');
-  assert.equal(calls[0].model, 'haiku');
-  assert.match(calls[0].prompt, /modes\/telegram\.md/);
-  assert.equal(calls[0].timeoutMs, undefined);
+  const ws = mkFakeWorkspace();
+  try {
+    const calls = [];
+    const fakeInvoke = async (prompt, cwd, timeoutMs, model) => { calls.push({ prompt, cwd, timeoutMs, model }); };
+    const dispatch = {
+      chatId: '1', cwd: ws, kind: 'routing',
+      messages: [{ chatId: '1', text: '/status' }], state: null,
+    };
+    await dispatchOne(dispatch, fakeInvoke, undefined, () => {});
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].cwd, ws);
+    assert.equal(calls[0].model, 'haiku');
+    assert.match(calls[0].prompt, /modes\/telegram\.md/);
+    assert.equal(calls[0].timeoutMs, undefined);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
 });
 
 // ── dispatch logging (deriveDispatchCommand + dispatchOne's logDispatch call) ──
@@ -112,12 +128,17 @@ test('deriveDispatchCommand returns "reply" for an empty or missing messages arr
 });
 
 test('dispatchOne calls logDispatch with the derived command for a routing dispatch, before invoke', async () => {
-  const order = [];
-  const fakeInvoke = async () => { order.push('invoke'); };
-  const fakeLogDispatch = (dispatch, command) => { order.push({ logDispatch: command, chatId: dispatch.chatId }); };
-  const dispatch = { chatId: '7', cwd: '/fake/workspace/alice', kind: 'routing', messages: [{ text: '/scan' }], state: null };
-  await dispatchOne(dispatch, fakeInvoke, undefined, fakeLogDispatch);
-  assert.deepEqual(order, [{ logDispatch: 'scan', chatId: '7' }, 'invoke']);
+  const ws = mkFakeWorkspace();
+  try {
+    const order = [];
+    const fakeInvoke = async () => { order.push('invoke'); };
+    const fakeLogDispatch = (dispatch, command) => { order.push({ logDispatch: command, chatId: dispatch.chatId }); };
+    const dispatch = { chatId: '7', cwd: ws, kind: 'routing', messages: [{ text: '/scan' }], state: null };
+    await dispatchOne(dispatch, fakeInvoke, undefined, fakeLogDispatch);
+    assert.deepEqual(order, [{ logDispatch: 'scan', chatId: '7' }, 'invoke']);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
 });
 
 test('dispatchOne never calls logDispatch for an onboarding dispatch', async () => {
@@ -127,6 +148,71 @@ test('dispatchOne never calls logDispatch for an onboarding dispatch', async () 
   const dispatch = { chatId: '7', cwd: '/fake/workspace', kind: 'onboarding', messages: [{ text: 'Alice' }], state: { currentStep: 'name' } };
   await dispatchOne(dispatch, fakeInvoke, undefined, fakeLogDispatch);
   assert.equal(called, false);
+});
+
+// ── cross-process telegram-state.md lock (2026-09-11 fix) ──
+//
+// createRoutingQueue() only serializes same-chat dispatches fired by ONE
+// daemon process's own in-memory queue — it does nothing against a SECOND
+// process (a stray CareerOps-Telegram-Poll scheduled task left enabled
+// alongside the daemon, or two daemon instances) racing on the same
+// workspace's data/telegram-state.md. dispatchOne() now acquires a real
+// filesystem lock (pipeline-lock.mjs, keyed on <cwd>/data/telegram-state.md)
+// around the invoke() call for 'routing'/'cycle-resume' dispatches. These
+// tests call dispatchOne twice concurrently (simulating two processes, not
+// two same-process calls) to prove the second genuinely waits rather than
+// running its invoke() while the first is still in flight.
+
+test('dispatchOne serializes two concurrent calls for the SAME workspace cwd (simulating two racing processes)', async () => {
+  const ws = mkFakeWorkspace();
+  try {
+    let active = 0;
+    let maxActive = 0;
+    const order = [];
+    const makeInvoke = label => async () => {
+      active++;
+      maxActive = Math.max(maxActive, active);
+      order.push(`${label}-start`);
+      await new Promise(r => setTimeout(r, 30));
+      order.push(`${label}-end`);
+      active--;
+    };
+    const d1 = { chatId: '1', cwd: ws, kind: 'routing', messages: [{ text: '/status' }], state: null };
+    const d2 = { chatId: '1', cwd: ws, kind: 'routing', messages: [{ text: '/status' }], state: null };
+    await Promise.all([
+      dispatchOne(d1, makeInvoke('A'), undefined, () => {}),
+      dispatchOne(d2, makeInvoke('B'), undefined, () => {}),
+    ]);
+    assert.equal(maxActive, 1, 'both invoke() bodies were active at the same time — the cross-process lock did not serialize them');
+    assert.deepEqual(order, ['A-start', 'A-end', 'B-start', 'B-end']);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('dispatchOne does NOT serialize two concurrent calls for DIFFERENT workspace cwds', async () => {
+  const wsA = mkFakeWorkspace();
+  const wsB = mkFakeWorkspace();
+  try {
+    let active = 0;
+    let maxActive = 0;
+    const makeInvoke = () => async () => {
+      active++;
+      maxActive = Math.max(maxActive, active);
+      await new Promise(r => setTimeout(r, 30));
+      active--;
+    };
+    const d1 = { chatId: '1', cwd: wsA, kind: 'routing', messages: [{ text: '/status' }], state: null };
+    const d2 = { chatId: '2', cwd: wsB, kind: 'routing', messages: [{ text: '/status' }], state: null };
+    await Promise.all([
+      dispatchOne(d1, makeInvoke(), undefined, () => {}),
+      dispatchOne(d2, makeInvoke(), undefined, () => {}),
+    ]);
+    assert.equal(maxActive, 2, 'different workspaces should run concurrently, not be serialized by the same-workspace lock');
+  } finally {
+    rmSync(wsA, { recursive: true, force: true });
+    rmSync(wsB, { recursive: true, force: true });
+  }
 });
 
 test('sendCannedReply runs the telegram notify hook with forceEnabled — the repo root has no config/plugins.yml', async () => {
@@ -265,7 +351,13 @@ test('createRoutingQueue: a second routing dispatch for the SAME chat while the 
   assert.deepEqual(calls[1].messages, ['m2']);
 });
 
-test('createRoutingQueue: messages queued during the first dispatch are NOT lost — they fire as one follow-up call, not dropped', async () => {
+test('createRoutingQueue: messages queued during the first dispatch are NOT lost, and drain ONE AT A TIME — never batched into one follow-up call', async () => {
+  // 2026-09-12 fix: a single dispatch handling several queued messages at
+  // once has no mechanical guarantee it re-reads telegram-state.md between
+  // them (confirmed live: it lost track of its own pending confirmations
+  // partway through one such turn). Draining one message per dispatch closes
+  // that class of bug — this test locks in that every queued message gets
+  // its OWN dispatch call, in order, never bundled.
   const calls = [];
   let releaseFirst;
   const firstHeld = new Promise(r => { releaseFirst = r; });
@@ -276,7 +368,7 @@ test('createRoutingQueue: messages queued during the first dispatch are NOT lost
 
   const wrapped = createRoutingQueue();
   const first = wrapped({ chatId: 'bob', kind: 'routing', messages: ['m1'], cwd: '/repo/workspaces/bob', state: null }, fakeDispatch);
-  // Three more batches arrive in quick succession while the first is still running.
+  // Three more messages arrive in quick succession while the first is still running.
   wrapped({ chatId: 'bob', kind: 'routing', messages: ['m2'], cwd: '/repo/workspaces/bob', state: null }, fakeDispatch);
   wrapped({ chatId: 'bob', kind: 'routing', messages: ['m3'], cwd: '/repo/workspaces/bob', state: null }, fakeDispatch);
   const fourth = wrapped({ chatId: 'bob', kind: 'routing', messages: ['m4'], cwd: '/repo/workspaces/bob', state: null }, fakeDispatch);
@@ -285,12 +377,30 @@ test('createRoutingQueue: messages queued during the first dispatch are NOT lost
   await first;
   await fourth;
 
-  // Exactly 2 real dispatch calls: the first (m1), then ONE follow-up carrying
-  // every message that queued up while the first was running (m2, m3, m4) —
-  // never more than one extra call, never dropped.
-  assert.equal(calls.length, 2);
+  // 4 real dispatch calls, one per message, each carrying exactly one — never
+  // dropped, never bundled together.
+  assert.equal(calls.length, 4);
   assert.deepEqual(calls[0], ['m1']);
-  assert.deepEqual(calls[1], ['m2', 'm3', 'm4']);
+  assert.deepEqual(calls[1], ['m2']);
+  assert.deepEqual(calls[2], ['m3']);
+  assert.deepEqual(calls[3], ['m4']);
+});
+
+test('createRoutingQueue: several messages arriving in ONE call (same poll window, chat not yet in flight) still drain one at a time, not as a single batched dispatch', async () => {
+  // Distinct from the test above: this exercises the "not in flight yet, but
+  // this single wrappedDispatch call already carries >1 message" branch —
+  // e.g. a poll cycle that grouped several of Thomas's quick replies into one
+  // dispatch object before the queue ever saw them individually.
+  const calls = [];
+  const fakeDispatch = async (d) => { calls.push([...d.messages]); };
+
+  const wrapped = createRoutingQueue();
+  await wrapped({ chatId: 'dave', kind: 'routing', messages: ['m1', 'm2', 'm3'], cwd: '/repo/workspaces/dave', state: null }, fakeDispatch);
+
+  assert.equal(calls.length, 3);
+  assert.deepEqual(calls[0], ['m1']);
+  assert.deepEqual(calls[1], ['m2']);
+  assert.deepEqual(calls[2], ['m3']);
 });
 
 test('createRoutingQueue: a DIFFERENT chat is never held up by another chat\'s in-flight dispatch', async () => {
@@ -475,6 +585,127 @@ test('resolveReportForDispatch resolves the pending confirmation when ANY messag
   }
 });
 
+// ── resolveDisambiguationHint (2026-09-12 fix) ──
+//
+// modes/telegram.md documents SENDING a numbered disambiguation when 2+
+// confirmations are pending, but never documented how a later "1"/"2" reply
+// maps back to a specific one — nothing stored that mapping, so every fresh
+// dispatch had to re-derive it and reliably failed to, falling through to the
+// generic "commands need a /" nudge for a reply that was genuinely answering
+// an open question (confirmed live twice: msg 656 and msg 877, same failure).
+// This resolves the mapping deterministically from file order instead of
+// leaving it to the dispatched agent's own unaided judgment.
+
+test('resolveDisambiguationHint resolves "1" to the FIRST pending block when 2 are pending', () => {
+  const ws = fakeWorkspaceWithState(
+    '[msg_id: 872] stage: batch-approval — /applyall: 17 eligible\n  data: {}\n\n' +
+    '[msg_id: 865] stage: question — Report 80 low score override\n  report: 80\n  data: {}',
+  );
+  try {
+    const dispatch = { chatId: '1', cwd: ws, kind: 'routing', messages: [{ chatId: '1', text: '1' }], state: null };
+    const hint = resolveDisambiguationHint(dispatch);
+    assert.ok(hint, 'expected a resolution hint, got null');
+    assert.match(hint, /selects item 1: \[msg_id: 872\]/);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('resolveDisambiguationHint resolves "2" to the SECOND pending block', () => {
+  const ws = fakeWorkspaceWithState(
+    '[msg_id: 872] stage: batch-approval — /applyall: 17 eligible\n  data: {}\n\n' +
+    '[msg_id: 865] stage: question — Report 80 low score override\n  report: 80\n  data: {}',
+  );
+  try {
+    const dispatch = { chatId: '1', cwd: ws, kind: 'routing', messages: [{ chatId: '1', text: '2' }], state: null };
+    const hint = resolveDisambiguationHint(dispatch);
+    assert.ok(hint);
+    assert.match(hint, /selects item 2: \[msg_id: 865\]/);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('resolveDisambiguationHint returns null when only ONE confirmation is pending (Step 2\'s exactly-one auto-match already covers it)', () => {
+  const ws = fakeWorkspaceWithState('[msg_id: 398] stage: question — only one thing pending\n  data: {}');
+  try {
+    const dispatch = { chatId: '1', cwd: ws, kind: 'routing', messages: [{ chatId: '1', text: '1' }], state: null };
+    assert.equal(resolveDisambiguationHint(dispatch), null);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('resolveDisambiguationHint returns null when zero confirmations are pending', () => {
+  const ws = fakeWorkspaceWithState('(none)');
+  try {
+    const dispatch = { chatId: '1', cwd: ws, kind: 'routing', messages: [{ chatId: '1', text: '1' }], state: null };
+    assert.equal(resolveDisambiguationHint(dispatch), null);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('resolveDisambiguationHint returns null when the digit is out of range', () => {
+  const ws = fakeWorkspaceWithState(
+    '[msg_id: 872] stage: batch-approval — /applyall\n  data: {}\n\n' +
+    '[msg_id: 865] stage: question — low score override\n  data: {}',
+  );
+  try {
+    const dispatch = { chatId: '1', cwd: ws, kind: 'routing', messages: [{ chatId: '1', text: '3' }], state: null };
+    assert.equal(resolveDisambiguationHint(dispatch), null);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('resolveDisambiguationHint returns null for non-digit text, even with 2+ pending', () => {
+  const ws = fakeWorkspaceWithState(
+    '[msg_id: 872] stage: batch-approval — /applyall\n  data: {}\n\n' +
+    '[msg_id: 865] stage: question — low score override\n  data: {}',
+  );
+  try {
+    const dispatch = { chatId: '1', cwd: ws, kind: 'routing', messages: [{ chatId: '1', text: 'yes' }], state: null };
+    assert.equal(resolveDisambiguationHint(dispatch), null);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('resolveDisambiguationHint returns null for a multi-message dispatch (only single bare-digit dispatches resolve)', () => {
+  const ws = fakeWorkspaceWithState(
+    '[msg_id: 872] stage: batch-approval — /applyall\n  data: {}\n\n' +
+    '[msg_id: 865] stage: question — low score override\n  data: {}',
+  );
+  try {
+    const dispatch = { chatId: '1', cwd: ws, kind: 'routing', messages: [{ text: '1' }, { text: '2' }], state: null };
+    assert.equal(resolveDisambiguationHint(dispatch), null);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('buildRoutingPrompt injects the deterministic disambiguation hint into the prompt text when applicable', () => {
+  const ws = fakeWorkspaceWithState(
+    '[msg_id: 872] stage: batch-approval — /applyall: 17 eligible\n  data: {}\n\n' +
+    '[msg_id: 865] stage: question — Report 80 low score override\n  data: {}',
+  );
+  try {
+    const dispatch = { chatId: '1', cwd: ws, kind: 'routing', messages: [{ chatId: '1', text: '1' }], state: null };
+    const prompt = buildRoutingPrompt(dispatch);
+    assert.match(prompt, /DETERMINISTIC DISAMBIGUATION RESOLUTION/);
+    assert.match(prompt, /selects item 1: \[msg_id: 872\]/);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('buildRoutingPrompt still works with a bare messages array (back-compat), no hint injected', () => {
+  const prompt = buildRoutingPrompt([{ chatId: '1', text: '/status' }]);
+  assert.match(prompt, /\[HEADLESS\]/);
+  assert.doesNotMatch(prompt, /DETERMINISTIC DISAMBIGUATION RESOLUTION/);
+});
+
 test('checkCdpAlive returns true against a REAL holder endpoint and false once that browser is gone', async () => {
   // Deliberately unmocked, against a real launched browser: every other
   // liveness test injects a fake checkCdpAlive, which is exactly why a wrong
@@ -599,15 +830,20 @@ test('resolveBrowserMcpArgs falls back to [] (no override) if spawning or waitin
 });
 
 test('dispatchOne resolves and threads browser-session extraArgs for a ROUTING dispatch with a resolvable report', async () => {
-  const calls = [];
-  const fakeInvoke = async (prompt, cwd, timeoutMs, model, extraArgs) => { calls.push({ cwd, extraArgs }); };
-  const dispatch = {
-    chatId: '1', cwd: '/fake/workspace/alice', kind: 'routing',
-    messages: [{ chatId: '1', text: '/apply 937' }], state: null,
-  };
-  await dispatchOne(dispatch, fakeInvoke, async () => ['--mcp-config', '{"fake":true}', '--strict-mcp-config'], () => {});
-  assert.equal(calls.length, 1);
-  assert.deepEqual(calls[0].extraArgs, ['--mcp-config', '{"fake":true}', '--strict-mcp-config']);
+  const ws = mkFakeWorkspace();
+  try {
+    const calls = [];
+    const fakeInvoke = async (prompt, cwd, timeoutMs, model, extraArgs) => { calls.push({ cwd, extraArgs }); };
+    const dispatch = {
+      chatId: '1', cwd: ws, kind: 'routing',
+      messages: [{ chatId: '1', text: '/apply 937' }], state: null,
+    };
+    await dispatchOne(dispatch, fakeInvoke, async () => ['--mcp-config', '{"fake":true}', '--strict-mcp-config'], () => {});
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0].extraArgs, ['--mcp-config', '{"fake":true}', '--strict-mcp-config']);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
 });
 
 test('dispatchOne passes an empty extraArgs array for an ONBOARDING dispatch — never resolves a browser session for onboarding', async () => {

@@ -55,3 +55,16 @@ export function botIdentityCachePath(opts = {}) {
 export function dispatchLogPath(opts = {}) {
   return join(opts.repoRoot || REPO_ROOT, 'data', 'dispatch-log.jsonl');
 }
+
+// Diagnostic record of every data/telegram-state.md lock acquire/release
+// (see dispatchOne()'s STATE_LOCK_TIMEOUT_MS lock in telegram-monitor.mjs).
+// Added 2026-09-12 after a real dispatch's own telegram-state.md read
+// changed content mid-turn despite the lock supposedly covering that whole
+// turn — confirmed from the dispatch's session transcript, but with no way
+// to tell from that alone whether the lock was ever actually held, contended,
+// or bypassed. This log exists so the NEXT occurrence has direct evidence
+// (who held the lock, when, for how long, and what — if anything — was
+// waiting) instead of requiring transcript archaeology to reconstruct.
+export function stateLockLogPath(opts = {}) {
+  return join(opts.repoRoot || REPO_ROOT, 'data', 'logs', 'telegram-state-lock.jsonl');
+}
