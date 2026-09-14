@@ -712,6 +712,17 @@ async function main() {
   // resumed run re-scanning the in-flight overlap would duplicate them.
   for (const o of newOffers) seenUrls.add(normalizeUrlForDedup(o.url));
   const completedSources = new Set(checkpoint?.completedSources || []);
+  // How much of `newOffers` has already been written to pipeline.md, across
+  // this run's own periodic flushes AND any prior run(s) this checkpoint was
+  // resumed from. Without this, a multi-hour source (Workday routinely has
+  // 10k+ companies) never gets its matches in front of the candidate until
+  // EVERY requested source finishes in one sitting — found live 2026-09-11
+  // (thomas-acosta): Greenhouse/Lever/Ashby completed and sat on 460+ real
+  // matches while Workday alone (12,884 companies) was still a third of the
+  // way through, and a `/run` that got cut off before Workday finished threw
+  // all of it away every time, with pipeline.md never seeing a single one.
+  let mergedThroughIndex = checkpoint?.mergedThroughIndex || 0;
+  let anyFlushedThisRun = false;
   const cc = checkpoint?.counters || {};
   let totalCompaniesScanned = cc.totalCompaniesScanned || 0;
   let totalCompaniesAvailable = 0;
@@ -744,8 +755,41 @@ async function main() {
     includeUndated: opts.includeUndated,
     completedSources: [...completedSources],
     offers: newOffers,
+    mergedThroughIndex,
     savedAt: new Date().toISOString(),
   });
+
+  // Writes whatever of `newOffers` hasn't reached pipeline.md yet (same
+  // blacklist/liveness filtering the end-of-sweep summary applies), then
+  // advances mergedThroughIndex past it — called at every checkpoint point
+  // (periodic, per-source, resolver-outage) so a source too large to finish
+  // in one run still delivers what it's found so far. Never throws: a failed
+  // write leaves mergedThroughIndex where it was, so the same tail is retried
+  // on the next checkpoint tick or --resume instead of being silently lost.
+  const flushNewOffersToPipeline = async () => {
+    if (opts.dryRun) return;
+    const tail = newOffers.slice(mergedThroughIndex);
+    if (!tail.length) return;
+    const blacklistResult = filterBlacklistedOffers(tail, blacklist, { includeBlacklisted: opts.includeBlacklisted });
+    let toWrite = blacklistResult.offers;
+    if (toWrite.length && opts.liveness) toWrite = await filterLive(toWrite);
+    try {
+      if (toWrite.length) {
+        await appendToPipeline(toWrite);
+        appendToScanHistory(toWrite, date);
+        anyFlushedThisRun = true;
+        log(`\n  → flushed ${toWrite.length} new match${toWrite.length === 1 ? '' : 'es'} to pipeline.md`);
+      }
+      mergedThroughIndex = newOffers.length;
+    } catch (err) {
+      console.error(`\n⚠ pipeline flush failed (${err.message}) — ${tail.length} match(es) remain queued for the next flush/--resume`);
+    }
+  };
+  // Serializes flush calls scheduled from parallelEach's synchronous
+  // onItemDone callback (which can't itself be awaited) so two ticks firing
+  // close together never race on the same newOffers slice.
+  let flushChain = Promise.resolve();
+  const scheduleFlush = () => { flushChain = flushChain.then(flushNewOffersToPipeline); };
 
   // Per-job filter chain, shared by the parallel sweep, the truncation retry
   // pass (workday), and date enrichment (icims). Closure over the filters and
@@ -896,6 +940,7 @@ async function main() {
             totalErrors: totalErrors + errors,
           },
         });
+        scheduleFlush();
       }
     }, () => resolverOutage);
     // Second chance for boards the parallel sweep truncated: retry alone on a
@@ -955,12 +1000,14 @@ async function main() {
       // writes none, and a failed write (ENOSPC, read-only volume) leaves at
       // best the last periodic checkpoint — nothing at the offset named here.
       if (checkpointWritten) log(`     Rerun with --resume once the resolver recovers — checkpointed at company ${startAt + lastResumeAt} of ${name}.`);
+      scheduleFlush();
       break;
     }
     completedSources.add(name);
     if (!opts.dryRun) {
       writeCheckpoint({ ...checkpointBase(), current: null, counters: snapshotCounters() });
     }
+    scheduleFlush();
     log(`\n  done (${errors} unreachable boards skipped)`);
   }
 
@@ -1023,18 +1070,19 @@ async function main() {
     }
   }
 
-  // Persist (unless dry-run, or nothing to save).
+  // Persist (unless dry-run, or nothing to save). Most of `offers` was
+  // already written incrementally by scheduleFlush() ticks during the sweep
+  // (see flushNewOffersToPipeline above) — this only needs to drain whatever
+  // ran after the last tick (the final <CHECKPOINT_EVERY slice of the last
+  // source, plus any --seeds offers, which aren't checkpointed mid-loop).
   let saved = false;
   if (offers.length && !opts.dryRun) {
-    // appendToPipeline assumes the file exists (onboarding creates it) — cover fresh setups.
-    if (!existsSync(getPipelinePath())) {
-      mkdirSync(path.dirname(getPipelinePath()), { recursive: true });
-      writeFileSync(getPipelinePath(), '# Pipeline\n\n## Pendientes\n', 'utf-8');
-    }
-    await appendToPipeline(offers);
-    appendToScanHistory(offers, date);
-    saved = true;
-    log(`\nResults saved to ${getPipelinePath()} and data/scan-history.tsv`);
+    await flushChain;
+    await flushNewOffersToPipeline();
+    saved = anyFlushedThisRun;
+    log(saved
+      ? `\nResults saved to ${getPipelinePath()} and data/scan-history.tsv`
+      : `\n(all ${offers.length} match(es) were already saved to pipeline.md incrementally during this sweep)`);
 
     if (opts.mdOut) {
       try {
