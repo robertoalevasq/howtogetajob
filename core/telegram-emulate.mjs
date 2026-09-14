@@ -59,15 +59,23 @@ export function makeDisposableWorkspace() {
   // which ships ~100 demo tracked_companies -- fine for a real candidate,
   // needlessly slow for a harness scenario that only needs Step 0/early
   // Step 1 to be reachable quickly. Overwrite with the minimum valid shape
-  // validate-portals.mjs accepts (no required top-level fields beyond
-  // per-company checks, which only run against enabled companies).
+  // validate-portals.mjs accepts. Confirmed live 2026-09-14: an earlier
+  // version of this fixture used `[]` (an array) for location_filter and
+  // industry_companies -- validate-portals.mjs (lines 147-149, 266-269)
+  // requires both to be OBJECTS when present, so scenario 3 (/run) was
+  // dying at Pre-flight on a config error before ever reaching a point
+  // where a subagent-delegation decision could happen, silently
+  // invalidating the assertion it claims to make. `{}` (object, empty) is
+  // what the validator actually treats as "no filter configured" --
+  // confirmed by reading validateCompanyEntry()'s own undefined/isObject
+  // checks, not assumed.
   const portalsPath = join(wsDir, 'portals.yml');
   writeFileSync(portalsPath, yaml.dump({
     title_filter: { positive: ['Coordinator'], negative: [] },
-    location_filter: [],
+    location_filter: {},
     tracked_companies: [],
     search_queries: [],
-    industry_companies: [],
+    industry_companies: {},
   }), 'utf-8');
 
   return {
