@@ -11,13 +11,14 @@
 // risks a real send; assertions read state files and session transcripts,
 // never delivery confirmations.
 
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, statSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import yaml from 'js-yaml';
 import { provisionWorkspace } from './provision-workspace.mjs';
 import { findHubTranscriptFiles } from './admin-overview-snapshot.mjs';
-import { dispatchOne, spawnCapturingTail, resolveClaudeCommand } from './telegram-monitor.mjs';
+import { dispatchOne, spawnCapturingTail, resolveClaudeCommand, createRoutingQueue } from './telegram-monitor.mjs';
+import { isMainModule } from './is-main.mjs';
 
 const MINIMAL_CV = `# Test Candidate
 
@@ -188,7 +189,10 @@ export function assertNoAgentToolUse(transcriptPath) {
  * @returns {string | null}
  */
 export function readPendingConfirmationBlock(wsDir, msgId) {
-  const content = readFileSync(join(wsDir, 'data', 'telegram-state.md'), 'utf-8');
+  if (!/^\d+$/.test(String(msgId))) return null;
+  const statePath = join(wsDir, 'data', 'telegram-state.md');
+  if (!existsSync(statePath)) return null;
+  const content = readFileSync(statePath, 'utf-8');
   const afterHeader = content.split('## Pending Confirmations')[1];
   if (!afterHeader) return null;
   const section = afterHeader.split('## Batch Queue')[0];
@@ -210,65 +214,60 @@ const TEST_CHAT_ID = '999000111';
 export async function runDigitDisambiguationScenario() {
   const name = 'digit-disambiguation';
   const { wsDir, cleanup } = makeDisposableWorkspace();
-  try {
-    seedPendingConfirmations(wsDir,
-      '[msg_id: 100] stage: question — Test question A — waiting since 2026-01-01\n' +
-      '  report: 1\n  job_url: https://example.com/a\n  data: Test question A body\n\n' +
-      '[msg_id: 200] stage: question — Test question B — waiting since 2026-01-01\n' +
-      '  report: 2\n  job_url: https://example.com/b\n  data: Test question B body'
-    );
-    const before100 = readPendingConfirmationBlock(wsDir, '100');
-    const before200 = readPendingConfirmationBlock(wsDir, '200');
+  seedPendingConfirmations(wsDir,
+    '[msg_id: 100] stage: question — Test question A — waiting since 2026-01-01\n' +
+    '  report: 1\n  job_url: https://example.com/a\n  data: Test question A body\n\n' +
+    '[msg_id: 200] stage: question — Test question B — waiting since 2026-01-01\n' +
+    '  report: 2\n  job_url: https://example.com/b\n  data: Test question B body'
+  );
+  const before100 = readPendingConfirmationBlock(wsDir, '100');
+  const before200 = readPendingConfirmationBlock(wsDir, '200');
 
-    await dispatchOne({
-      chatId: TEST_CHAT_ID, cwd: wsDir, kind: 'routing',
-      messages: [{ chatId: TEST_CHAT_ID, messageId: 300, text: '1', date: Math.floor(Date.now() / 1000), replyToMessageId: null, from: 'Harness', isCommand: false }],
-    });
+  await dispatchOne({
+    chatId: TEST_CHAT_ID, cwd: wsDir, kind: 'routing',
+    messages: [{ chatId: TEST_CHAT_ID, messageId: 300, text: '1', date: Math.floor(Date.now() / 1000), replyToMessageId: null, from: 'Harness', isCommand: false }],
+  });
 
-    const after100 = readPendingConfirmationBlock(wsDir, '100');
-    const after200 = readPendingConfirmationBlock(wsDir, '200');
-    const item1Changed = after100 !== before100;
-    const item2Untouched = after200 === before200;
-    const passed = item1Changed && item2Untouched;
-    return {
-      name, passed,
-      detail: passed ? 'item 1 changed, item 2 untouched' : `item1Changed=${item1Changed} item2Untouched=${item2Untouched} (before100=${JSON.stringify(before100)}, after100=${JSON.stringify(after100)}, before200=${JSON.stringify(before200)}, after200=${JSON.stringify(after200)})`,
-    };
-  } finally {
-    cleanup();
-  }
+  const after100 = readPendingConfirmationBlock(wsDir, '100');
+  const after200 = readPendingConfirmationBlock(wsDir, '200');
+  const item1Changed = after100 !== before100;
+  const item2Untouched = after200 === before200;
+  const passed = item1Changed && item2Untouched;
+  const baseDetail = passed ? 'item 1 changed, item 2 untouched' : `item1Changed=${item1Changed} item2Untouched=${item2Untouched} (before100=${JSON.stringify(before100)}, after100=${JSON.stringify(after100)}, before200=${JSON.stringify(before200)}, after200=${JSON.stringify(after200)})`;
+  const result = { name, passed, detail: passed ? baseDetail : `${baseDetail} (workspace left at ${wsDir} for inspection)` };
+  if (result.passed) cleanup();
+  return result;
 }
 
 /**
- * Scenario 2: fires 3 `/status` messages for the same chat in quick
- * succession and asserts 3 SEPARATE session transcripts were created --
- * the mechanical check for the 2026-09-12 message-batching bug. `/status`
- * is used because it is documented as one-shot with no pending confirmation
- * (modes/telegram.md Step 3f), keeping this scenario fast and side-effect-free.
+ * Scenario 2: sends a single dispatch carrying 3 `/status` messages for the
+ * same chat through createRoutingQueue() (telegram-monitor.mjs) -- the same
+ * per-chat queue production code uses to serialize same-chat routing -- and
+ * asserts 3 SEPARATE session transcripts were created, one per message. This
+ * is the mechanical check for the 2026-09-12 message-batching bug: the bug
+ * was the queue collapsing multiple queued messages into one combined
+ * dispatch instead of draining them one at a time, so the scenario has to
+ * exercise the queue itself (not just call dispatchOne() directly per
+ * message) to be capable of catching a regression of it. `/status` is used
+ * because it is documented as one-shot with no pending confirmation
+ * (modes/telegram.md Step 3f). This is a real end-to-end run (3 real
+ * claude -p dispatches) -- not fast, not side-effect-free.
  *
  * @returns {Promise<{ name: string, passed: boolean, detail: string }>}
  */
 export async function runRapidFireBurstScenario() {
   const name = 'rapid-fire-burst';
   const { wsDir, tempRoot, cleanup } = makeDisposableWorkspace();
-  try {
-    const startMs = Date.now();
-    const makeMsg = (id) => ({ chatId: TEST_CHAT_ID, messageId: id, text: '/status', date: Math.floor(Date.now() / 1000), replyToMessageId: null, from: 'Harness', isCommand: true });
-    await Promise.all([
-      dispatchOne({ chatId: TEST_CHAT_ID, cwd: wsDir, kind: 'routing', messages: [makeMsg(400)] }),
-      dispatchOne({ chatId: TEST_CHAT_ID, cwd: wsDir, kind: 'routing', messages: [makeMsg(401)] }),
-      dispatchOne({ chatId: TEST_CHAT_ID, cwd: wsDir, kind: 'routing', messages: [makeMsg(402)] }),
-    ]);
-    const all = findHubTranscriptFiles(tempRoot);
-    const matching = all.filter(f => f.scope === 'workspace' && f.slug === 'test-candidate');
-    const passed = matching.length === 3;
-    return {
-      name, passed,
-      detail: passed ? '3 separate transcripts found' : `expected 3 transcripts, found ${matching.length}`,
-    };
-  } finally {
-    cleanup();
-  }
+  const makeMsg = (id) => ({ chatId: TEST_CHAT_ID, messageId: id, text: '/status', date: Math.floor(Date.now() / 1000), replyToMessageId: null, from: 'Harness', isCommand: true });
+  const queue = createRoutingQueue();
+  await queue({ chatId: TEST_CHAT_ID, cwd: wsDir, kind: 'routing', messages: [makeMsg(400), makeMsg(401), makeMsg(402)] }, dispatchOne);
+  const all = findHubTranscriptFiles(tempRoot);
+  const matching = all.filter(f => f.scope === 'workspace' && f.slug === 'test-candidate');
+  const passed = matching.length === 3;
+  const baseDetail = passed ? '3 separate transcripts found' : `expected 3 transcripts, found ${matching.length}`;
+  const result = { name, passed, detail: passed ? baseDetail : `${baseDetail} (workspace left at ${wsDir} for inspection)` };
+  if (result.passed) cleanup();
+  return result;
 }
 
 const CYCLE_DELEGATION_TIMEOUT_MS = 180_000; // 3 minutes -- enough to reach
@@ -278,6 +277,14 @@ const CYCLE_DELEGATION_TIMEOUT_MS = 180_000; // 3 minutes -- enough to reach
 // only observe the early part of a /run dispatch -- a deliberate, documented
 // limitation, not an oversight. Whether the call completes or times out,
 // whatever transcript exists by then is what gets asserted against.
+//
+// The spec's full assertion for this scenario is two-part: (a) no Agent/Task
+// tool-use, and (b) the cycle-lock is not left held-and-stale afterward. Only
+// (a) is implemented below. (b) is intentionally NOT implemented: this
+// scenario deliberately kills the dispatch at this timeout, and a
+// deliberately-killed run legitimately leaves its cycle-lock held (nothing
+// ran the Step 0 release path) -- asserting lock-not-stale here would fail
+// against expected behavior of this bounded-kill design, not a real bug.
 
 /**
  * Scenario 3: sends `/run` with a bounded real dispatch (timeoutMs =
@@ -285,61 +292,64 @@ const CYCLE_DELEGATION_TIMEOUT_MS = 180_000; // 3 minutes -- enough to reach
  * calls the Agent/Task tool -- the mechanical check for the 2026-09-13
  * subagent-delegation bug (see Task 1's warning). A timeout is an EXPECTED
  * outcome here, not a failure -- see the constant's own comment for why a
- * full cycle can never finish inside a bounded test window.
+ * full cycle can never finish inside a bounded test window, and for why the
+ * spec's cycle-lock half of this assertion is intentionally not checked here.
  *
  * @returns {Promise<{ name: string, passed: boolean, detail: string }>}
  */
 export async function runCycleDelegationScenario() {
   const name = 'cycle-delegation';
   const { wsDir, tempRoot, cleanup } = makeDisposableWorkspace();
+  const startMs = Date.now();
+  const boundedInvoke = (prompt, cwd, _timeoutMs, model, extraArgs) => {
+    const { cmd, shell } = resolveClaudeCommand();
+    const args = model ? ['-p', prompt, '--model', model, ...extraArgs] : ['-p', prompt, ...extraArgs];
+    return spawnCapturingTail(cmd, args, {
+      cwd, shell, timeoutMs: CYCLE_DELEGATION_TIMEOUT_MS,
+      exitErrorPrefix: 'claude -p routing exited',
+      timeoutErrorMessage: (ms) => `claude -p timed out after ${ms}ms`,
+    });
+  };
+
   try {
-    const startMs = Date.now();
-    const boundedInvoke = (prompt, cwd, _timeoutMs, model, extraArgs) => {
-      const { cmd, shell } = resolveClaudeCommand();
-      const args = model ? ['-p', prompt, '--model', model, ...extraArgs] : ['-p', prompt, ...extraArgs];
-      return spawnCapturingTail(cmd, args, {
-        cwd, shell, timeoutMs: CYCLE_DELEGATION_TIMEOUT_MS,
-        exitErrorPrefix: 'claude -p routing exited',
-        timeoutErrorMessage: (ms) => `claude -p timed out after ${ms}ms`,
-      });
-    };
+    await dispatchOne({
+      chatId: TEST_CHAT_ID, cwd: wsDir, kind: 'routing',
+      messages: [{ chatId: TEST_CHAT_ID, messageId: 500, text: '/run', date: Math.floor(Date.now() / 1000), replyToMessageId: null, from: 'Harness', isCommand: true }],
+    }, boundedInvoke);
+  } catch (err) {
+    if (!err.timedOut) throw err; // a timeout is expected (see constant comment); anything else is a real failure
+  }
 
-    try {
-      await dispatchOne({
-        chatId: TEST_CHAT_ID, cwd: wsDir, kind: 'routing',
-        messages: [{ chatId: TEST_CHAT_ID, messageId: 500, text: '/run', date: Math.floor(Date.now() / 1000), replyToMessageId: null, from: 'Harness', isCommand: true }],
-      }, boundedInvoke);
-    } catch (err) {
-      if (!err.timedOut) throw err; // a timeout is expected (see constant comment); anything else is a real failure
-    }
-
-    const transcriptPath = findLatestTranscript(tempRoot, 'test-candidate', startMs);
-    if (!transcriptPath) {
-      return { name, passed: false, detail: 'no transcript found for the /run dispatch' };
-    }
+  const transcriptPath = findLatestTranscript(tempRoot, 'test-candidate', startMs);
+  let result;
+  if (!transcriptPath) {
+    result = { name, passed: false, detail: 'no transcript found for the /run dispatch' };
+  } else {
     try {
       assertNoAgentToolUse(transcriptPath);
-      return { name, passed: true, detail: `no Agent/Task tool_use in ${transcriptPath}` };
+      result = { name, passed: true, detail: `no Agent/Task tool_use in ${transcriptPath}` };
     } catch (err) {
-      return { name, passed: false, detail: err.message };
+      result = { name, passed: false, detail: err.message };
     }
-  } finally {
-    // This scenario's pass/fail signal is already decided above by the time
-    // we get here. A killed real claude -p (see proc.kill() in
-    // spawnCapturingTail, invoked via the timeout path above) can still be
-    // tearing down its own spawned Bash-tool child processes on Windows,
-    // holding a file lock under tempRoot well past cleanup()'s own
-    // maxRetries/retryDelay budget -- confirmed live 2026-09-13 as an EPERM
-    // that otherwise replaces an already-correct return value with a thrown
-    // exception (a `finally` that throws overrides the `try` block's
-    // return). Unlike scenarios 1/2 (which never kill a real process and so
-    // should never legitimately hit this), a leftover, still-locked temp dir
-    // here is disposable-workspace hygiene for the OS to eventually reclaim,
-    // never a reason to discard a real assertion result.
+  }
+
+  if (result.passed) {
+    // A killed real claude -p (see proc.kill() in spawnCapturingTail, invoked
+    // via the timeout path above) can still be tearing down its own spawned
+    // Bash-tool child processes on Windows, holding a file lock under
+    // tempRoot well past cleanup()'s own maxRetries/retryDelay budget --
+    // confirmed live 2026-09-13 as an EPERM. Unlike scenarios 1/2 (which
+    // never kill a real process and so should never legitimately hit this),
+    // a leftover, still-locked temp dir here is disposable-workspace hygiene
+    // for the OS to eventually reclaim, never a reason to discard an
+    // already-decided passing result.
     try { cleanup(); } catch (err) {
       console.error(`[telegram-emulate] cleanup() failed for ${tempRoot} (leftover temp dir from a killed claude -p, non-fatal): ${err.message}`);
     }
+  } else {
+    result = { ...result, detail: `${result.detail} (workspace left at ${wsDir} for inspection)` };
   }
+  return result;
 }
 
 /**
@@ -352,7 +362,11 @@ export async function main() {
   const results = [];
   for (const scenario of scenarios) {
     console.log(`Running ${scenario.name}...`);
-    results.push(await scenario());
+    try {
+      results.push(await scenario());
+    } catch (err) {
+      results.push({ name: scenario.name, passed: false, detail: `threw: ${err.message}` });
+    }
   }
   console.log('\n=== telegram-emulate results ===');
   let anyFailed = false;
@@ -363,6 +377,6 @@ export async function main() {
   if (anyFailed) process.exitCode = 1;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isMainModule(import.meta.url)) {
   main();
 }

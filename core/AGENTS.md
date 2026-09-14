@@ -88,6 +88,7 @@ AI-powered, CLI-agnostic job search automation: pipeline tracking, offer evaluat
 | `data/.apply-browser-sessions.json` | Per-report `{endpoint, pid, createdAt}` registry of the running browser holder above (user layer, gitignored, one entry per in-progress application, removed by `apply-browser-holder.mjs --stop` or the holder's own idle timeout) |
 | `telegram-poll.mjs` | CLI wrapper around the `telegram` plugin's `ingest` hook — `poll` returns new bot messages as JSON, `reset` clears the stored offset (see `modes/telegram.md`) |
 | `data/telegram-state.md` | Pending confirmations, batch queue, and recent actions for `telegram` mode (user layer, gitignored, created on first-time setup) |
+| `telegram-emulate.mjs` | v1 real-dispatch emulation harness for Telegram routing bugs — drives real `claude -p` dispatches against synthetic messages in disposable workspaces. Fast/skip-gated by default; real end-to-end scenarios run via `CAREER_OPS_EMULATE_REAL=1 node --test tests/telegram-emulate.test.mjs` or `node core/telegram-emulate.mjs` directly |
 | `portals.yml` | Query and company config |
 | `templates/cv-template.html` | HTML template for CVs |
 | `templates/cv-template.tex` | LaTeX/Overleaf template for CVs |
