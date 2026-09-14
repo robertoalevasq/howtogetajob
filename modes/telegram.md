@@ -79,6 +79,8 @@ If a standalone confirm word or free-text reply arrives with **multiple** pendin
 
 ### Step 3a — Run full cycle
 
+**Read `modes/cycle.md`'s own top-of-file warning before doing anything else in this step — every one of `cycle.md`'s Steps 0-5 runs inline, never delegated to an Agent/Task subagent, no exceptions.** This is the first thing a headless `/run` dispatch reads; the confusion that produced the 2026-09-13 incident (see `cycle.md`'s warning for the full story) started here, not deep inside `cycle.md`.
+
 0. **Duplicate-run guard — check the lock BEFORE announcing anything.** Run `node core/cycle-lock.mjs status` first. If it returns `held: true` **and** `stale: false`, a cycle is genuinely in progress: reply `⏳ A search cycle is already running (started {startedAt}). I'll message you when it finishes — send /status anytime for progress.` and **stop here**; do not send the kickoff message, do not read `cycle.md`, do not start a second run. Otherwise (not held, or held-but-stale — a dead run whose lock is reclaimable) continue to step 1.
 
    This ordering matters: step 1's kickoff message is unconditional once reached, so checking the lock afterwards would announce "🚀 Starting a full search cycle" and then immediately contradict it with "already in progress" (found live 2026-08-27 — introduced by the 2026-08-26 fix below that made the kickoff mandatory-first). `cycle.md` Step 0 still runs its own `cycle-lock.mjs acquire` as the authoritative guard against a race between this check and the actual start; this step only prevents the misleading announcement.

@@ -1,5 +1,7 @@
 # Mode: cycle — Full Cycle (scan everything → pipeline → tracker → top-match PDFs)
 
+**Every step below runs inline, in this orchestrating turn — never delegated to an `Agent`/`Task` subagent.** Confirmed live 2026-09-13: a headless `/run` dispatch tried to delegate Steps 0-5 to an Agent, caught itself mid-turn ("I'm in headless mode... running in the background would end the turn prematurely"), retried by launching the agent "in foreground" (still a delegation), then re-checked the cycle lock, found **its own** just-acquired lock, concluded a different run was already active, and abandoned the cycle — leaving the lock held-and-stale and nothing ever scanned. The only place this mode ever delegates to a subagent is deep inside `modes/apply.md` Step 7b (Playwright form-filling) — that is a different flow than the scan/pipeline orchestration this file describes, and is never a reason to delegate any step written here.
+
 One command that runs the steps the user normally invokes separately: scan
 portals *and* the full public ATS universe → process the inbox → tracker is
 updated inline → make sure every strong match actually has a PDF → deliver
