@@ -109,7 +109,7 @@ const STATE_LOCK_TIMEOUT_MS = 4 * 60 * 60 * 1000; // 4 hours
  * problems disappear together and argv-array safety stays fully intact.
  */
 let resolvedClaude = null;
-function resolveClaudeCommand() {
+export function resolveClaudeCommand() {
   if (resolvedClaude) return resolvedClaude;
 
   if (process.platform !== 'win32') {

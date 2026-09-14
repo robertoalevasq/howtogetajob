@@ -157,3 +157,27 @@ test('readPendingConfirmationBlock returns the matching block, or null if absent
     cleanup();
   }
 });
+
+import { runDigitDisambiguationScenario, runRapidFireBurstScenario, runCycleDelegationScenario } from '../core/telegram-emulate.mjs';
+
+// These three are real end-to-end tests -- each spawns a real `claude -p`
+// process. Skipped by default (matches this plan's Global Constraints: only
+// a manual/opt-in run costs real dispatches, never part of the fast suite
+// test-all.mjs runs). Run explicitly with:
+//   CAREER_OPS_EMULATE_REAL=1 node --test tests/telegram-emulate.test.mjs
+const REAL = process.env.CAREER_OPS_EMULATE_REAL === '1';
+
+test('runDigitDisambiguationScenario resolves "1" to the first pending item, leaves the second untouched', { skip: !REAL }, async () => {
+  const result = await runDigitDisambiguationScenario();
+  assert.ok(result.passed, result.detail);
+});
+
+test('runRapidFireBurstScenario produces 3 separate dispatches, never one batched call', { skip: !REAL }, async () => {
+  const result = await runRapidFireBurstScenario();
+  assert.ok(result.passed, result.detail);
+});
+
+test('runCycleDelegationScenario never calls the Agent/Task tool', { skip: !REAL }, async () => {
+  const result = await runCycleDelegationScenario();
+  assert.ok(result.passed, result.detail);
+});
