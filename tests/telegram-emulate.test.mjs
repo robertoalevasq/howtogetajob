@@ -58,3 +58,46 @@ test('seedPendingConfirmations writes a telegram-state.md the REAL resolveDisamb
     cleanup();
   }
 });
+
+import { mkdtempSync as mkdtemp2, mkdirSync, writeFileSync as writeFile2, utimesSync, rmSync } from 'node:fs';
+import { findLatestTranscript } from '../core/telegram-emulate.mjs';
+import { hubProjectDirPrefix } from '../core/admin-overview-snapshot.mjs';
+import { tmpdir } from 'node:os';
+
+test('findLatestTranscript returns the newest matching transcript created at/after the given time', () => {
+  const fakeClaudeHome = mkdtemp2(join(tmpdir(), 'career-ops-emulate-claudehome-'));
+  const fakeTempRoot = mkdtemp2(join(tmpdir(), 'career-ops-emulate-reporoot-'));
+  try {
+    const prefix = hubProjectDirPrefix(fakeTempRoot);
+    const projectDir = join(fakeClaudeHome, 'projects', `${prefix}-workspaces-test-candidate`);
+    mkdirSync(projectDir, { recursive: true });
+
+    const oldFile = join(projectDir, 'old-session.jsonl');
+    const newFile = join(projectDir, 'new-session.jsonl');
+    writeFile2(oldFile, '{}\n', 'utf-8');
+    writeFile2(newFile, '{}\n', 'utf-8');
+    const oldTime = new Date('2020-01-01T00:00:00Z');
+    const newTime = new Date('2030-01-01T00:00:00Z');
+    utimesSync(oldFile, oldTime, oldTime);
+    utimesSync(newFile, newTime, newTime);
+
+    const since = new Date('2025-01-01T00:00:00Z').getTime();
+    const found = findLatestTranscript(fakeTempRoot, 'test-candidate', since, { claudeHome: fakeClaudeHome });
+    assert.equal(found, newFile);
+  } finally {
+    rmSync(fakeClaudeHome, { recursive: true, force: true });
+    rmSync(fakeTempRoot, { recursive: true, force: true });
+  }
+});
+
+test('findLatestTranscript returns null when nothing matches', () => {
+  const fakeClaudeHome = mkdtemp2(join(tmpdir(), 'career-ops-emulate-claudehome-empty-'));
+  const fakeTempRoot = mkdtemp2(join(tmpdir(), 'career-ops-emulate-reporoot-empty-'));
+  try {
+    const found = findLatestTranscript(fakeTempRoot, 'test-candidate', Date.now(), { claudeHome: fakeClaudeHome });
+    assert.equal(found, null);
+  } finally {
+    rmSync(fakeClaudeHome, { recursive: true, force: true });
+    rmSync(fakeTempRoot, { recursive: true, force: true });
+  }
+});

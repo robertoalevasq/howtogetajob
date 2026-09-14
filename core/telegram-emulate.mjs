@@ -11,11 +11,12 @@
 // risks a real send; assertions read state files and session transcripts,
 // never delivery confirmations.
 
-import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import yaml from 'js-yaml';
 import { provisionWorkspace } from './provision-workspace.mjs';
+import { findHubTranscriptFiles } from './admin-overview-snapshot.mjs';
 
 const MINIMAL_CV = `# Test Candidate
 
@@ -100,4 +101,26 @@ ${pendingBlock}
  */
 export function seedPendingConfirmations(wsDir, blocksText) {
   writeFileSync(join(wsDir, 'data', 'telegram-state.md'), TELEGRAM_STATE_TEMPLATE(blocksText), 'utf-8');
+}
+
+/**
+ * Finds the newest .jsonl session transcript belonging to the given
+ * disposable workspace slug, created at or after `sinceMs`. Reuses
+ * findHubTranscriptFiles() (admin-overview-snapshot.mjs) rather than a
+ * second implementation of Claude Code's project-directory naming.
+ *
+ * @param {string} tempRoot - the disposable workspace's temp root (NOT the wsDir itself -- same value passed as reposRoot to provisionWorkspace()).
+ * @param {string} slug - the workspace slug used with provisionWorkspace() (e.g. 'test-candidate').
+ * @param {number} sinceMs - epoch ms; only transcripts modified at/after this instant are considered.
+ * @param {{ claudeHome?: string }} [opts] - claudeHome override for tests; defaults to ~/.claude.
+ * @returns {string | null}
+ */
+export function findLatestTranscript(tempRoot, slug, sinceMs, opts = {}) {
+  const all = findHubTranscriptFiles(tempRoot, opts.claudeHome);
+  const matching = all
+    .filter(f => f.scope === 'workspace' && f.slug === slug)
+    .map(f => ({ path: f.path, mtimeMs: statSync(f.path).mtimeMs }))
+    .filter(f => f.mtimeMs >= sinceMs)
+    .sort((a, b) => b.mtimeMs - a.mtimeMs);
+  return matching.length > 0 ? matching[0].path : null;
 }
