@@ -54,6 +54,12 @@
         "hooks": [
           { "type": "command", "command": "node core/hooks/guard-playwright-delegation.mjs" }
         ]
+      },
+      {
+        "matcher": "mcp__playwright__browser_file_upload",
+        "hooks": [
+          { "type": "command", "command": "node core/hooks/guard-resume-filename.mjs" }
+        ]
       }
     ]
   }
