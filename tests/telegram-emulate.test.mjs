@@ -33,3 +33,28 @@ test('makeDisposableWorkspace writes a minimal portals.yml with zero tracked com
     cleanup();
   }
 });
+
+import { resolveDisambiguationHint } from '../core/telegram-monitor.mjs';
+import { seedPendingConfirmations } from '../core/telegram-emulate.mjs';
+
+test('seedPendingConfirmations writes a telegram-state.md the REAL resolveDisambiguationHint can parse', () => {
+  const { wsDir, cleanup } = makeDisposableWorkspace();
+  try {
+    seedPendingConfirmations(wsDir,
+      '[msg_id: 100] stage: question — Test question A — waiting since 2026-01-01\n' +
+      '  report: 1\n' +
+      '  job_url: https://example.com/a\n' +
+      '  data: Test question A body\n\n' +
+      '[msg_id: 200] stage: question — Test question B — waiting since 2026-01-01\n' +
+      '  report: 2\n' +
+      '  job_url: https://example.com/b\n' +
+      '  data: Test question B body'
+    );
+    const dispatch = { chatId: '999000111', cwd: wsDir, kind: 'routing', messages: [{ chatId: '999000111', text: '1' }] };
+    const hint = resolveDisambiguationHint(dispatch);
+    assert.ok(hint, 'the real production parser should resolve this seeded state');
+    assert.match(hint, /selects item 1: \[msg_id: 100\]/);
+  } finally {
+    cleanup();
+  }
+});

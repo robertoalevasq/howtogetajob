@@ -73,3 +73,31 @@ export function makeDisposableWorkspace() {
     cleanup: () => rmSync(tempRoot, { recursive: true, force: true }),
   };
 }
+
+const TELEGRAM_STATE_TEMPLATE = (pendingBlock) => `# Telegram State
+
+## Pending Confirmations
+
+${pendingBlock}
+
+## Batch Queue
+
+(none)
+
+## Recent Actions
+
+`;
+
+/**
+ * Writes data/telegram-state.md with the given raw pending-confirmation
+ * block text (same `[msg_id: N] stage: ...` shape production code writes)
+ * between the standard headers. `blocksText` is inserted verbatim -- callers
+ * separate multiple blocks with a blank line, matching the real file format
+ * `resolveDisambiguationHint()`/`resolveReportForDispatch()` already parse.
+ *
+ * @param {string} wsDir
+ * @param {string} blocksText
+ */
+export function seedPendingConfirmations(wsDir, blocksText) {
+  writeFileSync(join(wsDir, 'data', 'telegram-state.md'), TELEGRAM_STATE_TEMPLATE(blocksText), 'utf-8');
+}
