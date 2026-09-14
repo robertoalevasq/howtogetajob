@@ -101,3 +101,59 @@ test('findLatestTranscript returns null when nothing matches', () => {
     rmSync(fakeTempRoot, { recursive: true, force: true });
   }
 });
+
+import { readTranscriptToolUses, assertNoAgentToolUse, readPendingConfirmationBlock } from '../core/telegram-emulate.mjs';
+
+function writeFakeTranscript(path, toolNames) {
+  const lines = toolNames.map(name => JSON.stringify({
+    message: { role: 'assistant', content: [{ type: 'tool_use', name, input: {} }] },
+  }));
+  writeFile2(path, lines.join('\n') + '\n', 'utf-8');
+}
+
+test('readTranscriptToolUses lists every tool_use name in a transcript', () => {
+  const dir = mkdtemp2(join(tmpdir(), 'career-ops-emulate-transcript-'));
+  try {
+    const p = join(dir, 'session.jsonl');
+    writeFakeTranscript(p, ['Read', 'Bash', 'Edit']);
+    assert.deepEqual(readTranscriptToolUses(p), ['Read', 'Bash', 'Edit']);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('assertNoAgentToolUse passes when no Agent/Task tool_use is present', () => {
+  const dir = mkdtemp2(join(tmpdir(), 'career-ops-emulate-transcript-clean-'));
+  try {
+    const p = join(dir, 'session.jsonl');
+    writeFakeTranscript(p, ['Read', 'Bash']);
+    assert.doesNotThrow(() => assertNoAgentToolUse(p));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('assertNoAgentToolUse throws when an Agent tool_use is present', () => {
+  const dir = mkdtemp2(join(tmpdir(), 'career-ops-emulate-transcript-dirty-'));
+  try {
+    const p = join(dir, 'session.jsonl');
+    writeFakeTranscript(p, ['Read', 'Agent', 'Bash']);
+    assert.throws(() => assertNoAgentToolUse(p), /Agent/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('readPendingConfirmationBlock returns the matching block, or null if absent', () => {
+  const { wsDir, cleanup } = makeDisposableWorkspace();
+  try {
+    seedPendingConfirmations(wsDir,
+      '[msg_id: 100] stage: question — A\n  data: {}\n\n[msg_id: 200] stage: question — B\n  data: {}'
+    );
+    const found = readPendingConfirmationBlock(wsDir, '100');
+    assert.match(found, /\[msg_id: 100\] stage: question — A/);
+    assert.equal(readPendingConfirmationBlock(wsDir, '999'), null);
+  } finally {
+    cleanup();
+  }
+});

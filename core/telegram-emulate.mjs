@@ -124,3 +124,62 @@ export function findLatestTranscript(tempRoot, slug, sinceMs, opts = {}) {
     .sort((a, b) => b.mtimeMs - a.mtimeMs);
   return matching.length > 0 ? matching[0].path : null;
 }
+
+/**
+ * Every tool_use name found anywhere in a session transcript, in order of
+ * appearance. Reads line-by-line JSONL, same shape used throughout this
+ * codebase's own transcript-mining code (see admin-overview-snapshot.mjs).
+ *
+ * @param {string} transcriptPath
+ * @returns {string[]}
+ */
+export function readTranscriptToolUses(transcriptPath) {
+  const lines = readFileSync(transcriptPath, 'utf-8').split('\n').filter(Boolean);
+  const names = [];
+  for (const line of lines) {
+    let obj;
+    try { obj = JSON.parse(line); } catch { continue; }
+    const content = obj.message?.content;
+    if (!Array.isArray(content)) continue;
+    for (const c of content) {
+      if (c.type === 'tool_use' && typeof c.name === 'string') names.push(c.name);
+    }
+  }
+  return names;
+}
+
+/**
+ * Throws if the transcript ever calls the Agent or Task tool -- the
+ * mechanical check for the 2026-09-13 /run delegation bug (see cycle.md's
+ * top-of-file warning, Task 1 of this plan).
+ *
+ * @param {string} transcriptPath
+ */
+export function assertNoAgentToolUse(transcriptPath) {
+  const names = readTranscriptToolUses(transcriptPath);
+  const offenders = names.filter(n => n === 'Agent' || n === 'Task');
+  if (offenders.length > 0) {
+    throw new Error(`Expected no Agent/Task tool_use in ${transcriptPath}, found ${offenders.length}: ${offenders.join(', ')}`);
+  }
+}
+
+/**
+ * Returns the raw `[msg_id: N] stage: ... ...` block text for one pending
+ * confirmation from a workspace's current data/telegram-state.md, or null
+ * if that msg_id isn't currently pending. Used to assert a specific item
+ * was resolved (block disappears) while a sibling item was untouched (block
+ * survives unchanged).
+ *
+ * @param {string} wsDir
+ * @param {string} msgId
+ * @returns {string | null}
+ */
+export function readPendingConfirmationBlock(wsDir, msgId) {
+  const content = readFileSync(join(wsDir, 'data', 'telegram-state.md'), 'utf-8');
+  const afterHeader = content.split('## Pending Confirmations')[1];
+  if (!afterHeader) return null;
+  const section = afterHeader.split('## Batch Queue')[0];
+  const re = new RegExp(`(\\[msg_id: ${msgId}\\][\\s\\S]*?)(?=\\n\\[msg_id: |$)`);
+  const m = re.exec(section.trim());
+  return m ? m[1].trim() : null;
+}
