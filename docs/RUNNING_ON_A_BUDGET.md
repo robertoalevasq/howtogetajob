@@ -292,7 +292,7 @@ for (const f of ['modes/_shared.md','modes/oferta.md','AGENTS.md'])
 
 ### What the default path costs (this is the number most people are actually paying)
 
-The figures above are for the standalone script. **If you paste a job URL into your CLI instead, the agent loads `AGENTS.md` (8,285) + `modes/_shared.md` (4,127) + `modes/oferta.md` (13,601) = about 26,000 tokens of instructions per evaluation**, before your CV, the job description, or any tool output. That is the real floor of an interactive evaluation, and it is why a long session of pasting URLs burns a quota that a batch of standalone script calls would not.
+The figures above are for the standalone script. **If you paste a job URL into your CLI instead, the agent loads `AGENTS.md` (~12,700) + `modes/_shared.md` (~4,200) + `modes/oferta.md` (~14,500) = about 31,000 tokens of instructions per evaluation**, before your CV, the job description, or any tool output. That is the real floor of an interactive evaluation, and it is why a long session of pasting URLs burns a quota that a batch of standalone script calls would not. These numbers drift upward as the docs grow — re-run the measurement command below rather than trusting this paragraph.
 
 Two things follow from that, and they are the cheapest wins available:
 
