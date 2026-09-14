@@ -15,7 +15,7 @@ test('makeDisposableWorkspace creates a workspace with junctions to the real cor
     assert.ok(existsSync(join(wsDir, 'cv.md')), 'a minimal cv.md should be seeded');
     assert.ok(existsSync(join(wsDir, 'config', 'profile.yml')), 'profile.yml should be seeded from the template');
     const plugins = yaml.load(readFileSync(join(wsDir, 'config', 'plugins.yml'), 'utf-8'));
-    assert.equal(plugins.telegram.enabled, false, 'telegram must stay disabled in every disposable workspace');
+    assert.equal(plugins.plugins.telegram.enabled, false, 'telegram must stay disabled in every disposable workspace');
     assert.ok(existsSync(join(wsDir, 'data', 'telegram-state.md')) === false, 'no telegram-state.md until a scenario seeds one');
   } finally {
     cleanup();

@@ -34,7 +34,7 @@ January 2024 - Present
 
 ### Example University
 
-**Bachelor of Science
+**Bachelor of Science**
 `;
 
 /**
@@ -65,16 +65,6 @@ export function makeDisposableWorkspace() {
     tracked_companies: [],
     search_queries: [],
     industry_companies: [],
-  }), 'utf-8');
-
-  // Override plugins.yml to ensure telegram is disabled. The template has
-  // structure plugins: { telegram: { enabled: false } }, but we need the
-  // flat structure for the test assertions.
-  const pluginsPath = join(wsDir, 'config', 'plugins.yml');
-  writeFileSync(pluginsPath, yaml.dump({
-    telegram: {
-      enabled: false,
-    },
   }), 'utf-8');
 
   return {
