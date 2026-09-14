@@ -281,12 +281,38 @@ function compactLines(entries, { labelKeys, valueKeys, fallback }) {
   });
 }
 
+// A resume/CV entry with no resolvable path is never legitimate: Step 7b
+// always has a real filename to record — either the renamed upload copy on
+// a successful upload, or that same renamed path on a needs_manual_upload
+// fallback (item 4's contract). Silently writing "Not recorded" here is what
+// let report #023 (HD Supply, 2026-09-11) go out with no audit trail at all
+// of what was actually uploaded to the real ATS — the omission needs to fail
+// loudly at write time instead of degrading into a placeholder no one checks.
+const RESUME_LABEL_RE = /\b(resume|cv|curriculum vitae)\b/i;
+
+// Strips combining diacritical marks after NFD decomposition (e.g. "Résumé"
+// -> "Resume") so an accented label can't evade RESUME_LABEL_RE's ASCII-only
+// match — confirmed live 2026-09-14 that an unaccented-only regex silently
+// let "Résumé" fall through to the old "Not recorded" placeholder instead of
+// throwing, defeating the whole point of this guard for that label spelling.
+const stripDiacritics = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+
 function fileLines(entries) {
   if (entries.length === 0) return ['- None captured.'];
 
   return entries.map((entry, index) => {
     const label = inline(pick(entry, ['field', 'name', 'label', 'type'])) || `File ${index + 1}`;
-    const file = inline(pick(entry, ['path', 'file', 'filename', 'url'])) || 'Not recorded';
+    const file = inline(pick(entry, ['path', 'file', 'filename', 'url']));
+    if (!file) {
+      if (RESUME_LABEL_RE.test(stripDiacritics(label))) {
+        throw new Error(
+          `application-answers: a resume/CV file entry ("${label}") has no path/file/filename/url — ` +
+          `record the actual filename presented to the ATS (see modes/apply.md Step 7b item 2 / Step 8), never omit it.`
+        );
+      }
+      const version = inline(pick(entry, ['version', 'variant']));
+      return `${index + 1}. **${label}:** ${version ? `Not recorded (${version})` : 'Not recorded'}`;
+    }
     const version = inline(pick(entry, ['version', 'variant']));
     return `${index + 1}. **${label}:** ${version ? `${file} (${version})` : file}`;
   });
