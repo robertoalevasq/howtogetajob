@@ -54,7 +54,7 @@ pipeline backlog) instead.
 4. **Every count you state — in the terminal, in a Discord tick, in the Step 4 summary, or in
    answer to "how's it going?" — is read from disk at that instant, never from memory of what you
    said earlier in this conversation.** Sources of truth: `data/pipeline.md`'s Pending/Processed
-   section lengths, `batch/tracker-additions/*.tsv` row counts for this run, the `reports/`
+   section lengths, `data/tracker-additions/*.tsv` row counts for this run, the `reports/`
    directory listing, and `data/cache/cycle-status.json` (see Progress Reporting). A number carried
    forward from an earlier turn is exactly how the same run reported "4 keepers" and then "14
    keepers" for the same underlying state.
@@ -336,7 +336,7 @@ time, not just when it "looks big":
 - **Tracker writes go through TSV, never a direct edit to
   `data/applications.md`.** This is a system-wide rule (`modes/_shared.md`'s
   ALWAYS list), not just a `_custom.md` preference: write each result to
-  `batch/tracker-additions/{num}-{company-slug}.tsv` (per the format in
+  `data/tracker-additions/{num}-{company-slug}.tsv` (per the format in
   `AGENTS.md`), the same as any other pipeline evaluation. `cycle` does not
   change this — Step 3 and Step 4 below read from the TSVs it produces, not
   from `data/applications.md`, precisely because this run's results are not
@@ -368,7 +368,7 @@ before this run.
 Don't rely on Step 2's narrated summary table to decide what needs a PDF — at
 cycle-scale volume that text can be long, and a long inline run risks it being
 thinned by conversation compaction. Read this run's
-`batch/tracker-additions/*.tsv` files directly instead (ground truth Step 2
+`data/tracker-additions/*.tsv` files directly instead (ground truth Step 2
 just finished writing — not `data/applications.md`, which won't reflect this
 run until someone runs `merge-tracker.mjs`, deferred or not per the note
 above) and find every TSV row from this run that:
@@ -417,7 +417,7 @@ re-running is safe and cheap rather than starting over.
 
 ## Step 3.5 — Tracker merge decision
 
-Every result from this run so far lives in `batch/tracker-additions/*.tsv`,
+Every result from this run so far lives in `data/tracker-additions/*.tsv`,
 not `data/applications.md` (see Step 2's tracker-write note). Whether that
 stays that way depends on `_custom.md`:
 
@@ -460,7 +460,7 @@ this run's own new rows too — that ordering is deliberate.
 
 ## Step 4 — Summary
 
-**Every `N` below is counted fresh from `data/pipeline.md`, `batch/tracker-additions/*.tsv`, and
+**Every `N` below is counted fresh from `data/pipeline.md`, `data/tracker-additions/*.tsv`, and
 `reports/` at the moment this summary is written** — never reused from earlier narration in this
 run, including your own (Guardrail 4). Print one consolidated report:
 
