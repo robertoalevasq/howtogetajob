@@ -240,12 +240,38 @@ export async function runDigitDisambiguationScenario() {
 }
 
 /**
- * Scenario 2: sends a single dispatch carrying 3 `/status` messages for the
- * same chat through createRoutingQueue() (telegram-monitor.mjs) -- the same
+ * Scenario 2: fires 3 SEPARATE, non-awaited `/status` dispatches for the same
+ * chat through createRoutingQueue() (telegram-monitor.mjs) -- the same
  * per-chat queue production code uses to serialize same-chat routing -- and
- * asserts 3 SEPARATE session transcripts were created, one per message. This
- * is the mechanical check for the 2026-09-12 message-batching bug: the bug
- * was the queue collapsing multiple queued messages into one combined
+ * asserts 3 SEPARATE session transcripts were created, one per message.
+ *
+ * This exercises BOTH of the queue's real trigger paths for a second/third
+ * message arriving for the same chat. Path A (initial-split branch): several
+ * messages already bundled into one dispatch call runs the first immediately
+ * and queues the rest -- covered by call 1 alone if it carried >1 message.
+ * Path B (`inFlight` branch): a LATER, separate call for a chat that already
+ * has a dispatch running hits `queued.set(chatId, existing.concat(incoming))`
+ * instead -- a genuinely different code path with its own accumulation logic
+ * that path A's coverage does not touch. This scenario exercises path B by
+ * firing calls 2 and 3 without awaiting call 1, mirroring the real daemon's
+ * `fanOutDispatches()`, which calls `dispatch(d).catch(...)` without awaiting
+ * so a second poll-loop message for the same chat can genuinely arrive while
+ * an earlier one is still in flight.
+ *
+ * `Promise.all([p1, p2, p3])` is safe here even though calls 2 and 3 resolve
+ * immediately (queuing behind an in-flight chat returns `Promise.resolve()`
+ * with no wait -- see createRoutingQueue's `inFlight` branch): call 1's own
+ * returned promise is `realDispatch(d).finally(() => ... return
+ * runNext(next))`, and `.finally()` postpones its own settlement until a
+ * promise its callback returns has settled. Because messages 2 and 3 are
+ * synchronously enqueued (`queued.set`) before call 1's real dispatch
+ * resolves, call 1's promise recursively chains through the *entire* drain --
+ * msg400, then msg401, then msg402 -- before it settles, so `Promise.all`
+ * genuinely waits for all 3 real dispatches to finish, not just for call 1's
+ * first message.
+ *
+ * This is the mechanical check for the 2026-09-12 message-batching bug: the
+ * bug was the queue collapsing multiple queued messages into one combined
  * dispatch instead of draining them one at a time, so the scenario has to
  * exercise the queue itself (not just call dispatchOne() directly per
  * message) to be capable of catching a regression of it. `/status` is used
@@ -260,7 +286,12 @@ export async function runRapidFireBurstScenario() {
   const { wsDir, tempRoot, cleanup } = makeDisposableWorkspace();
   const makeMsg = (id) => ({ chatId: TEST_CHAT_ID, messageId: id, text: '/status', date: Math.floor(Date.now() / 1000), replyToMessageId: null, from: 'Harness', isCommand: true });
   const queue = createRoutingQueue();
-  await queue({ chatId: TEST_CHAT_ID, cwd: wsDir, kind: 'routing', messages: [makeMsg(400), makeMsg(401), makeMsg(402)] }, dispatchOne);
+  // Fire all 3 without awaiting between them -- see JSDoc above for why
+  // Promise.all still waits for all 3 real dispatches to actually finish.
+  const p1 = queue({ chatId: TEST_CHAT_ID, cwd: wsDir, kind: 'routing', messages: [makeMsg(400)] }, dispatchOne);
+  const p2 = queue({ chatId: TEST_CHAT_ID, cwd: wsDir, kind: 'routing', messages: [makeMsg(401)] }, dispatchOne);
+  const p3 = queue({ chatId: TEST_CHAT_ID, cwd: wsDir, kind: 'routing', messages: [makeMsg(402)] }, dispatchOne);
+  await Promise.all([p1, p2, p3]);
   const all = findHubTranscriptFiles(tempRoot);
   const matching = all.filter(f => f.scope === 'workspace' && f.slug === 'test-candidate');
   const passed = matching.length === 3;
