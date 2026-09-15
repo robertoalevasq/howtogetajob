@@ -2413,6 +2413,19 @@ try {
     fail('buildCycleResumePrompt lost its unmarked-rows / never-ask guards');
   }
 
+  // The discard log is only useful if its timestamp column is real. Confirmed
+  // live 2026-09-15: a batch stamped all 10 discard lines `20:15:00Z` for work
+  // it did after `20:46:08Z` — a literal written from memory, not a clock read.
+  if (
+    /data\/discard\.log/.test(resumePrompt) &&
+    /date -u \+%Y-%m-%dT%H:%M:%SZ/.test(resumePrompt) &&
+    /never write a literal timestamp from memory/.test(resumePrompt)
+  ) {
+    pass('buildCycleResumePrompt requires a real clock read for each discard-log timestamp');
+  } else {
+    fail('buildCycleResumePrompt lost its discard-log clock-read requirement');
+  }
+
   // Every path named in the prompt must be real — a resume cannot verify an
   // instruction, it just follows it, so a stale path here silently degrades
   // every batch. Two claims in the first draft of this block were wrong.
