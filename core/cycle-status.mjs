@@ -127,6 +127,15 @@ export async function update(patch, opts = {}) {
         counters: { ...state.counters, ...(patch.counters || {}) },
       };
       if (patch.step) merged.step = patch.step;
+      // A progress checkpoint implicitly clears any previous stop reason: a
+      // run cannot be both stopped and advancing. Without this, the spread
+      // above makes lastStopReason sticky forever — the batch-limit written
+      // when batch 1 ended would still be there mid-batch-9, so nothing
+      // downstream could tell "paused at a boundary" from "working".
+      if (patch.step && !('lastStopReason' in patch)) {
+        merged.lastStopReason = null;
+        merged.resumeNotBefore = null;
+      }
       saveState(merged);
       return merged;
     } finally {
@@ -178,9 +187,18 @@ export const STALL_AFTER_MS = 40 * 60_000;
  * faithfully, because `step.id` was still `pass_b`. Both paths now answer from
  * this one function so they can never disagree again.
  *
- * @param {{step?: {id?: string}, savedAt?: string}} state
+ * 'paused' added 2026-09-15: a clean batch-limit stop writes a FRESH savedAt
+ * as its last act before exiting, so a dead-but-recent run read as 'running'
+ * for up to 40 minutes. Thomas Acosta hit exactly this — `/run`, then
+ * `/status` 14 minutes later reporting "running" about a process that had
+ * already exited, then `/status` again past the window reporting "stalled",
+ * with nothing having changed in between but the clock. lastStopReason
+ * answers it directly and without a timer, now that update() stops carrying
+ * a stale one forward.
+ *
+ * @param {{step?: {id?: string}, savedAt?: string, lastStopReason?: string|null}} state
  * @param {number} [now] - injectable clock for tests.
- * @returns {{state: 'no_run'|'running'|'stalled'|'done', staleMs: number|null, lastUpdateAgo: string|null}}
+ * @returns {{state: 'no_run'|'running'|'paused'|'stalled'|'done', staleMs: number|null, lastUpdateAgo: string|null}}
  */
 export function computeLiveness(state, now = Date.now()) {
   if (!state || !state.savedAt) return { state: 'no_run', staleMs: null, lastUpdateAgo: null };
@@ -189,7 +207,13 @@ export function computeLiveness(state, now = Date.now()) {
   const staleMs = now - savedMs;
   const lastUpdateAgo = formatDuration(staleMs);
   if (state.step?.id === 'done') return { state: 'done', staleMs, lastUpdateAgo };
-  return { state: staleMs > STALL_AFTER_MS ? 'stalled' : 'running', staleMs, lastUpdateAgo };
+  // Staleness still wins: a run that stopped cleanly and then sat unresumed
+  // past the stall window is stuck, whatever its stop reason says.
+  if (staleMs > STALL_AFTER_MS) return { state: 'stalled', staleMs, lastUpdateAgo };
+  if (state.lastStopReason === 'batch-limit' || state.lastStopReason === 'session-limit') {
+    return { state: 'paused', staleMs, lastUpdateAgo };
+  }
+  return { state: 'running', staleMs, lastUpdateAgo };
 }
 
 /** Human-readable render of the current status (or "no run" if the file is absent). */
@@ -197,10 +221,13 @@ export function render() {
   if (!existsSync(STATUS_PATH)) return 'No cycle run has recorded status yet.';
   const state = loadState();
   const staleMs = Date.now() - new Date(state.savedAt).getTime();
-  const stalled = computeLiveness(state).state === 'stalled';
+  const liveness = computeLiveness(state);
+  const note = liveness.state === 'stalled' ? '  ⚠️  stalled? no update in 40m+'
+    : liveness.state === 'paused' ? `  ⏸  paused (${state.lastStopReason}) — auto-resume queued`
+    : '';
   const lines = [
     `cycle run ${state.runId}`,
-    `step: ${state.step.label || state.step.id} (updated ${formatDuration(staleMs)})${stalled ? '  ⚠️  stalled? no update in 40m+' : ''}`,
+    `step: ${state.step.label || state.step.id} (updated ${formatDuration(staleMs)})${note}`,
     '',
     'counters:',
     ...Object.entries(state.counters).map(([k, v]) => `  ${k}: ${v}`),

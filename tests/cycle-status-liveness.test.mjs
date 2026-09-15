@@ -57,3 +57,68 @@ test('a missing or unparseable record reports no_run rather than guessing', () =
   assert.equal(computeLiveness({}, NOW).state, 'no_run');
   assert.equal(computeLiveness({ step: { id: 'pass_b' }, savedAt: 'not-a-date' }, NOW).state, 'no_run');
 });
+
+// --- 'paused' (added 2026-09-15) -------------------------------------------
+// Thomas Acosta's /status sequence: /run, then /status 14 minutes later saying
+// "running" about an already-exited process, then /status again past the
+// 40-minute window saying "stalled" — two contradictory answers with nothing
+// changed between them but the clock. A clean batch-limit stop writes a fresh
+// savedAt as its last act, so staleness alone can never see it.
+
+import { mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+test('a clean batch-limit stop reports paused, not running', () => {
+  const state = { step: { id: '2-pipeline' }, savedAt: ago(14 * 60_000), lastStopReason: 'batch-limit' };
+  assert.equal(computeLiveness(state, NOW).state, 'paused');
+});
+
+test('a session-limit cutoff also reports paused', () => {
+  const state = { step: { id: '2-pipeline' }, savedAt: ago(60_000), lastStopReason: 'session-limit' };
+  assert.equal(computeLiveness(state, NOW).state, 'paused');
+});
+
+test('a genuinely working run with no stop reason still reports running', () => {
+  const state = { step: { id: '2-pipeline' }, savedAt: ago(60_000), lastStopReason: null };
+  assert.equal(computeLiveness(state, NOW).state, 'running');
+});
+
+test('staleness still wins over a stop reason — a paused run left unresumed is stuck', () => {
+  // With auto-resume working, a batch boundary is picked up within ~25s. Still
+  // sitting there 3 hours later means the resume never happened: that is
+  // stalled, and must not be reported as a healthy "queued to continue".
+  const state = { step: { id: '2-pipeline' }, savedAt: ago(3 * 60 * 60_000), lastStopReason: 'batch-limit' };
+  assert.equal(computeLiveness(state, NOW).state, 'stalled');
+});
+
+test('a completed run reports done even carrying a stop reason', () => {
+  const state = { step: { id: 'done' }, savedAt: ago(60_000), lastStopReason: 'batch-limit' };
+  assert.equal(computeLiveness(state, NOW).state, 'done');
+});
+
+test('THE STICKY BUG: a progress checkpoint clears a previous stop reason', async () => {
+  // Before this fix update() spread the old state, so the batch-limit written
+  // when batch 1 ended survived every later checkpoint — leaving a run that
+  // was actively working batch 9 permanently labeled "paused".
+  const statusPath = join(mkdtempSync(join(tmpdir(), 'cycle-sticky-')), 'cycle-status.json');
+  process.env.CAREER_OPS_CYCLE_STATUS = statusPath;
+  const mod = await import('../core/cycle-status.mjs?stickyStopReasonTest');
+
+  await mod.update({ step: { id: '2-pipeline', label: 'Batch 1' }, lastStopReason: 'batch-limit' });
+  assert.equal(mod.computeLiveness(JSON.parse(readFileSync(statusPath, 'utf8'))).state, 'paused');
+
+  // The resumed batch checkpoints progress without mentioning lastStopReason.
+  await mod.update({ step: { id: '2-pipeline', label: 'Batch 2' }, counters: { pipelineUrlsProcessed: 40 } });
+  const after = JSON.parse(readFileSync(statusPath, 'utf8'));
+  assert.equal(after.lastStopReason, null, 'a progress checkpoint must clear the stop reason');
+  assert.equal(mod.computeLiveness(after).state, 'running');
+
+  // An explicit stop reason in the patch is still honored.
+  await mod.update({ step: { id: '2-pipeline', label: 'Batch 2' }, lastStopReason: 'batch-limit' });
+  assert.equal(mod.computeLiveness(JSON.parse(readFileSync(statusPath, 'utf8'))).state, 'paused');
+
+  // A patch with no step at all (counters-only) must not clear it either way.
+  await mod.update({ counters: { reportsWritten: 1 } });
+  assert.equal(JSON.parse(readFileSync(statusPath, 'utf8')).lastStopReason, 'batch-limit');
+});

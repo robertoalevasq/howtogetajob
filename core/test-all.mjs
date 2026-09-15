@@ -2577,11 +2577,17 @@ try {
       resumeNotBefore: null,
       counters: { pipelineUrlsPending: 40 },
     };
+    // Was 'running' until 2026-09-15 — this assertion used to DOCUMENT the
+    // Finding 3 bug (a fresh savedAt hides a clean stop from every staleness
+    // check). computeLiveness now answers from lastStopReason instead of
+    // guessing from the clock, so the honest verdict is 'paused': stopped on
+    // purpose, lock released, auto-resume queued. Neither 'running' (the
+    // process has exited) nor 'stalled' (nothing is wrong).
     const liveness = computeLiveness(freshBatchStopState);
-    if (liveness.state === 'running') {
-      pass('computeLiveness reads a just-completed batch-limit checkpoint as "running", not "stalled" (documents the Finding 3 bug)');
+    if (liveness.state === 'paused') {
+      pass('computeLiveness reads a just-completed batch-limit checkpoint as "paused" — not "running" and not "stalled"');
     } else {
-      fail(`computeLiveness should read a fresh batch-limit checkpoint as 'running': ${JSON.stringify(liveness)}`);
+      fail(`computeLiveness should read a fresh batch-limit checkpoint as 'paused': ${JSON.stringify(liveness)}`);
     }
 
     // Same shape cycle-status.mjs --json actually emits: liveness computed

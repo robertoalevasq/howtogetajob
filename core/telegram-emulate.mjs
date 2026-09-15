@@ -17,7 +17,7 @@ import { tmpdir } from 'node:os';
 import yaml from 'js-yaml';
 import { provisionWorkspace } from './provision-workspace.mjs';
 import { findHubTranscriptFiles } from './admin-overview-snapshot.mjs';
-import { dispatchOne, spawnCapturingTail, resolveClaudeCommand, createRoutingQueue, checkForStalledCycle } from './telegram-monitor.mjs';
+import { dispatchOne, spawnCapturingTail, resolveClaudeCommand, createRoutingQueue, checkForStalledCycle, countPendingPipelineUrls } from './telegram-monitor.mjs';
 import { isMainModule } from './is-main.mjs';
 
 const MINIMAL_CV = `# Test Candidate
@@ -407,7 +407,13 @@ const MALFORMED_BATCH_CHECKPOINT = {
   resumeNotBefore: null,
 };
 
-const CYCLE_RESUME_TIMEOUT_MS = 180_000; // same budget//reasoning as CYCLE_DELEGATION_TIMEOUT_MS
+// Much longer than CYCLE_DELEGATION_TIMEOUT_MS on purpose: that scenario only
+// has to reach a delegation decision, this one has to show real URL throughput
+// before the kill. Measured 2026-09-15: a cold `claude -p` resume spent its
+// entire first 5 minutes orienting (ls, modes/cycle.md twice, _custom.md,
+// modes/pipeline.md, lock acquire) without reaching URL one, so a 300s budget
+// cannot distinguish "still warming up" from "refusing to work".
+const CYCLE_RESUME_TIMEOUT_MS = 600_000;
 
 /**
  * Scenario 4 -- the 2026-09-15 stalled-resume incident, end to end.
@@ -432,9 +438,18 @@ export async function runCycleResumeScenario() {
   const { wsDir, tempRoot, cleanup } = makeDisposableWorkspace();
   const startMs = Date.now();
 
-  // A backlog the resumed agent can actually see. example.com URLs are inert:
-  // liveness/fetch attempts against them fail fast and cost nothing real.
-  const pendingRows = Array.from({ length: 25 }, (_, i) => `- [ ] https://example.com/jobs/${i}`);
+  // A backlog the resumed agent can actually see. Real Greenhouse URL SHAPE
+  // with job ids that do not exist: liveness gets a genuine 404 and Step 2
+  // marks each row processed-as-dead, which is real throughput over a real
+  // code path at the cost of a handful of 404s. Confirmed live 2026-09-15
+  // that shape matters -- an earlier fixture used https://example.com/jobs/N
+  // and the resumed agent stopped to ask whether those placeholder URLs were
+  // really meant to be evaluated, so the scenario measured the fixture's
+  // artificiality rather than the resume. 8 rows, under the 20-URL batch
+  // boundary, so a healthy resume finishes the backlog instead of
+  // checkpointing halfway.
+  const pendingRows = Array.from({ length: 8 }, (_, i) =>
+    `- [ ] https://job-boards.greenhouse.io/emulateharness/jobs/${9000000 + i}`);
   writeFileSync(join(wsDir, 'data', 'pipeline.md'),
     `# Pipeline — Pending URLs\n\n## Pending\n\n${pendingRows.join('\n')}\n`, 'utf-8');
   mkdirSync(join(wsDir, 'data', 'cache'), { recursive: true }); // a fresh workspace has no data/cache yet
@@ -472,23 +487,43 @@ export async function runCycleResumeScenario() {
     if (!err.timedOut) throw err; // a timeout is expected — see the scope note above
   }
 
-  // The resumed agent must have taken the cycle lock: that is the first thing
-  // buildCycleResumePrompt instructs, and the unambiguous proof it entered
-  // Step 2 rather than restarting the cycle or doing nothing.
-  const lockTaken = existsSync(join(wsDir, 'data', 'cache', 'cycle.lock'))
-    || existsSync(join(wsDir, 'data', 'cycle.lock'));
+  // THROUGHPUT, not activity. An earlier version of this scenario asserted
+  // only "took the cycle lock and read pipeline.md" -- and confirmed live
+  // 2026-09-15, that passes for a resume that does nothing at all: the haiku
+  // dispatch that stranded thomas-acosta took the lock, read the checkpoint,
+  // announced "Batch 1 complete" and released the lock having processed zero
+  // URLs. A resume's only meaningful output is a smaller backlog, so that is
+  // what this measures. Measured BEFORE cleanup, which destroys the evidence.
+  // countPendingPipelineUrls fails CLOSED (0) on a missing file, which is
+  // right for the gate -- no provable backlog, no resume -- but fails OPEN
+  // here: 0 pending would read as "processed all 25". Confirmed live
+  // 2026-09-15 when an unrelated temp-dir cleanup deleted this scenario's own
+  // workspace mid-run and the scenario reported a triumphant 25/25 while the
+  // agent's transcript said the workspace was empty and it refused to start.
+  // A vanished pipeline.md is a broken harness, never a passing run.
+  const pipelinePath = join(wsDir, 'data', 'pipeline.md');
+  if (!existsSync(pipelinePath)) {
+    return { name, passed: false, detail: `harness fault: ${pipelinePath} disappeared during the run — cannot measure throughput (workspace left at ${wsDir})` };
+  }
+  const pendingAfter = countPendingPipelineUrls(wsDir);
+  const processed = pendingRows.length - pendingAfter;
   const transcriptPath = findLatestTranscript(tempRoot, 'test-candidate', startMs);
 
   let result;
-  if (!transcriptPath) {
-    result = { name, passed: false, detail: 'gate fired, but no transcript found for the cycle-resume dispatch' };
+  if (processed > 0) {
+    result = { name, passed: true, detail: `gate fired on the malformed checkpoint and the resumed batch processed ${processed}/${pendingRows.length} URLs before the ${CYCLE_RESUME_TIMEOUT_MS}ms kill (${transcriptPath || 'no transcript'})` };
   } else {
-    const transcript = readFileSync(transcriptPath, 'utf-8');
-    const sawPipeline = transcript.includes('pipeline.md');
-    const sawLock = lockTaken || transcript.includes('cycle-lock.mjs');
-    result = (sawPipeline && sawLock)
-      ? { name, passed: true, detail: `gate fired on the malformed checkpoint; resumed agent took the cycle lock and read pipeline.md (${transcriptPath})` }
-      : { name, passed: false, detail: `gate fired but the resumed agent did not reach Step 2 (pipeline.md seen: ${sawPipeline}, cycle-lock seen: ${sawLock})` };
+    // Distinguish "claimed success while idle" (the actual bug) from "started
+    // but hadn't finished a URL yet" -- only the first is a real failure, and
+    // the detail string has to say which so a flaky-looking run is readable.
+    const transcript = transcriptPath ? readFileSync(transcriptPath, 'utf-8') : '';
+    const claimedDone = /batch\s*\d*\s*complete|lock released/i.test(transcript);
+    result = {
+      name, passed: false,
+      detail: claimedDone
+        ? `gate fired, but the resumed batch reported completion having processed 0/${pendingRows.length} URLs — the 2026-09-15 do-nothing regression (${transcriptPath})`
+        : `gate fired, but the resumed batch processed 0/${pendingRows.length} URLs before the ${CYCLE_RESUME_TIMEOUT_MS}ms kill — raise the timeout if the transcript shows it was still working (${transcriptPath || 'no transcript'})`,
+    };
   }
 
   if (result.passed) {
