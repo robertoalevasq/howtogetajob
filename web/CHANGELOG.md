@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.6.0](https://github.com/robertoalevasq/howtogetajob/compare/web-v0.5.0...web-v0.6.0) (2026-09-15)
+
+
+### Features
+
+* **providers:** add VDAB zero-auth provider ([#2084](https://github.com/robertoalevasq/howtogetajob/issues/2084)) ([6164384](https://github.com/robertoalevasq/howtogetajob/commit/6164384768fa47b7e164e2c36f53e86b2fd620cc))
+
+
+### Bug Fixes
+
+* **deps:** update dependency next to v16.2.11 [security] ([#2198](https://github.com/robertoalevasq/howtogetajob/issues/2198)) ([b6d1c87](https://github.com/robertoalevasq/howtogetajob/commit/b6d1c871d985c278af51d26fa51ef09274c1076b))
+* **web:** add Hired to the states.ts FALLBACK so the degraded path accepts it ([#2282](https://github.com/robertoalevasq/howtogetajob/issues/2282)) ([fd112c9](https://github.com/robertoalevasq/howtogetajob/commit/fd112c972d23cf0028e0411f36f67b1adf5520db))
+* **web:** disable live GitHub bug-report flow for this fork ([d9cc3a6](https://github.com/robertoalevasq/howtogetajob/commit/d9cc3a6070a55bda91195417266c59b982597e6e))
+* **web:** label-aware pipeline.md reader — posted:/trust:/note: never misread as columns ([6c75d9a](https://github.com/robertoalevasq/howtogetajob/commit/6c75d9aa03c919803ffe6939b2ba6f1cf7238db6))
+* **web:** propagate the Hired terminal-success state across the whole dashboard ([#2250](https://github.com/robertoalevasq/howtogetajob/issues/2250)) ([29503dc](https://github.com/robertoalevasq/howtogetajob/commit/29503dca07c4f1725675299db48685565f159acb))
+* **web:** resolve nested postcss and sharp advisories via overrides ([#2216](https://github.com/robertoalevasq/howtogetajob/issues/2216)) ([ec02af8](https://github.com/robertoalevasq/howtogetajob/commit/ec02af816abc81b500475f81bf1c2753727a1e79))
+* **web:** strip live career-ops.org links from config-form and score-methodology ([d3b9886](https://github.com/robertoalevasq/howtogetajob/commit/d3b988661ee861483863d78fe1de31e0a8fbf338))
+
 ## [0.5.0](https://github.com/santifer/career-ops/compare/web-v0.4.0...web-v0.5.0) (2026-07-30)
 
 
