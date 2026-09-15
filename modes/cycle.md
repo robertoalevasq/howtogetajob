@@ -157,6 +157,17 @@ went permanently silent on a single malformed embed under the old hand-built con
 2. Update `cycle-status.mjs` at *every* checkpoint listed below — write a small JSON patch to a
    scratch file (`{"step": {"id": "...", "label": "..."}, "counters": {...}}`, only the fields that
    changed) and run `node core/cycle-status.mjs update --file <patch-path>`.
+   **`step.id` must be one of these exact strings** — never invent a per-batch variant like
+   `"step2-batch1"`; put the batch number in `label` instead, which is free text:
+   `0-preflight`, `1a-scan-tracked`, `1b-scan-ats-full`, `2-pipeline`, `3-pdf-safety-net`,
+   `3.5-tracker-merge`, `3.6-integrity`, `4-summary`, `5-deliver`, `done`.
+   **`counters` keys are equally fixed** — `scanTrackedFound`, `scanTrackedNew`,
+   `scanAtsFullCompaniesSwept`, `scanAtsFullCompaniesTotal`, `scanAtsFullMatches`,
+   `pipelineUrlsPending`, `pipelineUrlsProcessed`, `pipelineWavesDone`, `pipelineWavesTotal`,
+   `reportsWritten`, `pdfsInline`, `pdfsSafetyNet`. Anything else (`pending`, `pending_total`,
+   `batch_limit`, …) is rejected. `lastStopReason` is a **top-level** patch field, never a counter.
+   The update CLI validates all three and exits non-zero with the legal values if a patch is wrong —
+   fix the patch and re-run it; do not move on with an unwritten checkpoint.
 3. **Also run `node core/cycle-lock.mjs refresh` at every one of the same checkpoints** — this is what
    keeps the Step 0 lock from being reclaimed as stale (30 min with no refresh) during a long-running
    pass. The checkpoint cadence below already fires far more often than that, so a healthy run never
@@ -329,10 +340,10 @@ time, not just when it "looks big":
   `pipeline.md`'s own "3+ pending URLs → launch agents in parallel" text does
   not apply here — see the corrected note in `modes/pipeline.md`.
 - **Batch boundary: stop after 20 URLs, resume automatically — this is not the "never pause" rule above.** That rule is about never *stopping to ask a human* for a decision; a batch-boundary stop asks nothing of anyone and resumes on its own, so it doesn't conflict with it. A single Step 2 session accumulating every evaluation from a large backlog in one growing context is what makes a big sweep expensive against this account's own rolling Claude Pro session-limit quota — not against a metered dollar bill, but the quota is real and has already been exhausted mid-run twice (2026-09-09; see `docs/superpowers/specs/2026-09-10-cycle-checkpoint-resume-design.md`). Track a counter starting at 0 for this Step 2 invocation; increment it after each URL finishes (evaluated, pre-screened out, or errored — every one counts, not just full A-F evaluations). On reaching 20:
-  1. Write a `cycle-status.mjs` checkpoint exactly as any other checkpoint in this step already does, adding `lastStopReason: "batch-limit"` to that same patch object.
+  1. Write a `cycle-status.mjs` checkpoint exactly as any other checkpoint in this step already does — `step.id` is `"2-pipeline"` (the batch number goes in `label`), the remaining backlog goes in `counters.pipelineUrlsPending` — adding **top-level** `lastStopReason: "batch-limit"` to that same patch object (top level, *not* inside `counters`).
   2. `node core/cycle-lock.mjs release` — a batch-limit stop is a controlled, safe-to-resume-immediately pause, not a crash or a true end-of-run, so it releases the lock the same way a normal completion does. This is what lets the automatic continuation below actually start.
   3. Write the Step 4 partial summary (identical shape to a full completion, just scoped to what this batch did — no new summary format) and end the turn. Do not proceed to Step 3 — a continuation reaches Step 3 onward once the full backlog (across however many batches it takes) is actually done.
-  `telegram-monitor.mjs`'s daemon detects a released lock plus a stalled run with pending URLs still left, and dispatches the next batch on its own — no `/run` from the candidate needed. A session-limit cutoff (as opposed to this clean batch boundary) is detected and handled entirely outside this mode file, in `telegram-monitor.mjs`'s `dispatchOne` — there is nothing further to do here for that case.
+  `telegram-monitor.mjs`'s daemon detects a released (or stale) lock plus unprocessed `- [ ]` rows still in `data/pipeline.md`, and dispatches the next batch on its own — no `/run` from the candidate needed. It counts that backlog from `pipeline.md` directly rather than from this checkpoint's counters, so a malformed patch delays nothing; the checkpoint still has to be correct for `/status` to report the truth. A session-limit cutoff (as opposed to this clean batch boundary) is detected and handled entirely outside this mode file, in `telegram-monitor.mjs`'s `dispatchOne` — there is nothing further to do here for that case.
 - **Tracker writes go through TSV, never a direct edit to
   `data/applications.md`.** This is a system-wide rule (`modes/_shared.md`'s
   ALWAYS list), not just a `_custom.md` preference: write each result to

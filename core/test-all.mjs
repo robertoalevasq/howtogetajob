@@ -2403,7 +2403,10 @@ try {
     const routeDispatch = (dispatch) => { dispatched.push(dispatch); return Promise.resolve(); };
     const exec = (cmd) => {
       if (cmd.includes('cycle-lock.mjs')) return JSON.stringify({ held: lockHeld, stale: opts.lockStale ?? false });
-      if (cmd.includes('cycle-status.mjs')) return JSON.stringify(statusJson);
+      // runId is written by cycle-status.mjs itself and is how the gate tells
+      // "a run exists" from "this workspace has never run a cycle" — default
+      // one in so each scenario only has to state the field it is about.
+      if (cmd.includes('cycle-status.mjs')) return JSON.stringify({ runId: '2026-09-10T11:00:00.000Z', ...statusJson });
       throw new Error(`unexpected exec: ${cmd}`);
     };
     const buildBoundChatMapStub = () => new Map([['555', '/fake/workspace']]);
@@ -2412,7 +2415,15 @@ try {
       buildBoundChatMap: buildBoundChatMapStub,
       now: now || new Date('2026-09-10T12:00:00.000Z'),
       dispatchTracker: opts.dispatchTracker || new Map(),
-      ...(opts.debounceMs !== undefined ? { debounceMs: opts.debounceMs } : {}),
+      progressTracker: opts.progressTracker || new Map(),
+      // '/fake/workspace' has no pipeline.md on disk, so the real
+      // countPendingPipelineUrls would fail closed at 0 for every scenario
+      // here. Each scenario's intended backlog still comes from the
+      // pipelineUrlsPending it already passes — these tests are about the
+      // gate's decision logic, not about parsing pipeline.md (the real file
+      // read is covered in tests/cycle-resume-gate.test.mjs, and end to end
+      // by telegram-emulate's cycle-resume scenario).
+      countPending: () => opts.pending ?? statusJson?.counters?.pipelineUrlsPending ?? 0,
     });
     return dispatched;
   }
@@ -2424,11 +2435,38 @@ try {
     fail(`checkForStalledCycle dispatched despite a held lock: ${JSON.stringify(lockedCase)}`);
   }
 
+  // A released lock is what says "no run is active" — not liveness.state.
+  // Changed 2026-09-15: the gate no longer reads liveness at all. A genuinely
+  // running cycle holds and refreshes its lock, so "liveness says running but
+  // the lock is free" is precisely the clean batch-limit stop shape (a fresh
+  // savedAt written immediately before exiting) that must resume at once
+  // rather than wait out a 40-minute staleness window. The real "don't touch
+  // an active run" guard is the held-lock case above, which still holds.
   const notStalledCase = runScenario(false, { liveness: { state: 'running' }, counters: { pipelineUrlsPending: 10 } });
-  if (notStalledCase.length === 0) {
-    pass('checkForStalledCycle never dispatches for a run that is still actively running');
+  if (notStalledCase.length === 1 && notStalledCase[0].kind === 'cycle-resume') {
+    pass('checkForStalledCycle resumes a lock-free run with a backlog regardless of liveness.state');
   } else {
-    fail(`checkForStalledCycle dispatched for a running (not stalled) run: ${JSON.stringify(notStalledCase)}`);
+    fail(`checkForStalledCycle should resume a lock-free run with pending URLs: ${JSON.stringify(notStalledCase)}`);
+  }
+
+  // The gate must never resume a workspace that has never run a cycle — a
+  // scan can leave pending URLs in pipeline.md without anyone asking for an
+  // evaluation run. cycle-status.mjs --json emits only a liveness block (no
+  // runId) when no status file exists.
+  const neverRanCase = runScenario(false, { runId: undefined, liveness: { state: 'no_run' } }, undefined, { pending: 10 });
+  if (neverRanCase.length === 0) {
+    pass('checkForStalledCycle never dispatches for a workspace that has never run a cycle');
+  } else {
+    fail(`checkForStalledCycle dispatched for a workspace with no cycle run: ${JSON.stringify(neverRanCase)}`);
+  }
+
+  // A finished run is terminal — pending rows left in pipeline.md after a
+  // completed cycle (a later scan's additions) must not reanimate it.
+  const doneCase = runScenario(false, { step: { id: 'done' }, liveness: { state: 'done' } }, undefined, { pending: 10 });
+  if (doneCase.length === 0) {
+    pass('checkForStalledCycle never dispatches for a completed run');
+  } else {
+    fail(`checkForStalledCycle dispatched for a done run: ${JSON.stringify(doneCase)}`);
   }
 
   const nothingPendingCase = runScenario(false, { liveness: { state: 'stalled' }, counters: { pipelineUrlsPending: 0 } });
@@ -2551,7 +2589,7 @@ try {
     const realWorldStatusJson = { ...freshBatchStopState, liveness };
     const cleanBatchDispatch = runScenario(false, realWorldStatusJson);
     if (cleanBatchDispatch.length === 1 && cleanBatchDispatch[0].kind === 'cycle-resume') {
-      pass('checkForStalledCycle still dispatches a real (non-stalled) fresh batch-limit checkpoint via cleanBatchStop (Finding 3)');
+      pass('checkForStalledCycle still dispatches a real (non-stalled) fresh batch-limit checkpoint (Finding 3)');
     } else {
       fail(`checkForStalledCycle failed to resume a real fresh batch-limit checkpoint despite liveness.state==='running': ${JSON.stringify(cleanBatchDispatch)}`);
     }
@@ -2575,23 +2613,30 @@ try {
   fail(`checkForStalledCycle coverage crashed: ${e.message}`);
 }
 
-// dispatchOne pins every dispatch kind to the default (Haiku) model — not
-// just onboarding. Before this fix, routing/cycle-resume dispatches (i.e.
-// every real cycle/apply/pipeline run driven over Telegram) fell through to
-// `undefined` and inherited the account default.
+// dispatchOne pins EVERY dispatch kind to an explicit model — never left
+// undefined to inherit the account default (the original 2026-09 fix). The
+// pin is not uniform: routing/onboarding classify a message or walk a state
+// machine and stay on haiku, but cycle-resume evaluates a 20-URL batch and
+// must not. Confirmed live 2026-09-15 (thomas-acosta): a haiku cycle-resume
+// reported "Batch 1 complete" having processed zero URLs.
 try {
   const { dispatchOne } = await import(pathToFileURL(join(ROOT, 'core', 'telegram-monitor.mjs')).href);
-  const calls = [];
-  const fakeInvoke = async (prompt, cwd, timeoutMs, model, extraArgs) => { calls.push(model); };
+  const calls = {};
+  const fakeInvoke = (kind) => async (prompt, cwd, timeoutMs, model, extraArgs) => { calls[kind] = model; };
   const fakeResolveBrowserArgs = async () => [];
   const fakeLogDispatch = () => {};
-  await dispatchOne({ kind: 'routing', cwd: '/fake', messages: [] }, fakeInvoke, fakeResolveBrowserArgs, fakeLogDispatch);
-  await dispatchOne({ kind: 'cycle-resume', cwd: '/fake', messages: [] }, fakeInvoke, fakeResolveBrowserArgs, fakeLogDispatch);
-  await dispatchOne({ kind: 'onboarding', cwd: '/fake', messages: [] }, fakeInvoke, fakeResolveBrowserArgs, fakeLogDispatch);
-  if (calls.length === 3 && calls.every(m => m === 'haiku')) {
-    pass('dispatchOne pins every dispatch kind (routing/cycle-resume/onboarding) to haiku');
+  for (const kind of ['routing', 'cycle-resume', 'onboarding']) {
+    await dispatchOne({ kind, cwd: '/fake', messages: [] }, fakeInvoke(kind), fakeResolveBrowserArgs, fakeLogDispatch);
+  }
+  if (calls.routing === 'haiku' && calls.onboarding === 'haiku' && calls['cycle-resume'] === 'sonnet') {
+    pass('dispatchOne pins routing/onboarding to haiku and cycle-resume to sonnet');
   } else {
-    fail(`dispatchOne did not pin every kind to haiku: ${JSON.stringify(calls)}`);
+    fail(`dispatchOne model pins are wrong: ${JSON.stringify(calls)}`);
+  }
+  if (Object.values(calls).every(m => typeof m === 'string' && m.length > 0)) {
+    pass('dispatchOne never leaves a dispatch model undefined (no account-default fallthrough)');
+  } else {
+    fail(`dispatchOne left a dispatch model unpinned: ${JSON.stringify(calls)}`);
   }
 } catch (e) { fail(`dispatchOne model-pin test crashed: ${e.message}`); }
 

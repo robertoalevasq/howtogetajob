@@ -72,6 +72,10 @@ const CYCLE_LOCK_MJS = join(ROOT, 'cycle-lock.mjs');
 // another concurrent resume for the same workspace.
 const recentlyDispatchedResumes = new Map(); // cwd -> ms timestamp of last resume dispatch
 const RESUME_DEBOUNCE_MS = 10 * 60_000; // 10 minutes — comfortably longer than a claude -p cold start + lock re-acquire
+// cwd -> {runId, pending} as of the last resume dispatch. Same module-level
+// lifetime and reasoning as recentlyDispatchedResumes above; see the
+// no-progress guard in checkForStalledCycle for what it prevents.
+const lastResumeProgress = new Map();
 // acquirePipelineLock derives its actual lock directory by appending
 // ".lock" to this path (lockDirFor in pipeline-lock.mjs) — so the real lock
 // dir on disk is core/data/telegram-daemon.lock, not a double-suffixed name.
@@ -339,8 +343,19 @@ export async function maybeAlertOperator(streak, errorMessage, operatorChatId, s
 const ONBOARDING_TIMEOUT_MS = 10 * 60 * 1000;
 
 // career-ops has no spend tiers -- every claude -p dispatch this daemon
-// makes, onboarding included, always runs on the cheapest available model.
+// makes, onboarding included, runs on the cheapest model that can actually do
+// the job. For classifying one Telegram message or walking an onboarding
+// state machine, that is haiku.
 const DEFAULT_MODEL = 'haiku';
+// A cycle-resume is the exception: it evaluates a 20-URL batch against the
+// candidate's CV, runs liveness checks, writes reports and builds PDFs.
+// Confirmed live 2026-09-15 (thomas-acosta) that haiku cannot: handed a
+// resume with 563 URLs pending, it read the existing checkpoint, reported
+// "Batch 1 complete" and released the lock WITHOUT processing a single URL --
+// pending 563 before, 563 after, no checkpoint written. A plausible summary
+// of work it never did is worse than a failure, because the daemon and the
+// candidate both read it as progress.
+const CYCLE_RESUME_MODEL = 'sonnet';
 
 /**
  * Single attempt at spawning Claude — see dispatchOne() for retry/alert
@@ -710,6 +725,27 @@ Never use AskUserQuestion — this is a headless continuation with no candidate 
 }
 
 /**
+ * Count unprocessed URLs in a workspace's data/pipeline.md — the same rows a
+ * resumed `cycle` Step 2 would pick up. `- [ ]` is pending, `- [x]` is done
+ * (see scan.mjs's PIPELINE_SKELETON and reconcile-pipeline.mjs).
+ *
+ * Returns 0 for a missing/unreadable file: no backlog we can prove, so no
+ * resume — the same fail-closed posture as every other check in
+ * checkForStalledCycle.
+ *
+ * @param {string} cwd - workspace root.
+ * @returns {number}
+ */
+export function countPendingPipelineUrls(cwd) {
+  try {
+    const text = readFileSync(join(cwd, 'data', 'pipeline.md'), 'utf8');
+    return (text.match(/^- \[ \]/gm) || []).length;
+  } catch {
+    return 0;
+  }
+}
+
+/**
  * Runs once per daemonLoop() poll iteration. For every workspace bound to a
  * Telegram chat, checks whether that workspace has a cycle run that stopped
  * (lock released) with pending pipeline URLs still left, and if so, whether
@@ -721,7 +757,7 @@ Never use AskUserQuestion — this is a headless continuation with no candidate 
  * JSON, a killed subprocess) is skipped, not fatal to the rest of the loop.
  *
  * @param {(dispatch: any) => Promise<void>} routeDispatch - from createRoutingQueue().
- * @param {{exec?: Function, buildBoundChatMap?: Function, now?: Date, dispatchTracker?: Map, debounceMs?: number}} [opts]
+ * @param {{exec?: Function, buildBoundChatMap?: Function, now?: Date, dispatchTracker?: Map, debounceMs?: number, progressTracker?: Map, countPending?: Function}} [opts]
  */
 export function checkForStalledCycle(routeDispatch, opts = {}) {
   try {
@@ -730,6 +766,8 @@ export function checkForStalledCycle(routeDispatch, opts = {}) {
     const now = (opts.now || new Date()).getTime();
     const dispatchTracker = opts.dispatchTracker || recentlyDispatchedResumes;
     const debounceMs = opts.debounceMs ?? RESUME_DEBOUNCE_MS;
+    const progressTracker = opts.progressTracker || lastResumeProgress;
+    const countPending = opts.countPending || countPendingPipelineUrls;
 
     for (const [chatId, cwd] of buildMap({ repoRoot: REPO_ROOT })) {
       // Debounce first, before spending a subprocess call on a workspace we
@@ -757,29 +795,46 @@ export function checkForStalledCycle(routeDispatch, opts = {}) {
       } catch {
         continue;
       }
-      // A clean batch-limit checkpoint writes a FRESH savedAt as its last
-      // action before exiting, so liveness.state reads 'running' (not
-      // 'stalled') for up to 40 minutes even though the process has already
-      // exited — computeLiveness's staleness signal alone can't see it.
-      // lastStopReason/step.id recognize that clean-stop shape directly, as
-      // a signal independent of staleness (Finding 3). This is only safe in
-      // combination with the debounce check above — without it, a
-      // batch-limit stop's savedAt never becomes stale on its own, so this
-      // condition would keep re-matching every poll.
-      const stalled = status?.liveness?.state === 'stalled';
-      const cleanBatchStop = status?.lastStopReason === 'batch-limit' && status?.step?.id === '2-pipeline';
-      if (!stalled && !cleanBatchStop) continue;
-      if (!status.counters || !(status.counters.pipelineUrlsPending > 0)) continue;
+      // A run must actually exist and not be finished. `runId` is written by
+      // cycle-status.mjs itself (never by the agent), so unlike step.id and
+      // the counters below it cannot be misspelled into uselessness — a
+      // workspace that has never run a cycle has no status file at all and
+      // `--json` emits only a liveness block with no runId.
+      if (!status?.runId || status?.step?.id === 'done') continue;
 
       if (status.lastStopReason === 'session-limit') {
         const resumeAt = Date.parse(status.resumeNotBefore);
         if (Number.isFinite(resumeAt) && now < resumeAt) continue; // not yet — check again next poll
       }
 
+      // Count the backlog from data/pipeline.md, NOT from the status file's
+      // own counters. The previous gate required `lastStopReason ===
+      // 'batch-limit'`, `step.id === '2-pipeline'` AND
+      // `counters.pipelineUrlsPending > 0` — three values an LLM writes by
+      // hand at each checkpoint from a prose instruction in modes/cycle.md.
+      // Confirmed dead 2026-09-15 (thomas-acosta): the checkpoint was written
+      // as step.id "step2-batch1", lastStopReason nested inside `counters`,
+      // and the pending count under `pending_total` — so all three conditions
+      // missed, auto-resume silently never fired, and 563 evaluated-ready
+      // URLs sat idle for 14 hours across a daemon restart that should have
+      // picked them up. pipeline.md is the file the resumed batch actually
+      // consumes, so counting it directly cannot drift from what a resume
+      // would find (see countPendingPipelineUrls).
+      const pending = countPending(cwd);
+      if (pending === 0) continue;
+
+      // No-progress guard: a resume that doesn't shrink the backlog must not
+      // re-dispatch forever — that is an unbounded `claude -p` spend on a run
+      // that cannot advance. Keyed by runId so a fresh `/run` (which calls
+      // `cycle-status.mjs reset`, minting a new runId) always clears it.
+      const progress = progressTracker.get(cwd);
+      if (progress && progress.runId === status.runId && pending >= progress.pending) continue;
+
       // Recorded BEFORE the dispatch call (which resolves asynchronously),
       // so an in-flight dispatch is still correctly debounced on the very
       // next poll iteration (Finding 2).
       dispatchTracker.set(cwd, now);
+      progressTracker.set(cwd, { runId: status.runId, pending });
       routeDispatch({ chatId, cwd, kind: 'cycle-resume', messages: [] }).catch(err =>
         console.error(`[telegram-monitor] cycle-resume dispatch failed for chat ${chatId}: ${err.message}`));
     }
@@ -1151,10 +1206,10 @@ export async function dispatchOne(dispatch, invoke = invokeClaudeRoutingOnce, re
     : buildRoutingPrompt(dispatch);
   // Only onboarding gets a bounded timeout — see ONBOARDING_TIMEOUT_MS's own
   // comment. A routing dispatch (cycle/apply/etc.) is unlimited. Every
-  // dispatch kind is pinned to the same model (DEFAULT_MODEL) -- career-ops
-  // has no spend tiers, so there's no "account default" to fall through to.
+  // dispatch kind is pinned explicitly — never left undefined to inherit the
+  // account default — but not all to the same model: see CYCLE_RESUME_MODEL.
   const timeoutMs = dispatch.kind === 'onboarding' ? ONBOARDING_TIMEOUT_MS : undefined;
-  const model = DEFAULT_MODEL;
+  const model = dispatch.kind === 'cycle-resume' ? CYCLE_RESUME_MODEL : DEFAULT_MODEL;
   // Onboarding never touches Playwright/apply.md — resolving a browser
   // session for it would be pure wasted work on a hot path every onboarding
   // message travels.

@@ -11,13 +11,13 @@
 // risks a real send; assertions read state files and session transcripts,
 // never delivery confirmations.
 
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, statSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import yaml from 'js-yaml';
 import { provisionWorkspace } from './provision-workspace.mjs';
 import { findHubTranscriptFiles } from './admin-overview-snapshot.mjs';
-import { dispatchOne, spawnCapturingTail, resolveClaudeCommand, createRoutingQueue } from './telegram-monitor.mjs';
+import { dispatchOne, spawnCapturingTail, resolveClaudeCommand, createRoutingQueue, checkForStalledCycle } from './telegram-monitor.mjs';
 import { isMainModule } from './is-main.mjs';
 
 const MINIMAL_CV = `# Test Candidate
@@ -391,13 +391,123 @@ export async function runCycleDelegationScenario() {
   return result;
 }
 
+// The malformed checkpoint found on disk in the thomas-acosta workspace on
+// 2026-09-15 -- step.id invented per-batch, lastStopReason nested inside
+// counters, the real backlog under a counter name nothing reads. Copied
+// verbatim (minus noise) so this scenario tests the actual shape that broke,
+// not a tidied-up approximation of it.
+const MALFORMED_BATCH_CHECKPOINT = {
+  version: 1,
+  runId: '2026-09-15T01:14:01.042Z',
+  savedAt: '2026-09-15T01:20:58.161Z',
+  step: { id: 'step2-batch1', label: 'Pipeline Processing (Batch 1/17)' },
+  counters: { pipelineUrlsPending: 0, pending: 2165, pending_total: 353, batch_limit: 20, lastStopReason: 'batch-limit' },
+  lastError: null,
+  lastStopReason: null,
+  resumeNotBefore: null,
+};
+
+const CYCLE_RESUME_TIMEOUT_MS = 180_000; // same budget//reasoning as CYCLE_DELEGATION_TIMEOUT_MS
+
 /**
- * Runs all 3 scenarios in sequence (never parallel -- each spawns real
+ * Scenario 4 -- the 2026-09-15 stalled-resume incident, end to end.
+ *
+ * A cycle run checkpointed mid-Step-2 with every resume-critical field named
+ * wrong, released its lock, and exited. The daemon's gate required three exact
+ * agent-authored values, matched none of them, and never dispatched a
+ * continuation -- 563 ready URLs idled for 14 hours across a daemon restart.
+ *
+ * This drives the REAL checkForStalledCycle() against that exact on-disk state
+ * (a real workspace directory, a real cycle-status.mjs --json subprocess, a
+ * real cycle-lock.mjs status subprocess), then feeds whatever it decides into
+ * a REAL `claude -p` dispatchOne() -- the same two-stage path the daemon runs.
+ *
+ * SCOPE, stated plainly: the real claude -p is killed at the timeout above, so
+ * this proves the gate fires and the resumed agent reaches Step 2 and takes the
+ * cycle lock. It does NOT evaluate the seeded URLs to completion -- a full
+ * 20-URL batch is an hours-long run and is not what this scenario claims.
+ */
+export async function runCycleResumeScenario() {
+  const name = 'cycle-resume';
+  const { wsDir, tempRoot, cleanup } = makeDisposableWorkspace();
+  const startMs = Date.now();
+
+  // A backlog the resumed agent can actually see. example.com URLs are inert:
+  // liveness/fetch attempts against them fail fast and cost nothing real.
+  const pendingRows = Array.from({ length: 25 }, (_, i) => `- [ ] https://example.com/jobs/${i}`);
+  writeFileSync(join(wsDir, 'data', 'pipeline.md'),
+    `# Pipeline — Pending URLs\n\n## Pending\n\n${pendingRows.join('\n')}\n`, 'utf-8');
+  mkdirSync(join(wsDir, 'data', 'cache'), { recursive: true }); // a fresh workspace has no data/cache yet
+  writeFileSync(join(wsDir, 'data', 'cache', 'cycle-status.json'),
+    JSON.stringify(MALFORMED_BATCH_CHECKPOINT, null, 2), 'utf-8');
+
+  // Stage 1: the REAL gate, against the real files above. buildBoundChatMap is
+  // injected so this can never reach a genuine workspace under workspaces/.
+  const decided = [];
+  checkForStalledCycle(async (d) => { decided.push(d); }, {
+    buildBoundChatMap: () => new Map([[TEST_CHAT_ID, wsDir]]),
+    dispatchTracker: new Map(),
+    progressTracker: new Map(),
+  });
+
+  if (decided.length !== 1 || decided[0].kind !== 'cycle-resume') {
+    const detail = `checkForStalledCycle did not dispatch a resume (got ${JSON.stringify(decided)}) — workspace left at ${wsDir}`;
+    return { name, passed: false, detail };
+  }
+
+  // Stage 2: the REAL claude -p continuation, same invoke shape as scenario 3.
+  const boundedInvoke = (prompt, cwd, _timeoutMs, model, extraArgs) => {
+    const { cmd, shell } = resolveClaudeCommand();
+    const args = model ? ['-p', prompt, '--model', model, ...extraArgs] : ['-p', prompt, ...extraArgs];
+    return spawnCapturingTail(cmd, args, {
+      cwd, shell, timeoutMs: CYCLE_RESUME_TIMEOUT_MS,
+      exitErrorPrefix: 'claude -p cycle-resume exited',
+      timeoutErrorMessage: (ms) => `claude -p timed out after ${ms}ms`,
+    });
+  };
+
+  try {
+    await dispatchOne(decided[0], boundedInvoke);
+  } catch (err) {
+    if (!err.timedOut) throw err; // a timeout is expected — see the scope note above
+  }
+
+  // The resumed agent must have taken the cycle lock: that is the first thing
+  // buildCycleResumePrompt instructs, and the unambiguous proof it entered
+  // Step 2 rather than restarting the cycle or doing nothing.
+  const lockTaken = existsSync(join(wsDir, 'data', 'cache', 'cycle.lock'))
+    || existsSync(join(wsDir, 'data', 'cycle.lock'));
+  const transcriptPath = findLatestTranscript(tempRoot, 'test-candidate', startMs);
+
+  let result;
+  if (!transcriptPath) {
+    result = { name, passed: false, detail: 'gate fired, but no transcript found for the cycle-resume dispatch' };
+  } else {
+    const transcript = readFileSync(transcriptPath, 'utf-8');
+    const sawPipeline = transcript.includes('pipeline.md');
+    const sawLock = lockTaken || transcript.includes('cycle-lock.mjs');
+    result = (sawPipeline && sawLock)
+      ? { name, passed: true, detail: `gate fired on the malformed checkpoint; resumed agent took the cycle lock and read pipeline.md (${transcriptPath})` }
+      : { name, passed: false, detail: `gate fired but the resumed agent did not reach Step 2 (pipeline.md seen: ${sawPipeline}, cycle-lock seen: ${sawLock})` };
+  }
+
+  if (result.passed) {
+    try { cleanup(); } catch (err) {
+      console.error(`[telegram-emulate] cleanup() failed for ${tempRoot} (leftover temp dir from a killed claude -p, non-fatal): ${err.message}`);
+    }
+  } else {
+    result = { ...result, detail: `${result.detail} (workspace left at ${wsDir} for inspection)` };
+  }
+  return result;
+}
+
+/**
+ * Runs all 4 scenarios in sequence (never parallel -- each spawns real
  * claude -p processes and this keeps output/failures easy to attribute),
  * prints a pass/fail summary, and exits non-zero if any scenario failed.
  */
 export async function main() {
-  const scenarios = [runDigitDisambiguationScenario, runRapidFireBurstScenario, runCycleDelegationScenario];
+  const scenarios = [runDigitDisambiguationScenario, runRapidFireBurstScenario, runCycleDelegationScenario, runCycleResumeScenario];
   const results = [];
   for (const scenario of scenarios) {
     console.log(`Running ${scenario.name}...`);

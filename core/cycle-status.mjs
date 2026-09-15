@@ -234,6 +234,28 @@ async function main() {
       console.error(`--file is not valid JSON: ${e.message}`);
       process.exit(1);
     }
+    // Validate on the CLI path only — update() itself stays non-throwing by
+    // contract (see this file's header). A checkpoint is written by an LLM
+    // following prose in modes/cycle.md, so an invented step.id or a
+    // lastStopReason buried in `counters` is a real, observed failure mode
+    // (2026-09-15, thomas-acosta: "step2-batch1" + counters.lastStopReason).
+    // Rejecting here tells the agent the legal values in the same turn.
+    const errs = [];
+    if (patch?.step && !STEP_IDS.includes(patch.step.id)) {
+      errs.push(`step.id "${patch.step.id}" is not a known step — use one of: ${STEP_IDS.join(', ')}`);
+    }
+    if (patch?.counters && 'lastStopReason' in patch.counters) {
+      errs.push('lastStopReason belongs at the TOP LEVEL of the patch, not inside counters');
+    }
+    for (const key of Object.keys(patch?.counters || {})) {
+      if (!(key in EMPTY_COUNTERS)) {
+        errs.push(`unknown counter "${key}" — use one of: ${Object.keys(EMPTY_COUNTERS).join(', ')}`);
+      }
+    }
+    if (errs.length) {
+      console.error(`❌ cycle-status: invalid patch, nothing written.\n  - ${errs.join('\n  - ')}`);
+      process.exit(1);
+    }
     await update(patch);
     console.log('cycle-status: updated.');
   } else if (!cmd || cmd === '--json') {
