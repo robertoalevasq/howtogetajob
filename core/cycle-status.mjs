@@ -207,8 +207,20 @@ export function computeLiveness(state, now = Date.now()) {
   const staleMs = now - savedMs;
   const lastUpdateAgo = formatDuration(staleMs);
   if (state.step?.id === 'done') return { state: 'done', staleMs, lastUpdateAgo };
-  // Staleness still wins: a run that stopped cleanly and then sat unresumed
-  // past the stall window is stuck, whatever its stop reason says.
+  // A session-limit wait outranks staleness, because it is routinely LONGER
+  // than the stall window: the quota resets when it resets, and nothing can
+  // checkpoint in the meantime. Confirmed live 2026-09-15 (thomas-acosta) --
+  // a run waiting out a 2h21m cutoff reported "stalled? no update in 40m+"
+  // while the daemon was correctly holding it for resumeNotBefore, which is
+  // precisely the "told the candidate their run was dead when it wasn't"
+  // failure this whole state exists to end. Only while the reset is still
+  // ahead of us; past it, a run that never resumed really is stuck.
+  const resumeAt = Date.parse(state.resumeNotBefore ?? '');
+  if (state.lastStopReason === 'session-limit' && Number.isFinite(resumeAt) && now < resumeAt) {
+    return { state: 'paused', staleMs, lastUpdateAgo };
+  }
+  // Otherwise staleness wins: a run that stopped cleanly and then sat
+  // unresumed past the stall window is stuck, whatever its stop reason says.
   if (staleMs > STALL_AFTER_MS) return { state: 'stalled', staleMs, lastUpdateAgo };
   if (state.lastStopReason === 'batch-limit' || state.lastStopReason === 'session-limit') {
     return { state: 'paused', staleMs, lastUpdateAgo };
@@ -223,7 +235,10 @@ export function render() {
   const staleMs = Date.now() - new Date(state.savedAt).getTime();
   const liveness = computeLiveness(state);
   const note = liveness.state === 'stalled' ? '  ⚠️  stalled? no update in 40m+'
-    : liveness.state === 'paused' ? `  ⏸  paused (${state.lastStopReason}) — auto-resume queued`
+    : liveness.state === 'paused'
+      ? (state.lastStopReason === 'session-limit' && state.resumeNotBefore
+        ? `  ⏸  paused (session limit) — resumes ${state.resumeNotBefore}`
+        : `  ⏸  paused (${state.lastStopReason}) — auto-resume queued`)
     : '';
   const lines = [
     `cycle run ${state.runId}`,

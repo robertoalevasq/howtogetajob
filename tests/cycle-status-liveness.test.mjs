@@ -122,3 +122,46 @@ test('THE STICKY BUG: a progress checkpoint clears a previous stop reason', asyn
   await mod.update({ counters: { reportsWritten: 1 } });
   assert.equal(JSON.parse(readFileSync(statusPath, 'utf8')).lastStopReason, 'batch-limit');
 });
+
+test('a session-limit wait longer than the stall window reports paused, not stalled', () => {
+  // Thomas Acosta, 2026-09-15: a 2h21m quota wait reported "stalled? no update
+  // in 40m+" while the daemon was correctly holding the run for resumeNotBefore.
+  // A quota cutoff is routinely longer than the stall window — nothing can
+  // checkpoint during it, so staleness cannot be the signal.
+  const state = {
+    step: { id: '2-pipeline' },
+    savedAt: ago(2 * 60 * 60_000 + 21 * 60_000),
+    lastStopReason: 'session-limit',
+    resumeNotBefore: new Date(NOW + 30 * 60_000).toISOString(),
+  };
+  assert.equal(computeLiveness(state, NOW).state, 'paused');
+});
+
+test('a session-limit run past its reset time that never resumed is stalled', () => {
+  const state = {
+    step: { id: '2-pipeline' },
+    savedAt: ago(3 * 60 * 60_000),
+    lastStopReason: 'session-limit',
+    resumeNotBefore: new Date(NOW - 60 * 60_000).toISOString(),
+  };
+  assert.equal(computeLiveness(state, NOW).state, 'stalled');
+});
+
+test('a session-limit record with no/invalid resumeNotBefore falls back to staleness', () => {
+  const base = { step: { id: '2-pipeline' }, lastStopReason: 'session-limit' };
+  assert.equal(computeLiveness({ ...base, savedAt: ago(3 * 60 * 60_000) }, NOW).state, 'stalled');
+  assert.equal(computeLiveness({ ...base, savedAt: ago(60_000), resumeNotBefore: 'nonsense' }, NOW).state, 'paused');
+});
+
+test('batch-limit never gets the session-limit staleness exemption', () => {
+  // Only a quota wait is legitimately longer than the stall window. A batch
+  // boundary resumes within ~25s, so one still sitting there hours later is
+  // genuinely stuck and must not be dressed up as "queued to continue".
+  const state = {
+    step: { id: '2-pipeline' },
+    savedAt: ago(3 * 60 * 60_000),
+    lastStopReason: 'batch-limit',
+    resumeNotBefore: new Date(NOW + 30 * 60_000).toISOString(),
+  };
+  assert.equal(computeLiveness(state, NOW).state, 'stalled');
+});

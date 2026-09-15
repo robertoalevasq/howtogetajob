@@ -2385,6 +2385,44 @@ try {
   } else {
     fail(`buildCycleResumePrompt missing Finding 4 fix content:\n${resumePrompt.slice(0, 800)}`);
   }
+
+  // Read-budget + inlined Step 2 essentials (2026-09-15). Measured across 8
+  // real resume dispatches: ~96% of each session's tokens were cache_read,
+  // and one transcript read modes/cycle.md three times before touching a URL.
+  // These instructions exist to stop that, so a regression that quietly drops
+  // them is a regression in cost, not correctness — invisible without this.
+  if (
+    /Read each file you need exactly ONCE/.test(resumePrompt) &&
+    /Do NOT `ls` to discover the layout/.test(resumePrompt) &&
+    /do NOT read your own session transcript/.test(resumePrompt)
+  ) {
+    pass('buildCycleResumePrompt carries the read budget that keeps a resume from re-deriving its own context');
+  } else {
+    fail('buildCycleResumePrompt lost its read-budget instructions');
+  }
+
+  // The two failure modes seen live on 2026-09-15, one per model: haiku
+  // announced "Batch 1 complete" having marked zero rows, and sonnet ended
+  // its turn asking whether it should proceed. Both strand the whole backlog.
+  if (
+    /A row you did not mark is a row that did not happen/.test(resumePrompt) &&
+    /never end this turn by asking whether to proceed/.test(resumePrompt)
+  ) {
+    pass('buildCycleResumePrompt forbids both live failure modes: unmarked rows and ending on a question');
+  } else {
+    fail('buildCycleResumePrompt lost its unmarked-rows / never-ask guards');
+  }
+
+  // Every path named in the prompt must be real — a resume cannot verify an
+  // instruction, it just follows it, so a stale path here silently degrades
+  // every batch. Two claims in the first draft of this block were wrong.
+  const promptScripts = [...resumePrompt.matchAll(/node (core\/[a-z-]+\.mjs)/g)].map(m => m[1]);
+  const missingScripts = promptScripts.filter(p => !existsSync(join(ROOT, p)));
+  if (promptScripts.length > 0 && missingScripts.length === 0) {
+    pass(`buildCycleResumePrompt names only real scripts (${promptScripts.length} checked)`);
+  } else {
+    fail(`buildCycleResumePrompt names missing scripts: ${missingScripts.join(', ')}`);
+  }
 } catch (e) {
   fail(`buildCycleResumePrompt coverage crashed: ${e.message}`);
 }
